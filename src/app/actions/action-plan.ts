@@ -17,7 +17,7 @@ async function logAudit(planId: string, action: string, data: Record<string, unk
       snapshot, user_id: user?.id,
       user_name: profile?.name || user?.email || "",
     });
-  } catch { /* non-critical */ }
+  } catch (error) { console.error("[logAudit] Error:", error); }
 }
 
 export async function getAuditLog(planId: string): Promise<AuditEntry[]> {
@@ -25,7 +25,7 @@ export async function getAuditLog(planId: string): Promise<AuditEntry[]> {
     const supabase = await createClient();
     const { data } = await supabase.from("plan_audit_log").select("*").eq("plan_id", planId).order("created_at", { ascending: false }).limit(50);
     return (data || []) as AuditEntry[];
-  } catch { return []; }
+  } catch (error) { console.error("[getAuditLog] Error:", error); return []; }
 }
 
 export async function getPlans(tenantId: string): Promise<ActionPlan[]> {
@@ -33,7 +33,7 @@ export async function getPlans(tenantId: string): Promise<ActionPlan[]> {
     const supabase = await createClient();
     const { data } = await supabase.from("action_plans").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false });
     return (data || []) as ActionPlan[];
-  } catch { return []; }
+  } catch (error) { console.error("[getPlans] Error:", error); return []; }
 }
 
 export async function getItems(planId: string): Promise<ActionItem[]> {
@@ -51,7 +51,7 @@ export async function getItems(planId: string): Promise<ActionItem[]> {
       } else { roots.push(node); }
     }
     return roots;
-  } catch { return []; }
+  } catch (error) { console.error("[getItems] Error:", error); return []; }
 }
 
 const planSchema = z.object({
@@ -96,7 +96,7 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
     if (plan) await logAudit(plan.id, "CREATE_PLAN", { ...v.data });
     revalidatePath("/planos");
     return { success: true, message: "Plano criado!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[createPlan] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function updatePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
@@ -111,7 +111,7 @@ export async function updatePlan(_prev: ActionPlanFormState, formData: FormData)
     await logAudit(planId, "UPDATE_PLAN", { ...v.data });
     revalidatePath("/planos");
     return { success: true, message: "Plano atualizado!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[updatePlan] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function deletePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
@@ -123,7 +123,7 @@ export async function deletePlan(_prev: ActionPlanFormState, formData: FormData)
     if (plan) await logAudit(planId, "UPDATE_PLAN", { deleted: plan.title });
     revalidatePath("/planos");
     return { success: true, message: "Plano excluído!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[deletePlan] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function upsertItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
@@ -167,10 +167,10 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
           });
         }
       }
-    } catch { /* non-critical */ }
+    } catch (error) { console.error("[upsertItem] Teams notification error:", error); }
 
     return { success: true, message: itemId ? "Item atualizado!" : "Item criado!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[upsertItem] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function deleteItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
@@ -183,5 +183,5 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
     if (item) await logAudit(item.plan_id, "DELETE_ITEM", { number: item.number, action: item.action }, itemId);
     revalidatePath("/planos");
     return { success: true, message: "Item excluído!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[deleteItem] Error:", error); return { message: "Serviço indisponível." }; }
 }

@@ -25,9 +25,7 @@ export async function getUserTenants(): Promise<Tenant[]> {
       .order("name");
 
     return (tenants || []) as Tenant[];
-  } catch {
-    return [];
-  }
+  } catch (error) { console.error("[getUserTenants] Error:", error); return []; }
 }
 
 export async function getCurrentTenant(): Promise<Tenant | null> {
@@ -64,9 +62,7 @@ export async function getCurrentTenant(): Promise<Tenant | null> {
 
     const tenants = await getUserTenants();
     return tenants[0] || null;
-  } catch {
-    return null;
-  }
+  } catch (error) { console.error("[getCurrentTenant] Error:", error); return null; }
 }
 
 export async function switchTenant(tenantId: string): Promise<boolean> {
@@ -97,9 +93,7 @@ export async function switchTenant(tenantId: string): Promise<boolean> {
 
     revalidatePath("/", "layout");
     return true;
-  } catch {
-    return false;
-  }
+  } catch (error) { console.error("[switchTenant] Error:", error); return false; }
 }
 
 export async function createTenant(
@@ -158,9 +152,7 @@ export async function createTenant(
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: `Empresa "${tenant.name}" criada com sucesso!` };
-  } catch {
-    return { message: "Serviço indisponível." };
-  }
+  } catch (error) { console.error("[createTenant] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function updateTenant(
@@ -205,7 +197,7 @@ export async function updateTenant(
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: "Empresa atualizada!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[updateTenant] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function removeTenantMember(
@@ -230,9 +222,7 @@ export async function removeTenantMember(
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: "Membro removido!" };
-  } catch {
-    return { message: "Serviço indisponível." };
-  }
+  } catch (error) { console.error("[removeTenantMember] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function updateTenantMemberRole(
@@ -265,9 +255,7 @@ export async function updateTenantMemberRole(
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: "Papel atualizado!" };
-  } catch {
-    return { message: "Serviço indisponível." };
-  }
+  } catch (error) { console.error("[updateTenantMemberRole] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function getAllTenants(): Promise<Tenant[]> {
@@ -278,9 +266,7 @@ export async function getAllTenants(): Promise<Tenant[]> {
       .select("*")
       .order("name");
     return (data || []) as Tenant[];
-  } catch {
-    return [];
-  }
+  } catch (error) { console.error("[getAllTenants] Error:", error); return []; }
 }
 
 export async function getUserTenantIds(userId: string): Promise<string[]> {
@@ -293,9 +279,7 @@ export async function getUserTenantIds(userId: string): Promise<string[]> {
 
     if (!data) return [];
     return data.map((m) => m.tenant_id);
-  } catch {
-    return [];
-  }
+  } catch (error) { console.error("[getUserTenantIds] Error:", error); return []; }
 }
 
 export async function setUserTenants(
@@ -343,9 +327,7 @@ export async function setUserTenants(
     revalidatePath("/admin/users");
     revalidatePath("/", "layout");
     return { success: true, message: "Empresas associadas com sucesso!" };
-  } catch {
-    return { message: "Serviço indisponível." };
-  }
+  } catch (error) { console.error("[setUserTenants] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function deleteTenant(
@@ -363,7 +345,7 @@ export async function deleteTenant(
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: "Empresa excluída!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[deleteTenant] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function addTenantMember(
@@ -388,7 +370,7 @@ export async function addTenantMember(
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: `${userName} adicionado!` };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[addTenantMember] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function getTenantMembers(tenantId: string): Promise<TenantMemberWithProfile[]> {
@@ -400,5 +382,5 @@ export async function getTenantMembers(tenantId: string): Promise<TenantMemberWi
     const { data: profiles } = await adminClient.from("profiles").select("id, name, email").in("id", userIds);
     const profileMap = new Map((profiles || []).map(p => [p.id, p]));
     return members.map(m => ({ ...m, profiles: profileMap.get(m.user_id) || null })) as TenantMemberWithProfile[];
-  } catch { return []; }
+  } catch (error) { console.error("[getTenantMembers] Error:", error); return []; }
 }

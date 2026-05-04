@@ -45,14 +45,14 @@ export async function getNotifications(): Promise<NotificationItem[]> {
     return notifications
       .filter(n => !n.expires_at || new Date(n.expires_at) > new Date())
       .map(n => ({ ...n, read: readIds.has(n.id) })) as NotificationItem[];
-  } catch { return []; }
+  } catch (error) { console.error("[getNotifications] Error:", error); return []; }
 }
 
 export async function getUnreadCount(): Promise<number> {
   try {
     const notifications = await getNotifications();
     return notifications.filter(n => !n.read).length;
-  } catch { return 0; }
+  } catch (error) { console.error("[getUnreadCount] Error:", error); return 0; }
 }
 
 export async function markAsRead(notificationId: string): Promise<void> {
@@ -61,7 +61,7 @@ export async function markAsRead(notificationId: string): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("notification_reads").upsert({ notification_id: notificationId, user_id: user.id }, { onConflict: "notification_id, user_id" });
-  } catch { /* non-critical */ }
+  } catch (error) { console.error("[markAsRead] Error:", error); }
 }
 
 export async function createNotification(
@@ -93,7 +93,7 @@ export async function createNotification(
 
     revalidatePath("/admin/notifications");
     return { success: true, message: "Notificação criada!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[createNotification] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function deleteNotification(
@@ -108,5 +108,5 @@ export async function deleteNotification(
     await supabase.from("notifications").delete().eq("id", id);
     revalidatePath("/admin/notifications");
     return { success: true, message: "Notificação excluída!" };
-  } catch { return { message: "Serviço indisponível." }; }
+  } catch (error) { console.error("[deleteNotification] Error:", error); return { message: "Serviço indisponível." }; }
 }

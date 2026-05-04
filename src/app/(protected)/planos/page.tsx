@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { getPlans, getItems, getAuditLog, createPlan, updatePlan, deletePlan, upsertItem, deleteItem } from "@/app/actions/action-plan";
@@ -21,6 +22,7 @@ const init: ActionPlanFormState = { message: undefined, errors: {} };
 
 export default function PlanosPage() {
   const { currentTenant } = useTenant();
+  const router = useRouter();
   const { toast } = useToast();
   const [plan, setPlan] = useState<ActionPlan | null>(null);
   const [items, setItems] = useState<ActionItem[]>([]);
@@ -76,13 +78,13 @@ export default function PlanosPage() {
     return () => { c = true; };
   }, [plan?.id]);
 
-  // Close modals on success
+  // Close modals on success and refresh data
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    if (planCreateState.success) { toast(planCreateState.message || "Plano criado!"); setShowPlanForm(false); }
-    if (planUpdateState.success) { toast(planUpdateState.message || "Plano atualizado!"); setShowPlanForm(false); }
-    if (itemState.success) { toast(itemState.message || "Item salvo!"); setShowItemForm(false); setEditingItem(null); }
-    if (inlineState.success) { toast(inlineState.message || "Item salvo!"); setInlineEditId(null); }
+    if (planCreateState.success) { toast(planCreateState.message || "Plano criado!"); setShowPlanForm(false); router.refresh(); }
+    if (planUpdateState.success) { toast(planUpdateState.message || "Plano atualizado!"); setShowPlanForm(false); router.refresh(); }
+    if (itemState.success) { toast(itemState.message || "Item salvo!"); setShowItemForm(false); setEditingItem(null); router.refresh(); }
+    if (inlineState.success) { toast(inlineState.message || "Item salvo!"); setInlineEditId(null); router.refresh(); }
     /* eslint-enable react-hooks/set-state-in-effect */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planCreateState.success, planUpdateState.success, itemState.success, inlineState.success]);
