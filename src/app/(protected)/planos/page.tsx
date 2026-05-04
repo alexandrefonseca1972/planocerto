@@ -4,7 +4,7 @@ import { useActionState, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
-import { getPlans, getItems, getAuditLog, createPlan, updatePlan, deletePlan, upsertItem, deleteItem } from "@/app/actions/action-plan";
+import { getPlans, getItems, getAuditLog, createPlan, updatePlan, deletePlan, upsertItem, deleteItem, updateItemStatus, bulkUpdateStatus } from "@/app/actions/action-plan";
 import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState } from "@/types/action-plan";
 import { STATUS_FAROL } from "@/types/action-plan";
 import { Button } from "@/components/ui/button";
@@ -188,6 +188,7 @@ export default function PlanosPage() {
             <StatPill color="bg-emerald-500" label="Concluídas" value={counts.done} />
             <StatPill color="bg-amber-500" label="Pendentes" value={counts.pending} />
             <div className="ml-auto flex items-center gap-2">
+              <BulkStatusButton planId={plan?.id || ""} filteredItems={filteredItems} toast={toast} router={router} />
               <ExportCsv items={items} filename={`plano-${plan?.unit || plan?.title || "export"}`} />
               <Button variant="ghost" size="sm" onClick={() => { const next = viewMode === "table" ? "kanban" : "table"; setViewMode(next); localStorage.setItem("planos-view", next); }} title={viewMode === "table" ? "Ver como Kanban" : "Ver como Tabela"}>
                 {viewMode === "table" ? <Columns3 className="h-4 w-4 mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}
@@ -249,7 +250,12 @@ export default function PlanosPage() {
 
       {/* Table or Kanban View */}
       {viewMode === "kanban" ? (
-        <KanbanBoard items={items} onEdit={setEditingItem} onShowForm={setShowItemForm} />
+        <KanbanBoard items={items} onEdit={setEditingItem} onShowForm={setShowItemForm}
+          onStatusChange={async (itemId, newStatus) => {
+            await updateItemStatus(itemId, newStatus);
+            router.refresh();
+            toast("Status atualizado!");
+          }} />
       ) : (
         items.length === 0 ? (
         <Card>
@@ -752,5 +758,51 @@ function Field({ label, name, value, onChange, multiline, required, placeholder,
 
 function Msg({ state }: { state: ActionPlanFormState }) {
   return <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-950/50 dark:text-red-300">{state.message}</div>;
+}
+
+function BulkStatusButton({ planId, filteredItems, toast, router }: {
+  planId: string; filteredItems: ActionItem[]; toast: (msg: string) => void; router: ReturnType<typeof import("next/navigation").useRouter>;
+}) {
+  const [show, setShow] = useState(false);
+  if (!planId || !filteredItems.length) return null;
+
+  const handleBulk = async (status: number) => {
+    setShow(false);
+    const ids = filteredItems.map(i => i.id);
+    const result = await bulkUpdateStatus(planId, ids, status);
+    if (result.success) {
+      toast(result.message || "Atualizado!");
+      router.refresh();
+    } else {
+      toast(result.message || "Erro ao atualizar.");
+    }
+  };
+
+  const statusOptions = [
+    { status: 1, label: "Não Iniciada" },
+    { status: 2, label: "Pendente" },
+    { status: 4, label: "Em andamento" },
+    { status: 5, label: "Concluído" },
+  ];
+
+  return (
+    <div className="relative">
+      <Button variant="ghost" size="sm" onClick={() => setShow(!show)}>
+        <Save className="h-3.5 w-3.5 mr-1" />
+        Lote ({filteredItems.length})
+      </Button>
+      {show && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="px-3 py-2 text-xs font-semibold text-zinc-500">Alterar status</div>
+          {statusOptions.map(opt => (
+            <button key={opt.status} onClick={() => handleBulk(opt.status)} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800">
+              <span className={cn("h-2 w-2 rounded-full", opt.status === 5 ? "bg-emerald-500" : opt.status === 4 ? "bg-blue-500" : opt.status === 2 ? "bg-amber-500" : "bg-zinc-400")} />
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 

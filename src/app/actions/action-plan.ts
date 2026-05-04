@@ -195,3 +195,43 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
     return { success: true, message: "Item excluído!" };
   } catch (error) { console.error("[deleteItem] Error:", error); return { message: "Serviço indisponível." }; }
 }
+
+export async function updateItemStatus(itemId: string, status: number): Promise<ActionPlanFormState> {
+  try {
+    if (!itemId) return { message: "ID obrigatório." };
+    if (status < 1 || status > 5) return { message: "Status inválido." };
+
+    const supabase = await createClient();
+    const { data: item } = await supabase.from("action_items").select("plan_id,number,action").eq("id", itemId).single();
+    if (!item) return { message: "Item não encontrado." };
+
+    const { error } = await supabase.from("action_items").update({ status, updated_at: new Date().toISOString() }).eq("id", itemId);
+    if (error) return { message: "Erro ao atualizar." };
+
+    await logAudit(item.plan_id, "UPDATE_ITEM", { status }, itemId);
+
+    revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
+
+    return { success: true, message: "Status atualizado!" };
+  } catch (error) { console.error("[updateItemStatus] Error:", error); return { message: "Serviço indisponível." }; }
+}
+
+export async function bulkUpdateStatus(planId: string, itemIds: string[], status: number): Promise<ActionPlanFormState> {
+  try {
+    if (!planId) return { message: "Plano obrigatório." };
+    if (!itemIds.length) return { message: "Selecione pelo menos um item." };
+    if (status < 1 || status > 5) return { message: "Status inválido." };
+
+    const supabase = await createClient();
+    const { error } = await supabase.from("action_items").update({ status, updated_at: new Date().toISOString() }).in("id", itemIds);
+    if (error) return { message: "Erro ao atualizar." };
+
+    revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
+
+    return { success: true, message: `${itemIds.length} itens atualizados!` };
+  } catch (error) { console.error("[bulkUpdateStatus] Error:", error); return { message: "Serviço indisponível." }; }
+}

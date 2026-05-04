@@ -7,6 +7,8 @@ import {
   loginSchema,
   registerSchema,
   profileSchema,
+  resetSchema,
+  updatePasswordSchema,
 } from "@/lib/validations/auth";
 import type { FormState } from "@/types/auth";
 
@@ -87,7 +89,7 @@ export async function signup(
 
     const supabase = await createClient();
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: validated.data.email,
       password: validated.data.password,
       options: {
@@ -108,18 +110,12 @@ export async function signup(
       };
     }
 
-    // Auto-confirm the user — admin will approve by associating tenants
-    if (data.user) {
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const adminClient = createAdminClient();
-      await adminClient.auth.admin.updateUserById(data.user.id, {
-        email_confirm: true,
-      });
-    }
+    // User needs to confirm email via Supabase email
+    // Admin will approve by associating tenants after confirmation
 
     return {
       success: true,
-      message: "Conta criada com sucesso! Aguarde o administrador associar sua conta a uma empresa.",
+      message: "Conta criada! Verifique seu email para confirmar o cadastro.",
     };
   } catch (error) {
     console.error("[signup] Erro:", error);
@@ -140,6 +136,78 @@ export async function logout(): Promise<void> {
   }
 
   redirect("/auth");
+}
+
+export async function resetPassword(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  try {
+    const rawData = { email: formData.get("email") };
+    const validated = resetSchema.safeParse(rawData);
+
+    if (!validated.success) {
+      return {
+        errors: validated.error.flatten().fieldErrors,
+        message: "Verifique o email e tente novamente.",
+      };
+    }
+
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      validated.data.email,
+      { redirectTo: "https://planocerto.ruphus.app/auth/update-password" }
+    );
+
+    if (error) {
+      return { message: "Erro ao enviar email de recuperação. Tente novamente." };
+    }
+
+    return {
+      success: true,
+      message: "Email de recuperação enviado! Verifique sua caixa de entrada.",
+    };
+  } catch (error) {
+    console.error("[resetPassword] Erro:", error);
+    return { message: "Serviço indisponível no momento." };
+  }
+}
+
+export async function updatePassword(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  try {
+    const rawData = {
+      password: formData.get("password"),
+      confirmPassword: formData.get("confirmPassword"),
+    };
+
+    const validated = updatePasswordSchema.safeParse(rawData);
+
+    if (!validated.success) {
+      return {
+        errors: validated.error.flatten().fieldErrors,
+        message: "Verifique os campos e tente novamente.",
+      };
+    }
+
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({
+      password: validated.data.password,
+    });
+
+    if (error) {
+      return { message: "Erro ao atualizar senha. O link pode ter expirado." };
+    }
+
+    revalidatePath("/", "layout");
+  } catch (error) {
+    console.error("[updatePassword] Erro:", error);
+    return { message: "Serviço indisponível no momento." };
+  }
+
+  redirect("/auth?message=Senha alterada com sucesso!");
 }
 
 export async function updateProfile(

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { sanitizeInput } from "@/lib/utils";
 import { Mail, Lock, LogIn } from "lucide-react";
+import Link from "next/link";
 
 const initialState: FormState = {
   message: undefined,
@@ -98,6 +99,12 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           onChange={(e) => setRememberMe(e.target.checked)}
         />
       </div>
+
+      <p className="text-right text-xs">
+        <Link href="/auth/reset" className="text-zinc-500 underline underline-offset-2 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-300">
+          Esqueceu a senha?
+        </Link>
+      </p>
 
       {state.message && !state.success && (
         <div
