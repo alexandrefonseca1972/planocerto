@@ -15,6 +15,10 @@ export function createClient() {
     );
   }
 
-  cached = createBrowserClient<Database>(url, anonKey);
+  cached = createBrowserClient<Database>(url, anonKey, {
+    auth: {
+      persistSession: false,
+    },
+  });
   return cached;
 }

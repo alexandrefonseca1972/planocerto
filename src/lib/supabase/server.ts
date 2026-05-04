@@ -16,14 +16,13 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              // Strip expiry — session cookies cleared on browser close
+              const { expires, maxAge, ...rest } = options || {};
+              cookieStore.set(name, value, rest);
+            });
           } catch (error) {
-            console.error(
-              "[supabase/server] Erro ao definir cookies:",
-              error
-            );
+            console.error("[supabase/server] Erro ao definir cookies:", error);
           }
         },
       },

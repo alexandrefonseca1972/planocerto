@@ -20,9 +20,11 @@ export async function proxy(request: NextRequest) {
               request.cookies.set(name, value)
             );
             supabaseResponse = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              // Remove expiry to make session cookies (cleared on browser close)
+              const { expires, maxAge, ...rest } = options || {};
+              supabaseResponse.cookies.set(name, value, rest);
+            });
           },
         },
       }
