@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PlanocertoLogo } from "@/components/layout/planocerto-logo";
 import { ClipboardList, Building2, LayoutGrid, Bell, Shield, Users, ArrowRight, Target, CheckCircle2, TrendingUp } from "lucide-react";
+import { HeroIllustration } from "@/components/layout/hero-illustration";
 
 const features = [
   { icon: ClipboardList, title: "Planos 5W2H", desc: "Estruture ações com O Quê, Por Quê, Onde, Quem e Quando. Metodologia comprovada de gestão." },
@@ -35,38 +36,42 @@ export default function HomePage() {
         {/* Hero */}
         <section className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-100/40 via-transparent to-zinc-50 dark:from-blue-950/30 dark:to-zinc-950 pointer-events-none" />
-          <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 text-center sm:px-6 lg:px-8 lg:pt-24 lg:pb-28">
-            <div className="mx-auto mb-6 inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-              <Target className="h-3.5 w-3.5 text-blue-500" />
-              Plataforma de Planos de Ação 5W2H
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-5xl lg:text-6xl">
-              Do planejamento à
-              <span className="block bg-gradient-to-r from-blue-800 to-blue-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-blue-300">execução com método.</span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Crie planos de ação estruturados, acompanhe o progresso em tempo real e integre
-              com o Microsoft Teams. Sua equipe alinhada em um único lugar.
-            </p>
-
-            {/* Highlights */}
-            <div className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-3">
-              {highlights.map(h => (
-                <span key={h.label} className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> {h.value}
-                  <span className="text-zinc-400">·</span>
-                  <span className="text-zinc-500">{h.label}</span>
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-10 flex items-center justify-center gap-4">
-              <Link href="/auth" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-8 text-base font-semibold text-zinc-50 transition-all hover:bg-zinc-800 hover:shadow-lg dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200">
-                Comece agora <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link href="/auth" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-8 text-base font-medium text-zinc-900 transition-all hover:bg-zinc-50 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800">
-                Fazer login
-              </Link>
+          <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 lg:px-8 lg:pt-24 lg:pb-28">
+            <div className="grid items-center gap-8 lg:grid-cols-2">
+              <div className="text-center lg:text-left">
+                <div className="mx-auto mb-6 inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:mx-0">
+                  <Target className="h-3.5 w-3.5 text-blue-500" />
+                  Plataforma de Planos de Ação 5W2H
+                </div>
+                <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-5xl lg:text-6xl">
+                  Do planejamento à
+                  <span className="block bg-gradient-to-r from-blue-800 to-blue-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-blue-300">execução com método.</span>
+                </h1>
+                <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400 max-w-xl lg:mx-0 mx-auto">
+                  Crie planos de ação estruturados, acompanhe o progresso em tempo real e integre
+                  com o Microsoft Teams. Sua equipe alinhada em um único lugar.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center gap-3 lg:justify-start justify-center">
+                  {highlights.map(h => (
+                    <span key={h.label} className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> {h.value}
+                      <span className="text-zinc-400">·</span>
+                      <span className="text-zinc-500">{h.label}</span>
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-8 flex items-center gap-4 lg:justify-start justify-center">
+                  <Link href="/auth" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-8 text-base font-semibold text-zinc-50 transition-all hover:bg-zinc-800 hover:shadow-lg dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200">
+                    Comece agora <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link href="/auth" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-8 text-base font-medium text-zinc-900 transition-all hover:bg-zinc-50 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800">
+                    Fazer login
+                  </Link>
+                </div>
+              </div>
+              <div className="hidden lg:flex items-center justify-center">
+                <HeroIllustration className="w-full max-w-[500px]" />
+              </div>
             </div>
           </div>
         </section>
@@ -126,7 +131,7 @@ export default function HomePage() {
               Pronto para organizar seus planos?
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-zinc-500 dark:text-zinc-400">
-              Crie sua conta gratuita e comece a gerenciar planos de ação com metodologia 5W2H.
+              Crie sua conta e comece a gerenciar planos de ação com metodologia 5W2H.
             </p>
             <Link href="/auth" className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-8 text-base font-semibold text-zinc-50 transition-all hover:bg-zinc-800 hover:shadow-lg dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200">
               Criar minha conta <ArrowRight className="h-4 w-4" />
