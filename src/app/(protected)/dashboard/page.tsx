@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { DistributionCard } from "@/components/dashboard/distribution-card";
 import { ProgressByUnit } from "@/components/dashboard/progress-by-unit";
+import { DetailTable } from "@/components/dashboard/detail-table";
 import { getUserTenants } from "@/app/actions/tenant";
-import { Building2, CheckCircle2, Clock, Calendar, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight, Target } from "lucide-react";
+import { Building2, CheckCircle2, Clock, Calendar, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = { title: "Dashboard | PlanoCerto", description: "Resumo executivo." };
@@ -132,7 +132,6 @@ export default async function DashboardPage() {
 
   globalTotal = globalTotal || 0;
   const completionRate = globalTotal > 0 ? Math.round((globalCompleted / globalTotal) * 100) : 0;
-  const progressRate = globalTotal > 0 ? Math.round(((globalCompleted + globalProgress * 0.5) / globalTotal) * 100) : 0;
   const greeting = new Date().getHours() < 12 ? "Bom dia" : new Date().getHours() < 18 ? "Boa tarde" : "Boa noite";
 
   return (
@@ -210,36 +209,10 @@ export default async function DashboardPage() {
       </div>
 
       {/* Detail Table */}
-      {tenantSummaries.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-zinc-500" /> Detalhamento por unidade</CardTitle></CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead><tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">Unidade</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Total</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Concluídas</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Andamento</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Pendentes</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Atrasadas</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Progresso</th></tr></thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {tenantSummaries.map((t) => (
-                    <tr key={t.id} className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-                      <td className="px-4 py-2.5">
-                        <Link href="/planos" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50 truncate max-w-[200px] block">{t.name}</Link>
-                      </td>
-                      <td className="px-4 py-2.5 text-center font-mono text-xs text-zinc-600">{t.totalActions}</td>
-                      <td className="px-4 py-2.5 text-center font-mono text-xs text-emerald-600">{t.completed}</td>
-                      <td className="px-4 py-2.5 text-center font-mono text-xs text-blue-600">{t.inProgress}</td>
-                      <td className="px-4 py-2.5 text-center font-mono text-xs text-amber-600">{t.pending}</td>
-                      <td className="px-4 py-2.5 text-center font-mono text-xs text-red-600">{t.overdue}</td>
-                      <td className="px-4 py-2.5 text-center"><Badge variant="outline" className={cn("text-xs font-mono", t.progressPct >= 80 ? "border-emerald-300 text-emerald-700 bg-emerald-50" : t.progressPct >= 50 ? "border-blue-300 text-blue-700 bg-blue-50" : "border-amber-300 text-amber-700 bg-amber-50")}>{t.progressPct}%</Badge></td>
-                    </tr>
-                  ))}
-                  <tr className="border-t-2 border-zinc-200 bg-zinc-50/50 font-semibold dark:border-zinc-700 dark:bg-zinc-800/50">
-                    <td className="px-4 py-2.5">Total</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalTotal}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalCompleted}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalProgress}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalPending}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalOverdue}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{progressRate}%</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <DetailTable units={tenantSummaries.map(t => ({
+        id: t.id, name: t.name, totalActions: t.totalActions, completed: t.completed,
+        inProgress: t.inProgress, pending: t.pending, progressPct: t.progressPct, overdue: t.overdue
+      }))} />
     </div>
   );
 }
