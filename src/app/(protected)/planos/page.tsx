@@ -20,6 +20,7 @@ import { flattenItems, fmt, trunc, FarolIcon } from "@/components/planos/plan-ut
 import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
+import { AttachmentSection } from "@/components/planos/attachment-section";
 import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2 } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
@@ -717,6 +718,7 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
             <Field label="Resultado Esperado" name="expected_result" value={item?.expected_result || ""} multiline placeholder="O que se espera alcançar" />
             <Field label="Resultado Real" name="actual_result" value={item?.actual_result || ""} multiline placeholder="Alcançado" />
             <Field label="Observações" name="observations" value={item?.observations || ""} multiline placeholder="Acompanhamento" />
+            {item?.id && <AttachmentSection itemId={item.id} />}
           </div>
         )}
         {state.message && !state.success && <Msg state={state} />}

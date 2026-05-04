@@ -150,6 +150,12 @@ export interface Database {
         Update: { id?: string; plan_id?: string; token?: string; expires_at?: string | null; created_by?: string | null; created_at?: string; };
         Relationships: [];
       };
+      plan_attachments: {
+        Row: { id: string; item_id: string; filename: string; storage_path: string; size: number; mime_type: string; uploaded_by: string | null; created_at: string; };
+        Insert: { id?: string; item_id: string; filename: string; storage_path: string; size: number; mime_type: string; uploaded_by?: string | null; created_at?: string; };
+        Update: { id?: string; item_id?: string; filename?: string; storage_path?: string; size?: number; mime_type?: string; uploaded_by?: string | null; created_at?: string; };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
