@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loginSchema, registerSchema, profileSchema } from "@/lib/validations/auth";
+import { loginSchema, registerSchema, profileSchema, resetSchema, updatePasswordSchema } from "@/lib/validations/auth";
 
 describe("loginSchema", () => {
   it("accepts valid email and password", () => {
@@ -86,6 +86,78 @@ describe("profileSchema", () => {
 
   it("rejects short name", () => {
     const result = profileSchema.safeParse({ name: "J" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("resetSchema", () => {
+  it("accepts valid email", () => {
+    const result = resetSchema.safeParse({ email: "user@example.com" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects empty email", () => {
+    const result = resetSchema.safeParse({ email: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid email format", () => {
+    const result = resetSchema.safeParse({ email: "notanemail" });
+    expect(result.success).toBe(false);
+  });
+
+  it("lowercases the email", () => {
+    const result = resetSchema.safeParse({ email: "USER@Example.COM" });
+    expect(result.data?.email).toBe("user@example.com");
+  });
+});
+
+describe("updatePasswordSchema", () => {
+  it("accepts valid password pair", () => {
+    const result = updatePasswordSchema.safeParse({
+      password: "StrongP@ss1",
+      confirmPassword: "StrongP@ss1",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects short password", () => {
+    const result = updatePasswordSchema.safeParse({
+      password: "Abc1@",
+      confirmPassword: "Abc1@",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects password without uppercase", () => {
+    const result = updatePasswordSchema.safeParse({
+      password: "strongp@ss1",
+      confirmPassword: "strongp@ss1",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects password without number", () => {
+    const result = updatePasswordSchema.safeParse({
+      password: "StrongP@ss",
+      confirmPassword: "StrongP@ss",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects password without special char", () => {
+    const result = updatePasswordSchema.safeParse({
+      password: "StrongPass1",
+      confirmPassword: "StrongPass1",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects mismatched passwords", () => {
+    const result = updatePasswordSchema.safeParse({
+      password: "StrongP@ss1",
+      confirmPassword: "Different1@",
+    });
     expect(result.success).toBe(false);
   });
 });
