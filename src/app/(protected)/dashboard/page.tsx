@@ -10,7 +10,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = { title: "Dashboard | PlanoCerto", description: "Resumo executivo." };
 
-interface TenantSummary { id: string; name: string; totalActions: number; completed: number; inProgress: number; pending: number; progress: number; overdue: number; }
+interface TenantSummary { id: string; name: string; totalActions: number; completed: number; inProgress: number; pending: number; progress: number; progressPct: number; overdue: number; }
 
 interface DeadlineItem { id: string; title: string; deadline: string; tenant: string; number: string; urgent: boolean; daysLeft: number; planId: string; }
 
@@ -114,7 +114,10 @@ export default async function DashboardPage() {
         }
       }
 
-      tenantSummaries.push({ id: tenant.id, name: tenant.name, totalActions: total, completed, inProgress: progress, pending, progress: total > 0 ? Math.round((completed / total) * 100) : 0, overdue });
+      tenantSummaries.push({ id: tenant.id, name: tenant.name, totalActions: total, completed, inProgress: progress, pending,
+        progress: total > 0 ? Math.round((completed / total) * 100) : 0,
+        progressPct: total > 0 ? Math.round(((completed + progress * 0.5) / total) * 100) : 0,
+        overdue });
       globalTotal += total; globalCompleted += completed; globalProgress += progress; globalPending += pending; globalOverdue += overdue;
     }
 
@@ -128,6 +131,7 @@ export default async function DashboardPage() {
 
   globalTotal = globalTotal || 0;
   const completionRate = globalTotal > 0 ? Math.round((globalCompleted / globalTotal) * 100) : 0;
+  const progressRate = globalTotal > 0 ? Math.round(((globalCompleted + globalProgress * 0.5) / globalTotal) * 100) : 0;
   const greeting = new Date().getHours() < 12 ? "Bom dia" : new Date().getHours() < 18 ? "Boa tarde" : "Boa noite";
 
   return (
@@ -222,18 +226,22 @@ export default async function DashboardPage() {
               <div className="flex flex-col items-center py-8 text-center"><Building2 className="h-8 w-8 text-zinc-300 dark:text-zinc-600" /><p className="mt-2 text-sm text-zinc-500">Nenhuma unidade.</p></div>
             ) : (
               <div className="space-y-3 max-h-72 overflow-y-auto">
-                {tenantSummaries.map((t) => (
+                {tenantSummaries.map((t) => {
+                    const doneW = t.totalActions > 0 ? Math.round((t.completed / t.totalActions) * 100) : 0;
+                    const progW = t.totalActions > 0 ? Math.round((t.inProgress / t.totalActions) * 100 * 0.5) : 0;
+                    return (
                   <Link key={t.id} href="/planos" className="block">
                     <div className="mb-1 flex items-center justify-between text-xs">
                       <span className="font-medium text-zinc-700 hover:underline dark:text-zinc-300 truncate max-w-[65%]">{t.name}</span>
-                      <span className="font-mono text-zinc-500">{t.progress}%</span>
+                      <span className="font-mono text-zinc-500">{t.progressPct}%</span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                      <div className={cn("h-full rounded-full transition-all", t.progress >= 80 ? "bg-emerald-500" : t.progress >= 50 ? "bg-blue-500" : t.progress >= 25 ? "bg-amber-500" : "bg-zinc-400")} style={{ width: `${Math.max(t.progress, 3)}%` }} />
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800 flex">
+                      <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.max(doneW, doneW > 0 ? 3 : 0)}%` }} />
+                      <div className="h-full bg-blue-400 transition-all" style={{ width: `${Math.max(progW, progW > 0 ? 3 : 0)}%` }} />
                     </div>
-                    <p className="mt-0.5 text-xs text-zinc-400">{t.completed}/{t.totalActions} · {t.overdue} atrasadas</p>
+                    <p className="mt-0.5 text-xs text-zinc-400">{t.completed}/{t.totalActions} concluídas · {t.inProgress} andamento · {t.overdue} atrasadas</p>
                   </Link>
-                ))}
+                    )})}
               </div>
             )}
           </CardContent>
@@ -259,11 +267,11 @@ export default async function DashboardPage() {
                       <td className="px-4 py-2.5 text-center font-mono text-xs text-blue-600">{t.inProgress}</td>
                       <td className="px-4 py-2.5 text-center font-mono text-xs text-amber-600">{t.pending}</td>
                       <td className="px-4 py-2.5 text-center font-mono text-xs text-red-600">{t.overdue}</td>
-                      <td className="px-4 py-2.5 text-center"><Badge variant="outline" className={cn("text-xs font-mono", t.progress >= 80 ? "border-emerald-300 text-emerald-700 bg-emerald-50" : t.progress >= 50 ? "border-blue-300 text-blue-700 bg-blue-50" : "border-amber-300 text-amber-700 bg-amber-50")}>{t.progress}%</Badge></td>
+                      <td className="px-4 py-2.5 text-center"><Badge variant="outline" className={cn("text-xs font-mono", t.progressPct >= 80 ? "border-emerald-300 text-emerald-700 bg-emerald-50" : t.progressPct >= 50 ? "border-blue-300 text-blue-700 bg-blue-50" : "border-amber-300 text-amber-700 bg-amber-50")}>{t.progressPct}%</Badge></td>
                     </tr>
                   ))}
                   <tr className="border-t-2 border-zinc-200 bg-zinc-50/50 font-semibold dark:border-zinc-700 dark:bg-zinc-800/50">
-                    <td className="px-4 py-2.5">Total</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalTotal}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalCompleted}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalProgress}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalPending}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalOverdue}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{completionRate}%</td>
+                    <td className="px-4 py-2.5">Total</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalTotal}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalCompleted}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalProgress}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalPending}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{globalOverdue}</td><td className="px-4 py-2.5 text-center font-mono text-xs">{progressRate}%</td>
                   </tr>
                 </tbody>
               </table>
