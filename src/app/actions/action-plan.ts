@@ -55,15 +55,15 @@ export async function getItems(planId: string): Promise<ActionItem[]> {
 }
 
 const planSchema = z.object({
-  title: z.string().min(2).max(200).trim(),
+  title: z.string().trim().min(2).max(200),
   unit: z.string().max(200).trim().optional(),
   director: z.string().max(200).trim().optional(),
   goal: z.string().max(1000).trim().optional(),
 });
 
 const itemSchema = z.object({
-  action: z.string().min(1, "Ação obrigatória.").max(500).trim(),
-  number: z.string().min(1).max(20),
+  action: z.string().trim().min(1, "Ação obrigatória.").max(500),
+  number: z.string().trim().min(1).max(20),
   parent_id: z.string().optional(),
   sort_order: z.coerce.number().int().default(0),
   why: z.string().max(1000).trim().optional(),
@@ -95,6 +95,8 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
     if (error) return { message: "Erro ao criar plano." };
     if (plan) await logAudit(plan.id, "CREATE_PLAN", { ...v.data });
     revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
     return { success: true, message: "Plano criado!" };
   } catch (error) { console.error("[createPlan] Error:", error); return { message: "Serviço indisponível." }; }
 }
@@ -110,6 +112,8 @@ export async function updatePlan(_prev: ActionPlanFormState, formData: FormData)
     if (error) return { message: "Erro ao atualizar." };
     await logAudit(planId, "UPDATE_PLAN", { ...v.data });
     revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
     return { success: true, message: "Plano atualizado!" };
   } catch (error) { console.error("[updatePlan] Error:", error); return { message: "Serviço indisponível." }; }
 }
@@ -120,8 +124,10 @@ export async function deletePlan(_prev: ActionPlanFormState, formData: FormData)
     const supabase = await createClient();
     const { data: plan } = await supabase.from("action_plans").select("title").eq("id", planId).single();
     await supabase.from("action_plans").delete().eq("id", planId);
-    if (plan) await logAudit(planId, "UPDATE_PLAN", { deleted: plan.title });
+    if (plan) await logAudit(planId, "DELETE_PLAN", { deleted: plan.title });
     revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
     return { success: true, message: "Plano excluído!" };
   } catch (error) { console.error("[deletePlan] Error:", error); return { message: "Serviço indisponível." }; }
 }
@@ -153,6 +159,8 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
       if (created) await logAudit(planId, "CREATE_ITEM", { ...payload }, created.id);
     }
     revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
 
     // Teams notification
     try {
@@ -182,6 +190,8 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
     await supabase.from("action_items").delete().eq("id", itemId);
     if (item) await logAudit(item.plan_id, "DELETE_ITEM", { number: item.number, action: item.action }, itemId);
     revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
     return { success: true, message: "Item excluído!" };
   } catch (error) { console.error("[deleteItem] Error:", error); return { message: "Serviço indisponível." }; }
 }

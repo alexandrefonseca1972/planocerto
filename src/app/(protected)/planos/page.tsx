@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
@@ -16,7 +16,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { sanitizeInput, cn } from "@/lib/utils";
 import { ExportCsv } from "@/components/layout/export-csv";
-import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Circle, Clock, AlertTriangle, Play, CheckCircle2, Columns3, Table2 } from "lucide-react";
+import { flattenItems, fmt, trunc, FarolIcon } from "@/components/planos/plan-utils";
+import { KanbanBoard } from "@/components/planos/plan-kanban";
+import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2 } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
 
@@ -102,7 +104,7 @@ export default function PlanosPage() {
     setExpandedRows(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   };
 
-  const allItems = flattenItems(items);
+  const allItems = useMemo(() => flattenItems(items), [items]);
   const filteredItems = allItems.filter(i => {
     const matchesSearch = !searchQuery || i.action.toLowerCase().includes(searchQuery.toLowerCase()) || i.number.includes(searchQuery) || (i.responsible || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === null || i.status === statusFilter;
@@ -464,7 +466,6 @@ function EditRow({ item, planId, inlineAction, inlinePending, onCancel }: {
         <input type="hidden" name="where" value={item.where || ""} />
         <input type="hidden" name="cost" value={item.cost || ""} />
         <input type="hidden" name="expected_result" value={item.expected_result || ""} />
-        <input type="hidden" name="expected_result" value={item.expected_result || ""} />
         <input type="hidden" name="actual_result" value={item.actual_result || ""} />
         <input type="hidden" name="observations" value={item.observations || ""} />
         <input type="hidden" name="planned_start" value={item.planned_start || ""} />
@@ -753,77 +754,3 @@ function Msg({ state }: { state: ActionPlanFormState }) {
   return <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-950/50 dark:text-red-300">{state.message}</div>;
 }
 
-function flattenItems(items: ActionItem[]): ActionItem[] {
-  const r: ActionItem[] = []; for (const i of items) { r.push(i); if (i.children) r.push(...flattenItems(i.children)); } return r;
-}
-
-function fmt(d: string) { return new Date(d + "T00:00:00").toLocaleDateString("pt-BR"); }
-function trunc(s: string, n: number) { return s.length > n ? s.slice(0, n) + "…" : s; }
-
-function FarolIcon({ status }: { status: number }) {
-  const cls = "h-3.5 w-3.5";
-  switch (status) {
-    case 1: return <Circle className={cls + " text-zinc-400"} />;
-    case 2: return <Clock className={cls + " text-amber-500"} />;
-    case 3: return <AlertTriangle className={cls + " text-red-500 animate-pulse"} />;
-    case 4: return <Play className={cls + " text-blue-500"} />;
-    case 5: return <CheckCircle2 className={cls + " text-emerald-500"} />;
-    default: return <Circle className={cls + " text-zinc-400"} />;
-  }
-}
-
-function KanbanBoard({ items, onEdit, onShowForm }: {
-  items: ActionItem[]; onEdit: (i: ActionItem) => void; onShowForm: (s: boolean) => void;
-}) {
-  const columns = [
-    { status: 1, label: "Não Iniciada", color: "border-zinc-300 dark:border-zinc-600", bg: "bg-zinc-50/50 dark:bg-zinc-800/20", dot: "bg-zinc-400" },
-    { status: 2, label: "Pendente", color: "border-amber-300 dark:border-amber-700", bg: "bg-amber-50/30 dark:bg-amber-950/20", dot: "bg-amber-400" },
-    { status: 4, label: "Em andamento", color: "border-blue-300 dark:border-blue-700", bg: "bg-blue-50/30 dark:bg-blue-950/20", dot: "bg-blue-400" },
-    { status: 3, label: "Em andamento (atraso)", color: "border-red-300 dark:border-red-700", bg: "bg-red-50/30 dark:bg-red-950/20", dot: "bg-red-500" },
-    { status: 5, label: "Concluído", color: "border-emerald-300 dark:border-emerald-700", bg: "bg-emerald-50/30 dark:bg-emerald-950/20", dot: "bg-emerald-400" },
-  ];
-
-  const allItems = flattenItems(items).filter(i => !i.children?.length);
-
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      {columns.map((col) => {
-        const colItems = allItems.filter(i => i.status === col.status);
-        return (
-          <div key={col.status} className={cn("rounded-xl border-2", col.color, col.bg)}>
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-200/50 dark:border-zinc-700/50">
-              <div className="flex items-center gap-2">
-                <span className={cn("h-2.5 w-2.5 rounded-full", col.dot)} />
-                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{col.label}</span>
-              </div>
-              <span className="text-xs font-mono text-zinc-400">{colItems.length}</span>
-            </div>
-            <div className="space-y-2 p-2 min-h-[120px]">
-              {colItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => { onEdit(item); onShowForm(true); }}
-                  className="w-full rounded-lg border border-zinc-200/60 bg-white p-2.5 text-left shadow-sm transition-all hover:shadow-md hover:border-zinc-300 dark:border-zinc-700/60 dark:bg-zinc-900 dark:hover:border-zinc-600"
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="mt-0.5 font-mono text-[10px] text-zinc-400">{item.number}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 leading-snug line-clamp-2">{item.action}</p>
-                      <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
-                        {item.responsible && <span className="flex items-center gap-1"><UserCircle className="h-3 w-3" />{item.responsible}</span>}
-                        {item.planned_end && <span>{fmt(item.planned_end)}</span>}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-              {colItems.length === 0 && (
-                <p className="py-6 text-center text-xs text-zinc-400">Nenhuma ação</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}

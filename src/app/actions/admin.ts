@@ -196,12 +196,21 @@ export async function updateUser(
       return { message: "Erro ao atualizar dados de autenticação do usuário." };
     }
 
+    let parsedPermissions;
+    if (permissions) {
+      try {
+        parsedPermissions = JSON.parse(permissions);
+      } catch {
+        return { message: "Permissões em formato JSON inválido." };
+      }
+    }
+
     const { error: profileError } = await adminClient
       .from("profiles")
       .update({
         name: validated.data.name,
         role: validated.data.role,
-        permissions: permissions ? JSON.parse(permissions) : undefined,
+        permissions: parsedPermissions,
         login_start_time: loginStart || null,
         login_end_time: loginEnd || null,
         is_active: isActive,

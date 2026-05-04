@@ -396,6 +396,7 @@ export async function addTenantMember(
     const adminClient = createAdminClient();
     const { data: profiles } = await adminClient.from("profiles").select("id, name").eq("email", email);
     if (!profiles?.length) return { message: "Usuário não encontrado." };
+    if (profiles.length > 1) return { message: "Múltiplos usuários com este email. Contate o suporte." };
     const userName = profiles[0].name || email;
     const { error } = await adminClient.from("tenant_members").insert({ tenant_id: tenantId, user_id: profiles[0].id, role: "member" });
     if (error) {

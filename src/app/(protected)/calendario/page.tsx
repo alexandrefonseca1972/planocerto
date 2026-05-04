@@ -18,6 +18,7 @@ export default async function CalendarioPage() {
   const deadlines: Record<string, DeadlineItem[]> = {};
   let currentTenantName = "";
   let currentTenantId = "";
+  let noTenant = false;
 
   try {
     const supabase = await createClient();
@@ -31,13 +32,12 @@ export default async function CalendarioPage() {
 
     const tenants = await getUserTenants();
     const activeTenant = tenants.find(t => t.id === currentTenantId) || tenants[0];
-    if (activeTenant) currentTenantName = activeTenant.name;
+    if (!activeTenant) { noTenant = true; return; }
+    currentTenantName = activeTenant.name;
 
     // Fetch plans only for active tenant
     const query = supabase.from("action_plans").select("id,tenant_id,title");
-    const { data: allPlans } = activeTenant
-      ? await query.eq("tenant_id", activeTenant.id)
-      : await query;
+    const { data: allPlans } = await query.eq("tenant_id", activeTenant.id);
 
     const planMap = new Map(allPlans?.map(p => [p.id, p]) || []);
 
@@ -69,6 +69,8 @@ export default async function CalendarioPage() {
   const today = new Date().toISOString().split("T")[0];
   const upcoming = sortedDates.filter(d => d >= today);
   const past = sortedDates.filter(d => d < today);
+
+  if (noTenant) return <CalendarioEmpty />;
 
   return (
     <div className="space-y-6">
@@ -164,6 +166,16 @@ export default async function CalendarioPage() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function CalendarioEmpty() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
+      <Calendar className="h-12 w-12 text-zinc-300 dark:text-zinc-600" />
+      <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">Nenhuma unidade selecionada</h3>
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Selecione uma empresa para visualizar o calendário.</p>
     </div>
   );
 }
