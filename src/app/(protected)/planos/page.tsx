@@ -19,10 +19,11 @@ import { sanitizeInput, cn } from "@/lib/utils";
 import { ExportCsv } from "@/components/layout/export-csv";
 import { flattenItems, fmt, trunc, FarolIcon } from "@/components/planos/plan-utils";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
+import { GanttChart } from "@/components/planos/plan-gantt";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
-import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, FileDown } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, FileDown, GanttChart as GanttIcon } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
 
@@ -39,8 +40,8 @@ export default function PlanosPage() {
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"table" | "kanban">(() => {
-    if (typeof window !== "undefined") return (localStorage.getItem("planos-view") as "table" | "kanban") || "table";
+  const [viewMode, setViewMode] = useState<"table" | "kanban" | "gantt">(() => {
+    if (typeof window !== "undefined") return (localStorage.getItem("planos-view") as "table" | "kanban" | "gantt") || "table";
     return "table";
   });
 
@@ -199,9 +200,9 @@ export default function PlanosPage() {
               <Button variant="ghost" size="sm" onClick={() => plan && window.open(`/api/plans/${plan.id}/pdf`, "_blank")} title="Exportar PDF">
                 <FileDown className="h-4 w-4 mr-1" /> PDF
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => { const next = viewMode === "table" ? "kanban" : "table"; setViewMode(next); localStorage.setItem("planos-view", next); }} title={viewMode === "table" ? "Ver como Kanban" : "Ver como Tabela"}>
-                {viewMode === "table" ? <Columns3 className="h-4 w-4 mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}
-                {viewMode === "table" ? "Kanban" : "Tabela"}
+              <Button variant="ghost" size="sm" onClick={() => { const modes: ("table" | "kanban" | "gantt")[] = ["table", "kanban", "gantt"]; const idx = modes.indexOf(viewMode); const next = modes[(idx + 1) % 3]; setViewMode(next); localStorage.setItem("planos-view", next); }} title="Alternar visualização">
+                {viewMode === "table" ? <Columns3 className="h-4 w-4 mr-1" /> : viewMode === "kanban" ? <GanttIcon className="h-4 w-4 mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}
+                {viewMode === "table" ? "Kanban" : viewMode === "kanban" ? "Gantt" : "Tabela"}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setShowHistory(!showHistory)}>
                 {showHistory ? <EyeOff className="h-4 w-4 mr-1" /> : <History className="h-4 w-4 mr-1" />}
@@ -257,8 +258,14 @@ export default function PlanosPage() {
         )}
       </div>
 
-      {/* Table or Kanban View */}
-      {viewMode === "kanban" ? (
+      {/* Table, Kanban, or Gantt View */}
+      {viewMode === "gantt" ? (
+        items.length === 0 ? (
+          <Card><CardContent className="flex flex-col items-center py-16 text-center"><p className="text-sm text-zinc-500">Nenhuma ação para exibir.</p></CardContent></Card>
+        ) : (
+          <GanttChart items={items} />
+        )
+      ) : viewMode === "kanban" ? (
         <KanbanBoard items={items} onEdit={setEditingItem} onShowForm={setShowItemForm}
           onStatusChange={async (itemId, newStatus) => {
             await updateItemStatus(itemId, newStatus);
