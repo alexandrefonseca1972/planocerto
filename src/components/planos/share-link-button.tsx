@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { createPublicLink, getPublicLinks, deletePublicLink } from "@/app/actions/shared";
 import { Share2, Copy, Trash2 } from "lucide-react";
 
-export function ShareLinkButton({ planId, toast }: { planId: string; toast: (msg: string) => void }) {
+export function ShareLinkButton({ planId, toast, canCreate = false }: {
+  planId: string;
+  toast: (msg: string) => void;
+  canCreate?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<{ id: string; token: string; expires_at: string | null; created_at: string }[]>([]);
 
@@ -44,16 +48,22 @@ export function ShareLinkButton({ planId, toast }: { planId: string; toast: (msg
         <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100 dark:border-zinc-700">
             <span className="text-xs font-semibold text-zinc-500">Links públicos</span>
-            <Button size="sm" variant="outline" onClick={handleCreate} className="text-xs h-7">+ Novo</Button>
+            {canCreate && (
+              <Button size="sm" variant="outline" onClick={handleCreate} className="text-xs h-7">+ Novo</Button>
+            )}
           </div>
           {links.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-zinc-400 text-center">Nenhum link criado.</p>
+            <p className="px-3 py-4 text-xs text-zinc-400 text-center">
+              {canCreate ? "Nenhum link criado." : "Nenhum link disponível."}
+            </p>
           ) : (
             links.map(link => (
               <div key={link.id} className="flex items-center gap-2 px-3 py-2 text-xs border-b border-zinc-50 dark:border-zinc-800">
                 <span className="flex-1 font-mono text-zinc-600 dark:text-zinc-400 truncate">{getShareUrl(link.token)}</span>
                 <button onClick={() => navigator.clipboard.writeText(getShareUrl(link.token)).then(() => toast("Link copiado!"))} className="text-zinc-400 hover:text-zinc-600"><Copy className="h-3 w-3" /></button>
-                <button onClick={() => handleDelete(link.id)} className="text-zinc-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
+                {canCreate && (
+                  <button onClick={() => handleDelete(link.id)} className="text-zinc-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
+                )}
               </div>
             ))
           )}

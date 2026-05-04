@@ -295,21 +295,20 @@ export default function PlanosPage() {
       ) : (
         <div className="relative overflow-hidden rounded-xl border border-zinc-200/60 bg-white shadow-sm dark:border-zinc-700/60 dark:bg-zinc-900/80">
           <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: "touch", scrollSnapType: "x mandatory" }}>
-            <div className="min-w-[640px] md:min-w-[800px] lg:min-w-0">
+            <div className="min-w-[480px] sm:min-w-[640px] md:min-w-[860px] lg:min-w-0">
               <table className="w-full text-left">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b-2 border-zinc-200/80 bg-zinc-50/80 backdrop-blur-md dark:border-zinc-700/80 dark:bg-zinc-800/70">
-                    <th className="sticky left-0 z-20 w-10 sm:w-14 bg-inherit backdrop-blur-md px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">Nº</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[140px] sm:min-w-[200px]">Ação (O QUE / COMO)</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[120px] hidden sm:table-cell">Por Que</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[100px] hidden md:table-cell">Onde</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[80px] hidden md:table-cell">Resp.</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[80px] hidden lg:table-cell">Custo</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[70px] hidden lg:table-cell">Início</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[70px] hidden lg:table-cell">Término</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[100px] hidden lg:table-cell">Result. Esp.</th>
-                    <th className="px-2 sm:px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 w-12 sm:w-16">Farol</th>
-                    <th className="sticky right-0 z-20 bg-inherit backdrop-blur-md px-1 sm:px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 w-14 sm:w-20"></th>
+                    <th className="sticky left-0 z-20 w-10 sm:w-14 bg-inherit backdrop-blur-md px-1.5 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">Nº</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[100px] sm:min-w-[160px]">Ação</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[70px] hidden sm:table-cell">Resp.</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[80px] hidden md:table-cell">Por Que</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[65px] hidden md:table-cell">Término</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[70px] hidden lg:table-cell">Onde</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[65px] hidden lg:table-cell">Início</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 min-w-[65px] hidden lg:table-cell">Custo</th>
+                    <th className="px-2 sm:px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 w-10 sm:w-16">Status</th>
+                    <th className="sticky right-0 z-20 bg-inherit backdrop-blur-md px-1 sm:px-2 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 w-10 sm:w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -410,13 +409,13 @@ function renderItems(
   return rows;
 }
 
-function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit, onShowForm, onDelete, setInlineEditId, inlineEditId }: {
+function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShowForm: _onShowForm, onDelete, setInlineEditId, inlineEditId }: {
   item: ActionItem; depth: number; isGroup: boolean; isExpanded: boolean; st: typeof STATUS_FAROL[number];
   onEdit: (i: ActionItem) => void; onShowForm: (s: boolean) => void; onDelete: (i: ActionItem) => void; setInlineEditId: (id: string | null) => void; inlineEditId: string | null;
 }) {
   const showFull = isExpanded && isGroup;
   return <>
-    <td className="sticky left-0 z-10 bg-inherit px-2 sm:px-3 py-2.5 font-mono text-[11px] text-zinc-400 dark:text-zinc-500 align-top">
+    <td className="sticky left-0 z-10 bg-inherit px-1.5 sm:px-3 py-2.5 font-mono text-[11px] text-zinc-400 dark:text-zinc-500 align-top">
       <span className="inline-flex items-center gap-1.5" style={{ paddingLeft: `${Math.max(depth * 14, 0)}px` }}>
         {isGroup && (
           <span className={cn("inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm transition-colors",
@@ -429,44 +428,35 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit, onShowForm, onD
         <span className={isGroup ? "font-semibold" : ""}>{item.number}</span>
       </span>
     </td>
-    <td className="px-2 sm:px-3 py-2.5 align-top min-w-[140px] sm:min-w-[200px]">
-      <div className="max-w-[200px] sm:max-w-xs lg:max-w-sm">
+    <td className="px-2 sm:px-3 py-2.5 align-top min-w-[100px] sm:min-w-[160px]">
+      <div className="max-w-[180px] sm:max-w-xs lg:max-w-sm">
         <p className={cn("truncate text-[13px] leading-snug", isGroup ? "font-semibold text-zinc-800 dark:text-zinc-200" : "text-zinc-700 dark:text-zinc-300")} title={item.action}>{item.action}</p>
         {(!isGroup || showFull) && item.why && <p className="mt-0.5 truncate text-[11px] text-zinc-400 dark:text-zinc-500">{item.why}</p>}
       </div>
     </td>
-    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top max-w-[150px] truncate", showFull ? "table-cell" : "hidden sm:table-cell")} title={item.why || ""}>{item.why || "—"}</td>
-    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top", showFull ? "table-cell" : "hidden md:table-cell")}>{item.where || "—"}</td>
-    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-600 dark:text-zinc-300 align-top font-medium", showFull ? "table-cell" : "hidden md:table-cell")}>{item.responsible || "—"}</td>
-    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top font-mono tabular-nums", showFull ? "table-cell" : "hidden lg:table-cell")}>{item.cost || "—"}</td>
-    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top tabular-nums", showFull ? "table-cell" : "hidden lg:table-cell")}>{item.planned_start ? fmt(item.planned_start) : "—"}</td>
-    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top tabular-nums", showFull ? "table-cell" : "hidden lg:table-cell")}>{item.planned_end ? fmt(item.planned_end) : "—"}</td>
-    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top max-w-[120px] truncate", showFull ? "table-cell" : "hidden lg:table-cell")} title={item.expected_result || ""}>{item.expected_result || "—"}</td>
-    <td className="px-2 sm:px-3 py-2.5 text-center align-top" onClick={e => e.stopPropagation()}>
-      <div className="relative inline-block">
-        <button
-          onClick={() => setInlineEditId(inlineEditId === item.id ? null : item.id)}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-all hover:scale-105 hover:shadow-sm",
-            st.color
-          )}
-          title={`Status: ${st.label} — clique para alterar`}
-        >
-          <FarolIcon status={item.status} />
-          <span className="hidden sm:inline text-[10px]">{st.label}</span>
-        </button>
-      </div>
+    <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-600 dark:text-zinc-300 align-top font-medium hidden sm:table-cell">{item.responsible || "—"}</td>
+    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top max-w-[120px] truncate", showFull ? "table-cell" : "hidden md:table-cell")} title={item.why || ""}>{item.why || "—"}</td>
+    <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top tabular-nums hidden md:table-cell">{item.planned_end ? fmt(item.planned_end) : "—"}</td>
+    <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top", showFull ? "table-cell" : "hidden lg:table-cell")}>{item.where || "—"}</td>
+    <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top tabular-nums hidden lg:table-cell">{item.planned_start ? fmt(item.planned_start) : "—"}</td>
+    <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top font-mono tabular-nums hidden lg:table-cell">{item.cost || "—"}</td>
+    <td className="px-1 sm:px-3 py-2.5 text-center align-top" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setInlineEditId(inlineEditId === item.id ? null : item.id)}
+        className={cn("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-all hover:scale-105 hover:shadow-sm", st.color)}
+        title={`Status: ${st.label} — clique para alterar`}
+      >
+        <FarolIcon status={item.status} />
+        <span className="hidden sm:inline text-[10px]">{st.label}</span>
+      </button>
     </td>
-    <td className="sticky right-0 z-10 bg-inherit px-1 sm:px-3 py-2.5 align-top" onClick={e => e.stopPropagation()}>
-      <div className="flex justify-end gap-0.5 sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => setInlineEditId(item.id)} title="Editar na linha">
-          <Pencil className="h-3.5 w-3.5" />
+    <td className="sticky right-0 z-10 bg-inherit px-1 sm:px-2 py-2.5 align-top" onClick={e => e.stopPropagation()}>
+      <div className="flex justify-end gap-0.5">
+        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md" onClick={() => setInlineEditId(item.id)} title="Editar">
+          <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => { onEdit(item); onShowForm(true); }} title="Editar completo">
-          <Target className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md text-red-500 hover:text-red-700" onClick={() => onDelete(item)} title="Excluir">
-          <Trash2 className="h-3.5 w-3.5" />
+        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md text-red-500 hover:text-red-700" onClick={() => onDelete(item)} title="Excluir">
+          <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
         </Button>
       </div>
     </td>
@@ -477,7 +467,7 @@ function EditRow({ item, planId, inlineAction, inlinePending, onCancel }: {
   item: ActionItem; planId: string; inlineAction: (p: FormData) => void; inlinePending: boolean; onCancel: () => void;
 }) {
   return (
-    <td colSpan={11} className="px-3 py-2">
+    <td colSpan={10} className="px-3 py-2">
       <form action={inlineAction} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="itemId" value={item.id} />
         <input type="hidden" name="planId" value={planId} />
