@@ -178,3 +178,82 @@ export async function getPublicLinks(planId: string): Promise<{ id: string; toke
     return (data || []) as { id: string; token: string; expires_at: string | null; created_at: string }[];
   } catch (error) { console.error("[getPublicLinks] Error:", error); return []; }
 }
+
+// --- Templates ---
+
+export async function getTemplates(): Promise<{ id: string; name: string; title: string; unit: string; director: string; goal: string }[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.from("plan_templates").select("id, name, title, unit, director, goal").eq("is_system", true).order("name");
+    return (data || []) as { id: string; name: string; title: string; unit: string; director: string; goal: string }[];
+  } catch (error) { console.error("[getTemplates] Error:", error); return []; }
+}
+
+export async function createPlanFromTemplate(templateId: string, tenantId: string): Promise<{ message: string; success?: boolean }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { message: "Não autenticado." };
+
+    // Get template
+    const { data: template } = await supabase.from("plan_templates").select("*").eq("id", templateId).single();
+    if (!template) return { message: "Template não encontrado." };
+
+    // Create plan
+    const { data: newPlan, error: planError } = await supabase.from("action_plans").insert({
+      tenant_id: tenantId,
+      title: template.title,
+      unit: template.unit,
+      director: template.director,
+      goal: template.goal,
+      user_id: user.id,
+    }).select().single();
+
+    if (planError || !newPlan) return { message: "Erro ao criar plano." };
+
+    // Get template items
+    const { data: templateItems } = await supabase.from("plan_template_items").select("*").eq("template_id", templateId).order("sort_order");
+    if (!templateItems?.length) {
+      revalidatePath("/planos");
+      return { success: true, message: "Plano criado (sem itens)!" };
+    }
+
+    // Map old IDs to new IDs and insert items
+    const idMap = new Map<string, string>();
+
+    // First pass: create all items
+    for (const item of templateItems) {
+      const newId = crypto.randomUUID();
+      idMap.set(item.id, newId);
+
+      await supabase.from("action_items").insert({
+        id: newId,
+        plan_id: newPlan.id,
+        parent_id: null,
+        number: item.number,
+        sort_order: item.sort_order,
+        action: item.action,
+        why: item.why,
+        where: item.where_field,
+        responsible: item.responsible,
+        cost: item.cost,
+        expected_result: item.expected_result,
+        status: 1,
+      });
+    }
+
+    // Second pass: update parent references
+    for (const item of templateItems) {
+      if (item.parent_id && idMap.has(item.parent_id)) {
+        const newId = idMap.get(item.id);
+        const newParentId = idMap.get(item.parent_id);
+        if (newId && newParentId) {
+          await supabase.from("action_items").update({ parent_id: newParentId }).eq("id", newId);
+        }
+      }
+    }
+
+    revalidatePath("/planos");
+    return { success: true, message: `Plano criado com ${templateItems.length} itens!` };
+  } catch (error) { console.error("[createPlanFromTemplate] Error:", error); return { message: "Serviço indisponível." }; }
+}

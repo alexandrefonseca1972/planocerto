@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { getPlans, getItems, getAuditLog, createPlan, updatePlan, deletePlan, upsertItem, deleteItem, updateItemStatus, bulkUpdateStatus } from "@/app/actions/action-plan";
+import { getTemplates, createPlanFromTemplate } from "@/app/actions/shared";
 import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState } from "@/types/action-plan";
 import { STATUS_FAROL } from "@/types/action-plan";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
-import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, FileDown } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
 
@@ -195,6 +196,9 @@ export default function PlanosPage() {
             <div className="ml-auto flex items-center gap-2">
               <BulkStatusButton planId={plan?.id || ""} filteredItems={filteredItems} toast={toast} router={router} />
               <ExportCsv items={items} filename={`plano-${plan?.unit || plan?.title || "export"}`} />
+              <Button variant="ghost" size="sm" onClick={() => plan && window.open(`/api/plans/${plan.id}/pdf`, "_blank")} title="Exportar PDF">
+                <FileDown className="h-4 w-4 mr-1" /> PDF
+              </Button>
               <Button variant="ghost" size="sm" onClick={() => { const next = viewMode === "table" ? "kanban" : "table"; setViewMode(next); localStorage.setItem("planos-view", next); }} title={viewMode === "table" ? "Ver como Kanban" : "Ver como Tabela"}>
                 {viewMode === "table" ? <Columns3 className="h-4 w-4 mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}
                 {viewMode === "table" ? "Kanban" : "Tabela"}
@@ -517,6 +521,23 @@ function PlanFormDialog({ plan, tenantId, state, action, isPending, onClose }: {
   const [unit, setUnit] = useState(plan?.unit || "");
   const [director, setDirector] = useState(plan?.director || "");
   const [goal, setGoal] = useState(plan?.goal || "");
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
+
+  useEffect(() => {
+    if (!plan) { getTemplates().then(t => setTemplates(t.map(x => ({ id: x.id, name: x.name })))); }
+  }, [plan]);
+
+  const applyTemplate = async (templateId: string) => {
+    setTemplateLoading(true);
+    const result = await createPlanFromTemplate(templateId, tenantId);
+    if (result.success) {
+      onClose();
+      window.location.reload();
+    } else {
+      setTemplateLoading(false);
+    }
+  };
 
   const titleValid = title.length >= 2;
   const titleError = title.length > 0 && title.length < 2 ? "Mínimo 2 caracteres" : "";
@@ -550,6 +571,22 @@ function PlanFormDialog({ plan, tenantId, state, action, isPending, onClose }: {
           )} style={{ width: `${Math.max(formProgress, 4)}%` }} />
         </div>
       </div>
+
+      {/* Template selection (only for new plans) */}
+      {!plan && templates.length > 0 && (
+        <div className="mb-4">
+          <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Usar template</label>
+          <div className="flex flex-wrap gap-1.5">
+            {templates.map(t => (
+              <button key={t.id} type="button" disabled={templateLoading}
+                onClick={() => applyTemplate(t.id)}
+                className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300 transition-colors dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <form action={action} className="space-y-4">
         {plan && <input type="hidden" name="planId" value={plan.id} />}

@@ -156,6 +156,18 @@ export interface Database {
         Update: { id?: string; item_id?: string; filename?: string; storage_path?: string; size?: number; mime_type?: string; uploaded_by?: string | null; created_at?: string; };
         Relationships: [];
       };
+      plan_templates: {
+        Row: { id: string; name: string; title: string; unit: string; director: string; goal: string; is_system: boolean; created_by: string | null; created_at: string; };
+        Insert: { id?: string; name: string; title?: string; unit?: string; director?: string; goal?: string; is_system?: boolean; created_by?: string | null; created_at?: string; };
+        Update: { id?: string; name?: string; title?: string; unit?: string; director?: string; goal?: string; is_system?: boolean; created_by?: string | null; created_at?: string; };
+        Relationships: [];
+      };
+      plan_template_items: {
+        Row: { id: string; template_id: string; number: string; sort_order: number; parent_id: string | null; action: string; why: string; where_field: string; responsible: string; cost: string; expected_result: string; };
+        Insert: { id?: string; template_id: string; number: string; sort_order?: number; parent_id?: string | null; action?: string; why?: string; where_field?: string; responsible?: string; cost?: string; expected_result?: string; };
+        Update: { id?: string; template_id?: string; number?: string; sort_order?: number; parent_id?: string | null; action?: string; why?: string; where_field?: string; responsible?: string; cost?: string; expected_result?: string; };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
