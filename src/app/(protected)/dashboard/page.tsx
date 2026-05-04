@@ -3,9 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { DistributionCard } from "@/components/dashboard/distribution-card";
 import { getUserTenants } from "@/app/actions/tenant";
-import { RingChart } from "@/components/ui/chart";
-import { Building2, CheckCircle2, Clock, Calendar, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight, Activity, Target } from "lucide-react";
+import { Building2, CheckCircle2, Clock, Calendar, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight, Target } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = { title: "Dashboard | PlanoCerto", description: "Resumo executivo." };
@@ -164,32 +164,15 @@ export default async function DashboardPage() {
       {/* Middle Row: Charts + Deadlines + Progress */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Distribution Chart */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Activity className="h-4 w-4 text-zinc-500" /> Distribuição</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-6">
-              <RingChart segments={[
-                { value: globalCompleted, color: "#10b981", label: "Concluído" },
-                { value: globalProgress, color: "#3b82f6", label: "Andamento" },
-                { value: globalPending, color: "#f59e0b", label: "Pendente" },
-                { value: globalOverdue, color: "#ef4444", label: "Atrasado" },
-              ]} size={130} strokeWidth={14} />
-              <div className="flex-1 space-y-1.5">
-                <L c="bg-emerald-500" l="Concluído" v={globalCompleted} p={globalTotal > 0 ? Math.round((globalCompleted / globalTotal) * 100) : 0} />
-                <L c="bg-blue-500" l="Em andamento" v={globalProgress} />
-                <L c="bg-amber-500" l="Pendente" v={globalPending} />
-                <L c="bg-red-500" l="Atrasadas" v={globalOverdue} />
-              </div>
+        <DistributionCard
+          completed={globalCompleted} progress={globalProgress} pending={globalPending} overdue={globalOverdue} total={globalTotal}
+          sparkline={sparklineData.some(v => v > 0) ? (
+            <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-700">
+              <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider mb-2">Concluídas por semana</p>
+              <Sparkline data={sparklineData} />
             </div>
-            {/* Sparkline */}
-            {sparklineData.some(v => v > 0) && (
-              <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-700">
-                <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider mb-2">Concluídas por semana</p>
-                <Sparkline data={sparklineData} />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          ) : undefined}
+        />
 
         {/* Deadlines */}
         <Card>
@@ -307,10 +290,6 @@ function KpiCard({ icon: Icon, label, value, subtitle, color, bg, trend }: {
       </CardContent>
     </Card>
   );
-}
-
-function L({ c, l, v, p }: { c: string; l: string; v: number; p?: number }) {
-  return <div className="flex items-center gap-2 text-xs"><span className={cn("h-3 w-3 rounded-full", c)} /><span className="text-zinc-600 dark:text-zinc-400">{l}</span><span className="ml-auto font-mono font-semibold text-zinc-900 dark:text-zinc-50">{v}</span>{p !== undefined && <span className="text-zinc-400">({p}%)</span>}</div>;
 }
 
 function Sparkline({ data }: { data: number[] }) {
