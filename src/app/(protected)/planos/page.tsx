@@ -503,33 +503,111 @@ function PlanFormDialog({ plan, tenantId, state, action, isPending, onClose }: {
   const [unit, setUnit] = useState(plan?.unit || "");
   const [director, setDirector] = useState(plan?.director || "");
   const [goal, setGoal] = useState(plan?.goal || "");
-  const isTitleValid = title.length >= 2;
+
+  const titleValid = title.length >= 2;
+  const titleError = title.length > 0 && title.length < 2 ? "Mínimo 2 caracteres" : "";
+  const unitValid = unit.length === 0 || unit.length >= 2;
+  const directorValid = director.length === 0 || director.length >= 2;
+  const goalValid = goal.length === 0 || goal.length >= 2;
+
+  const fieldsFilled = [title.length > 0, unit.length > 0, director.length > 0, goal.length > 0].filter(Boolean).length;
+  const totalFields = 4;
+  const formProgress = Math.round((fieldsFilled / totalFields) * 100);
 
   return (
     <Modal onClose={onClose}>
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{plan ? "Editar plano" : "Novo plano"}</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">Cabeçalho do plano de ação 5W2H</p>
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Novo plano</h3>
+          <p className="text-xs text-zinc-500 mt-0.5">Preencha os dados do cabeçalho</p>
         </div>
         <button onClick={onClose} className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"><X className="h-5 w-5" /></button>
       </div>
+
+      {/* Progress bar */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Progresso</span>
+          <span className="text-[10px] font-mono text-zinc-400">{fieldsFilled}/{totalFields}</span>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+          <div className={cn("h-full rounded-full transition-all duration-300",
+            formProgress === 100 ? "bg-emerald-500" : formProgress >= 50 ? "bg-blue-500" : "bg-zinc-300"
+          )} style={{ width: `${Math.max(formProgress, 4)}%` }} />
+        </div>
+      </div>
+
       <form action={action} className="space-y-4">
         {plan && <input type="hidden" name="planId" value={plan.id} />}
         <input type="hidden" name="tenantId" value={tenantId} />
-        <Field label="Título" name="title" value={title} onChange={setTitle} required placeholder="Ex: Plano de Ação — Rio Branco" max={200} />
+
+        <FieldV label="Título do plano" name="title" value={title} onChange={setTitle} required
+          placeholder="Ex: Plano de Ação — Rio Branco" max={200}
+          valid={titleValid} error={titleError}
+          hint="Dê um nome descritivo ao plano" />
+
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Unidade" name="unit" value={unit} onChange={setUnit} placeholder="Ex: Rio Branco (Unimeta)" max={200} />
-          <Field label="Diretor(a)" name="director" value={director} onChange={setDirector} placeholder="Nome" max={200} />
+          <FieldV label="Unidade" name="unit" value={unit} onChange={setUnit}
+            placeholder="Ex: Rio Branco (Unimeta)" max={200} valid={unitValid}
+            hint="Nome da unidade ou filial" />
+          <FieldV label="Diretor(a)" name="director" value={director} onChange={setDirector}
+            placeholder="Nome do diretor" max={200} valid={directorValid}
+            hint="Responsável pelo plano" />
         </div>
-        <Field label="Meta" name="goal" value={goal} onChange={setGoal} placeholder="Ex: 7.908 INSC | 1.382 MF | 1.214 ACAD" max={1000} />
+
+        <FieldV label="Meta" name="goal" value={goal} onChange={setGoal}
+          placeholder="Ex: 7.908 INSC | 1.382 MF | 1.214 ACAD" max={1000} valid={goalValid}
+          hint="Meta quantificável com indicadores" />
+
         {state.message && !state.success && <Msg state={state} />}
-        <div className="flex justify-end gap-2 pt-2">
+
+        <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-700">
           <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" isLoading={isPending} disabled={!isTitleValid}><Save className="h-4 w-4 mr-1" />{plan ? "Salvar" : "Criar"}</Button>
+          <Button type="submit" isLoading={isPending} disabled={!titleValid}>
+            <Save className="h-4 w-4 mr-1" />{plan ? "Salvar" : "Criar plano"}
+          </Button>
         </div>
       </form>
     </Modal>
+  );
+}
+
+function FieldV({ label, name, value, onChange, multiline, required, placeholder, type, max, valid, error, hint }: {
+  label: string; name: string; value?: string; onChange?: (v: string) => void; multiline?: boolean; required?: boolean; placeholder?: string; type?: string; max?: number; valid?: boolean; error?: string; hint?: string;
+}) {
+  const length = value?.length || 0;
+  const showError = error && error.length > 0;
+  const showWarning = max && length > max - 20 && !showError;
+  const charsLeft = max ? max - length : 0;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+        </Label>
+        {max && (
+          <span className={cn("font-mono text-[10px] transition-colors",
+            charsLeft < 0 ? "text-red-500 font-semibold" : showWarning ? "text-amber-500" : "text-zinc-400"
+          )}>{charsLeft}</span>
+        )}
+      </div>
+      {multiline ? (
+        <textarea name={name} value={value} placeholder={placeholder} required={required} rows={2}
+          onChange={e => { const v = sanitizeInput(e.target.value); onChange?.(v); }}
+          className={cn("flex w-full rounded-lg border bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 resize-none transition-all",
+            showError ? "border-red-300 focus-visible:ring-red-500" : valid === false ? "border-amber-300 focus-visible:ring-amber-500" : "border-zinc-200 focus-visible:ring-zinc-500 dark:border-zinc-700"
+          )} />
+      ) : (
+        <Input name={name} type={type} value={value} placeholder={placeholder} required={required}
+          onChange={e => { const v = type !== "date" && type !== "number" ? sanitizeInput(e.target.value) : e.target.value; onChange?.(v); }}
+          className={cn("transition-all rounded-lg",
+            showError ? "border-red-300 focus-visible:ring-red-500" : valid === false ? "border-amber-300 focus-visible:ring-amber-500" : "focus:shadow-md"
+          )} />
+      )}
+      {showError && <p className="text-[11px] text-red-500 animate-[slideDown_150ms_ease-out]">{error}</p>}
+      {!showError && hint && <p className="text-[11px] text-zinc-400">{hint}</p>}
+    </div>
   );
 }
 
@@ -582,12 +660,15 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-medium text-zinc-500">Ação (O QUE / COMO) <span className="text-red-500">*</span></Label>
-                <span className="font-mono text-xs text-zinc-400">{actionText.length}/500</span>
+                <span className={cn("font-mono text-xs transition-colors", actionText.length > 500 ? "text-red-500 font-semibold" : actionText.length > 480 ? "text-amber-500" : "text-zinc-400")}>{actionText.length}/500</span>
               </div>
               <textarea name="action" value={actionText} required rows={2}
                 onChange={e => { const v = sanitizeInput(e.target.value); setActionText(v); }}
                 placeholder="Descreva a ação"
-                className="flex w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 resize-none transition-shadow focus:shadow-md" />
+                className={cn("flex w-full rounded-lg border bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 resize-none transition-all",
+                  actionText.length > 0 && actionText.length < 3 ? "border-red-300 focus-visible:ring-red-500" : actionText.length > 500 ? "border-red-300 focus-visible:ring-red-500" : "border-zinc-200 focus-visible:ring-zinc-500 dark:border-zinc-700"
+                )} />
+              {actionText.length > 0 && actionText.length < 3 && <p className="text-[11px] text-red-500 animate-[slideDown_150ms_ease-out]">Mínimo 3 caracteres</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Por Que" name="why" value={item?.why || ""} placeholder="Motivo" />

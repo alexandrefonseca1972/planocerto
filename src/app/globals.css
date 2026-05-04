@@ -31,8 +31,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-jetbrains-mono), var(--font-geist-mono);
+  --font-sans: var(--font-outfit);
+  --font-mono: var(--font-manrope);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -156,11 +156,11 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
     letter-spacing: -0.02em;
     line-height: 1.2;
   }
@@ -170,7 +170,7 @@
   h3 { font-weight: 600; }
 
   pre, code, kbd, samp, .font-mono, [class*="font-mono"] {
-    font-family: var(--font-jetbrains-mono), var(--font-geist-mono), ui-monospace, monospace !important;
+    font-family: var(--font-manrope), ui-monospace, monospace !important;
     font-feature-settings: "calt" 1, "liga" 1;
   }
 

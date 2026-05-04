@@ -1,0 +1,91 @@
+import { describe, it, expect } from "vitest";
+import { loginSchema, registerSchema, profileSchema } from "@/lib/validations/auth";
+
+describe("loginSchema", () => {
+  it("accepts valid email and password", () => {
+    const result = loginSchema.safeParse({ email: "test@example.com", password: "123456" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects empty email", () => {
+    const result = loginSchema.safeParse({ email: "", password: "123456" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid email format", () => {
+    const result = loginSchema.safeParse({ email: "notanemail", password: "123456" });
+    expect(result.success).toBe(false);
+  });
+
+  it("lowercases the email", () => {
+    const result = loginSchema.safeParse({ email: "Test@Example.COM", password: "123456" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.email).toBe("test@example.com");
+  });
+
+  it("rejects empty password", () => {
+    const result = loginSchema.safeParse({ email: "test@example.com", password: "" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("registerSchema", () => {
+  const valid = {
+    name: "John Doe",
+    email: "john@example.com",
+    password: "Abc123@!",
+    confirmPassword: "Abc123@!",
+  };
+
+  it("accepts valid data", () => {
+    const result = registerSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects short name", () => {
+    const result = registerSchema.safeParse({ ...valid, name: "A" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects weak password (no uppercase)", () => {
+    const result = registerSchema.safeParse({ ...valid, password: "abc123@!", confirmPassword: "abc123@!" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects weak password (no lowercase)", () => {
+    const result = registerSchema.safeParse({ ...valid, password: "ABC123@!", confirmPassword: "ABC123@!" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects weak password (no number)", () => {
+    const result = registerSchema.safeParse({ ...valid, password: "Abcdef@!", confirmPassword: "Abcdef@!" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects weak password (no special char)", () => {
+    const result = registerSchema.safeParse({ ...valid, password: "Abc12345", confirmPassword: "Abc12345" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects mismatched passwords", () => {
+    const result = registerSchema.safeParse({ ...valid, confirmPassword: "Different@1" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects password under 8 chars", () => {
+    const result = registerSchema.safeParse({ ...valid, password: "Ab1@", confirmPassword: "Ab1@" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("profileSchema", () => {
+  it("accepts valid name", () => {
+    const result = profileSchema.safeParse({ name: "John" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects short name", () => {
+    const result = profileSchema.safeParse({ name: "J" });
+    expect(result.success).toBe(false);
+  });
+});

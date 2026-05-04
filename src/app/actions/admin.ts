@@ -154,6 +154,11 @@ export async function updateUser(
       role: formData.get("role"),
     };
 
+    const permissions = formData.get("permissions") as string;
+    const loginStart = formData.get("login_start_time") as string;
+    const loginEnd = formData.get("login_end_time") as string;
+    const isActive = formData.get("is_active") === "true";
+
     const tenantIds = formData.getAll("tenantIds") as string[];
     const validated = updateUserSchema.safeParse(rawData);
 
@@ -182,6 +187,10 @@ export async function updateUser(
       .update({
         name: validated.data.name,
         role: validated.data.role,
+        permissions: permissions ? JSON.parse(permissions) : undefined,
+        login_start_time: loginStart || null,
+        login_end_time: loginEnd || null,
+        is_active: isActive,
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId);
@@ -238,23 +247,27 @@ export async function deleteUser(
   try {
     const isAdmin = await checkIsAdmin();
     if (!isAdmin) {
-      return {
-        message: "Acesso negado. Permissão de administrador necessária.",
-      };
+      return { message: "Acesso negado." };
     }
 
     const userId = formData.get("userId") as string;
+    if (!userId) return { message: "ID do usuário obrigatório." };
 
-    if (!userId) {
-      return { message: "ID do usuário é obrigatório." };
+    const supabase = await createClient();
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+    if (currentUser?.id === userId) {
+      return { message: "Você não pode excluir seu próprio usuário." };
     }
 
     const adminClient = createAdminClient();
-
     const { error } = await adminClient.auth.admin.deleteUser(userId);
 
     if (error) {
-      return { message: "Erro ao excluir usuário. Tente novamente." };
+      console.error("[deleteUser] Erro Supabase:", error.message);
+      if (error.message.includes("not found")) return { message: "Usuário não encontrado." };
+      if (error.message.includes("permission")) return { message: "Permissão insuficiente. Verifique a chave de serviço." };
+      return { message: "Erro ao excluir usuário. Verifique as permissões." };
     }
 
     revalidatePath("/admin/users");

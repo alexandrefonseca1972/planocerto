@@ -57,10 +57,10 @@ export default async function DashboardPage() {
     const allDeadlines: { id: string; title: string; deadline: string; plan: string; number: string }[] = [];
 
     for (const tenant of tenants) {
-      const plans = plansByTenant.get(tenant.id) || [];
+      const tenantPlans = plansByTenant.get(tenant.id) || [];
       let total = 0, completed = 0, progress = 0, pending = 0, overdue = 0;
 
-      for (const plan of plans) {
+      for (const plan of tenantPlans) {
         const items = itemsByPlan.get(plan.id) || [];
         total += items.length;
         completed += items.filter(i => i.status === 5).length;

@@ -15,6 +15,7 @@ import {
 import { TenantSwitcher } from "@/components/layout/tenant-switcher";
 import { FontControl } from "@/components/layout/font-control";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 interface NavbarProps { user: User; isAdmin?: boolean; }
 
@@ -77,7 +78,8 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
           <div className="mb-3 flex items-center justify-between">
             <TenantSwitcher isAdmin={isAdmin} />
             <div className="flex items-center gap-1">
-              <ThemeToggle />
+            <NotificationBell />
+            <ThemeToggle />
               <FontControl />
             </div>
           </div>

@@ -87,13 +87,12 @@ export async function signup(
 
     const supabase = await createClient();
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: validated.data.email,
       password: validated.data.password,
       options: {
-        data: {
-          name: validated.data.name,
-        },
+        data: { name: validated.data.name },
+        emailRedirectTo: undefined,
       },
     });
 
@@ -109,9 +108,18 @@ export async function signup(
       };
     }
 
+    // Auto-confirm the user — admin will approve by associating tenants
+    if (data.user) {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const adminClient = createAdminClient();
+      await adminClient.auth.admin.updateUserById(data.user.id, {
+        email_confirm: true,
+      });
+    }
+
     return {
       success: true,
-      message: "Conta criada com sucesso! Verifique seu email para confirmar.",
+      message: "Conta criada com sucesso! Aguarde o administrador associar sua conta a uma empresa.",
     };
   } catch (error) {
     console.error("[signup] Erro:", error);

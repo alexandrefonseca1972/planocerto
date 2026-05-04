@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Users, Building2 } from "lucide-react";
+import { Users, Building2, Bell } from "lucide-react";
 
 const links = [
   { href: "/admin/users", label: "Usuários", icon: Users },
   { href: "/admin/tenants", label: "Empresas", icon: Building2 },
+  { href: "/admin/notifications", label: "Notificações", icon: Bell },
 ];
 
 export function AdminNav() {

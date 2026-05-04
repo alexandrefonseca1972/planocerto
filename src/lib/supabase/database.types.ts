@@ -11,40 +11,25 @@ export interface Database {
     Tables: {
       profiles: {
         Row: {
-          id: string;
-          name: string;
-          email: string;
-          role: "user" | "admin";
-          avatar_url: string | null;
-          active_tenant_id: string | null;
-          phone: string;
-          social_media: Json;
-          created_at: string;
-          updated_at: string;
+          id: string; name: string; email: string; role: "user" | "admin";
+          avatar_url: string | null; active_tenant_id: string | null;
+          phone: string; social_media: Json;
+          permissions: Json; login_start_time: string | null; login_end_time: string | null; is_active: boolean;
+          created_at: string; updated_at: string;
         };
         Insert: {
-          id?: string;
-          name?: string;
-          email?: string;
-          role?: "user" | "admin";
-          avatar_url?: string | null;
-          active_tenant_id?: string | null;
-          phone?: string;
-          social_media?: Json;
-          created_at?: string;
-          updated_at?: string;
+          id?: string; name?: string; email?: string; role?: "user" | "admin";
+          avatar_url?: string | null; active_tenant_id?: string | null;
+          phone?: string; social_media?: Json;
+          permissions?: Json; login_start_time?: string | null; login_end_time?: string | null; is_active?: boolean;
+          created_at?: string; updated_at?: string;
         };
         Update: {
-          id?: string;
-          name?: string;
-          email?: string;
-          role?: "user" | "admin";
-          avatar_url?: string | null;
-          active_tenant_id?: string | null;
-          phone?: string;
-          social_media?: Json;
-          created_at?: string;
-          updated_at?: string;
+          id?: string; name?: string; email?: string; role?: "user" | "admin";
+          avatar_url?: string | null; active_tenant_id?: string | null;
+          phone?: string; social_media?: Json;
+          permissions?: Json; login_start_time?: string | null; login_end_time?: string | null; is_active?: boolean;
+          created_at?: string; updated_at?: string;
         };
         Relationships: [];
       };
@@ -139,6 +124,18 @@ export interface Database {
         Row: { id: string; plan_id: string; item_id: string | null; action: string; snapshot: Json; user_id: string | null; user_name: string; created_at: string; };
         Insert: { id?: string; plan_id: string; item_id?: string | null; action: string; snapshot?: Json; user_id?: string | null; user_name?: string; created_at?: string; };
         Update: { id?: string; plan_id?: string; item_id?: string | null; action?: string; snapshot?: Json; user_id?: string | null; user_name?: string; created_at?: string; };
+        Relationships: [];
+      };
+      notifications: {
+        Row: { id: string; title: string; message: string; type: string; target_type: string; target_id: string | null; is_fixed: boolean; expires_at: string | null; created_by: string | null; created_at: string; updated_at: string; };
+        Insert: { id?: string; title: string; message?: string; type?: string; target_type?: string; target_id?: string | null; is_fixed?: boolean; expires_at?: string | null; created_by?: string | null; created_at?: string; updated_at?: string; };
+        Update: { id?: string; title?: string; message?: string; type?: string; target_type?: string; target_id?: string | null; is_fixed?: boolean; expires_at?: string | null; created_by?: string | null; created_at?: string; updated_at?: string; };
+        Relationships: [];
+      };
+      notification_reads: {
+        Row: { id: string; notification_id: string; user_id: string; read_at: string; };
+        Insert: { id?: string; notification_id: string; user_id: string; read_at?: string; };
+        Update: { id?: string; notification_id?: string; user_id?: string; read_at?: string; };
         Relationships: [];
       };
     };

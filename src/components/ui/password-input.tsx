@@ -24,7 +24,6 @@ const PasswordInput = forwardRef<
         onClick={() => setVisible(!visible)}
         className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
         aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
-        tabIndex={-1}
       >
         {visible ? (
           <EyeOff className="h-4 w-4" />

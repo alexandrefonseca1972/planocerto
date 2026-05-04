@@ -345,6 +345,10 @@ interface UserFormDialogProps {
     name?: string;
     email?: string;
     role?: string;
+    login_start_time?: string;
+    login_end_time?: string;
+    is_active?: boolean;
+    permissions?: Record<string, boolean>;
   };
   tenants?: Tenant[];
   selectedTenantIds?: string[];
@@ -495,6 +499,18 @@ function UserFormDialog({
                   <p className="text-xs text-zinc-400">Nenhuma empresa disponível.</p>
                 )}
               </div>
+            </div>
+          )}
+
+          {defaultValues?.userId && (
+            <div className="space-y-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Restrições de acesso</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><Label className="text-xs">Horário início</Label><Input name="login_start_time" type="time" defaultValue={defaultValues?.login_start_time || ""} /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Horário fim</Label><Input name="login_end_time" type="time" defaultValue={defaultValues?.login_end_time || ""} /></div>
+              </div>
+              <p className="text-xs text-zinc-400">Deixe em branco para acesso livre.</p>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" value="true" defaultChecked={defaultValues?.is_active !== false} className="rounded" /><span className="text-xs">Conta ativa</span></label>
             </div>
           )}
 
