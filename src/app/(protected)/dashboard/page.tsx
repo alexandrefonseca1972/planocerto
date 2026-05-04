@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { DistributionCard } from "@/components/dashboard/distribution-card";
+import { ProgressByUnit } from "@/components/dashboard/progress-by-unit";
 import { getUserTenants } from "@/app/actions/tenant";
 import { Building2, CheckCircle2, Clock, Calendar, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight, Target } from "lucide-react";
 import Link from "next/link";
@@ -202,33 +203,10 @@ export default async function DashboardPage() {
         </Card>
 
         {/* Progress per Unit */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm font-semibold"><TrendingUp className="h-4 w-4 text-zinc-500" /> Progresso por unidade</CardTitle></CardHeader>
-          <CardContent>
-            {tenantSummaries.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center"><Building2 className="h-8 w-8 text-zinc-300 dark:text-zinc-600" /><p className="mt-2 text-sm text-zinc-500">Nenhuma unidade.</p></div>
-            ) : (
-              <div className="space-y-3 max-h-72 overflow-y-auto">
-                {tenantSummaries.map((t) => {
-                    const doneW = t.totalActions > 0 ? Math.round((t.completed / t.totalActions) * 100) : 0;
-                    const progW = t.totalActions > 0 ? Math.round((t.inProgress / t.totalActions) * 100 * 0.5) : 0;
-                    return (
-                  <Link key={t.id} href="/planos" className="block">
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="font-medium text-zinc-700 hover:underline dark:text-zinc-300 truncate max-w-[65%]">{t.name}</span>
-                      <span className="font-mono text-zinc-500">{t.progressPct}%</span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800 flex">
-                      <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.max(doneW, doneW > 0 ? 3 : 0)}%` }} />
-                      <div className="h-full bg-blue-400 transition-all" style={{ width: `${Math.max(progW, progW > 0 ? 3 : 0)}%` }} />
-                    </div>
-                    <p className="mt-0.5 text-xs text-zinc-400">{t.completed}/{t.totalActions} concluídas · {t.inProgress} andamento · {t.overdue} atrasadas</p>
-                  </Link>
-                    )})}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <ProgressByUnit units={tenantSummaries.map(t => ({
+          id: t.id, name: t.name, totalActions: t.totalActions, completed: t.completed,
+          inProgress: t.inProgress, pending: t.pending, progressPct: t.progressPct, overdue: t.overdue
+        }))} />
       </div>
 
       {/* Detail Table */}
