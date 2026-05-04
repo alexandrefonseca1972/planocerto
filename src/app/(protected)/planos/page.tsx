@@ -354,7 +354,7 @@ function renderItems(
 
     rows.push(
       <tr key={item.id} className={cn(
-        "transition-colors duration-75",
+        "group transition-colors duration-75",
         isEditing && "bg-amber-50/90 dark:bg-amber-950/20",
         !isEditing && isGroup && "cursor-pointer bg-zinc-50/80 dark:bg-zinc-800/60",
         !isEditing && !isGroup && isEven && "bg-white dark:bg-zinc-900/80",

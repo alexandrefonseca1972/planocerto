@@ -205,119 +205,7 @@ export async function updateTenant(
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: "Empresa atualizada!" };
-  } catch {
-    return { message: "Serviço indisponível." };
-  }
-}
-
-export async function deleteTenant(
-  _prevState: TenantFormState,
-  formData: FormData
-): Promise<TenantFormState> {
-  try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
-
-    const tenantId = formData.get("tenantId") as string;
-    if (!tenantId) return { message: "ID da empresa obrigatório." };
-
-    const adminClient = createAdminClient();
-    const { error } = await adminClient
-      .from("tenants")
-      .delete()
-      .eq("id", tenantId);
-
-    if (error) return { message: "Erro ao excluir empresa." };
-
-    revalidatePath("/admin/tenants");
-    revalidatePath("/", "layout");
-    return { success: true, message: "Empresa excluída!" };
-  } catch {
-    return { message: "Serviço indisponível." };
-  }
-}
-
-export async function getTenantMembers(
-  tenantId: string
-): Promise<TenantMemberWithProfile[]> {
-  try {
-    const adminClient = createAdminClient();
-
-    const { data: members, error } = await adminClient
-      .from("tenant_members")
-      .select("id, tenant_id, user_id, role, created_at")
-      .eq("tenant_id", tenantId)
-      .order("created_at");
-
-    if (error || !members?.length) return [];
-
-    const userIds = members.map((m) => m.user_id);
-
-    const { data: profiles } = await adminClient
-      .from("profiles")
-      .select("id, name, email")
-      .in("id", userIds);
-
-    const profileMap = new Map(
-      (profiles || []).map((p) => [p.id, p])
-    );
-
-    return members.map((m) => ({
-      ...m,
-      profiles: profileMap.get(m.user_id) || null,
-    })) as TenantMemberWithProfile[];
-  } catch {
-    return [];
-  }
-}
-
-export async function addTenantMember(
-  _prevState: TenantFormState,
-  formData: FormData
-): Promise<TenantFormState> {
-  try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
-
-    const tenantId = formData.get("tenantId") as string;
-    const email = (formData.get("email") as string)?.trim().toLowerCase();
-
-    if (!tenantId || !email) {
-      return { message: "ID da empresa e email são obrigatórios." };
-    }
-
-    const adminClient = createAdminClient();
-
-    const { data: profiles } = await adminClient
-      .from("profiles")
-      .select("id, name")
-      .eq("email", email);
-
-    if (!profiles?.length) {
-      return { message: "Usuário não encontrado com este email." };
-    }
-
-    const user = profiles[0];
-
-    const { error } = await adminClient.from("tenant_members").insert({
-      tenant_id: tenantId,
-      user_id: user.id,
-      role: "member",
-    });
-
-    if (error) {
-      if (error.message.includes("duplicate")) {
-        return { message: "Usuário já é membro desta empresa." };
-      }
-      return { message: "Erro ao adicionar membro." };
-    }
-
-    revalidatePath("/admin/tenants");
-    revalidatePath("/", "layout");
-    return { success: true, message: `${user.name || email} adicionado!` };
-  } catch {
-    return { message: "Serviço indisponível." };
-  }
+  } catch { return { message: "Serviço indisponível." }; }
 }
 
 export async function removeTenantMember(
@@ -458,4 +346,59 @@ export async function setUserTenants(
   } catch {
     return { message: "Serviço indisponível." };
   }
+}
+
+export async function deleteTenant(
+  _prevState: TenantFormState,
+  formData: FormData
+): Promise<TenantFormState> {
+  try {
+    const isAdmin = await checkIsAdmin();
+    if (!isAdmin) return { message: "Acesso negado." };
+    const tenantId = formData.get("tenantId") as string;
+    if (!tenantId) return { message: "ID da empresa obrigatório." };
+    const adminClient = createAdminClient();
+    const { error } = await adminClient.from("tenants").delete().eq("id", tenantId);
+    if (error) return { message: "Erro ao excluir empresa." };
+    revalidatePath("/admin/tenants");
+    revalidatePath("/", "layout");
+    return { success: true, message: "Empresa excluída!" };
+  } catch { return { message: "Serviço indisponível." }; }
+}
+
+export async function addTenantMember(
+  _prevState: TenantFormState,
+  formData: FormData
+): Promise<TenantFormState> {
+  try {
+    const isAdmin = await checkIsAdmin();
+    if (!isAdmin) return { message: "Acesso negado." };
+    const tenantId = formData.get("tenantId") as string;
+    const email = (formData.get("email") as string)?.trim().toLowerCase();
+    if (!tenantId || !email) return { message: "ID da empresa e email são obrigatórios." };
+    const adminClient = createAdminClient();
+    const { data: profiles } = await adminClient.from("profiles").select("id, name").eq("email", email);
+    if (!profiles?.length) return { message: "Usuário não encontrado." };
+    const userName = profiles[0].name || email;
+    const { error } = await adminClient.from("tenant_members").insert({ tenant_id: tenantId, user_id: profiles[0].id, role: "member" });
+    if (error) {
+      if (error.message.includes("duplicate")) return { message: "Usuário já é membro." };
+      return { message: "Erro ao adicionar." };
+    }
+    revalidatePath("/admin/tenants");
+    revalidatePath("/", "layout");
+    return { success: true, message: `${userName} adicionado!` };
+  } catch { return { message: "Serviço indisponível." }; }
+}
+
+export async function getTenantMembers(tenantId: string): Promise<TenantMemberWithProfile[]> {
+  try {
+    const adminClient = createAdminClient();
+    const { data: members } = await adminClient.from("tenant_members").select("id, tenant_id, user_id, role, created_at").eq("tenant_id", tenantId).order("created_at");
+    if (!members?.length) return [];
+    const userIds = members.map(m => m.user_id);
+    const { data: profiles } = await adminClient.from("profiles").select("id, name, email").in("id", userIds);
+    const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+    return members.map(m => ({ ...m, profiles: profileMap.get(m.user_id) || null })) as TenantMemberWithProfile[];
+  } catch { return []; }
 }

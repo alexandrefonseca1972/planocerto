@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { Navbar } from "@/components/layout/navbar";
 import { TenantAwareWrapper } from "@/components/layout/tenant-aware-wrapper";
 import { ToastProvider } from "@/components/ui/toast";
@@ -92,9 +93,13 @@ export default async function ProtectedLayout({
     redirect("/auth");
   }
 
-  // Users with no tenants → pending approval page
+  // Users with no tenants → pending approval page (avoid redirect loop)
   if (session.tenants.length === 0) {
-    redirect("/pendente");
+    const headersList = await headers();
+    const pathname = headersList.get("x-invoke-path") || "";
+    if (!pathname.startsWith("/pendente")) {
+      redirect("/pendente");
+    }
   }
 
   return (
