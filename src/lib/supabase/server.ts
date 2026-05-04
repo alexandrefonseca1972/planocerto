@@ -18,6 +18,7 @@ export async function createClient() {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               // Strip expiry — session cookies cleared on browser close
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { expires, maxAge, ...rest } = options || {};
               cookieStore.set(name, value, rest);
             });

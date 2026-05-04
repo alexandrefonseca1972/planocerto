@@ -21,7 +21,8 @@ export async function proxy(request: NextRequest) {
             );
             supabaseResponse = NextResponse.next({ request });
             cookiesToSet.forEach(({ name, value, options }) => {
-              // Remove expiry to make session cookies (cleared on browser close)
+              // Strip expiry — session cookies cleared on browser close
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { expires, maxAge, ...rest } = options || {};
               supabaseResponse.cookies.set(name, value, rest);
             });
