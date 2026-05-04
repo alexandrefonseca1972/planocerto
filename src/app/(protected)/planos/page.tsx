@@ -18,6 +18,8 @@ import { sanitizeInput, cn } from "@/lib/utils";
 import { ExportCsv } from "@/components/layout/export-csv";
 import { flattenItems, fmt, trunc, FarolIcon } from "@/components/planos/plan-utils";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
+import { CopyPlanButton } from "@/components/planos/copy-plan-button";
+import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2 } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
@@ -176,6 +178,8 @@ export default function PlanosPage() {
           <Button variant="outline" size="sm" className="text-red-600" onClick={() => setDeletingPlan(plan)}>
             <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
           </Button>
+          <CopyPlanButton plan={plan} toast={toast} router={router} />
+          <ShareLinkButton planId={plan.id} toast={toast} />
         </div>
       </div>
 

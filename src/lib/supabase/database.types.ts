@@ -138,6 +138,18 @@ export interface Database {
         Update: { id?: string; notification_id?: string; user_id?: string; read_at?: string; };
         Relationships: [];
       };
+      item_comments: {
+        Row: { id: string; item_id: string; user_id: string; content: string; created_at: string; updated_at: string; };
+        Insert: { id?: string; item_id: string; user_id: string; content: string; created_at?: string; updated_at?: string; };
+        Update: { id?: string; item_id?: string; user_id?: string; content?: string; created_at?: string; updated_at?: string; };
+        Relationships: [];
+      };
+      public_links: {
+        Row: { id: string; plan_id: string; token: string; expires_at: string | null; created_by: string | null; created_at: string; };
+        Insert: { id?: string; plan_id: string; token: string; expires_at?: string | null; created_by?: string | null; created_at?: string; };
+        Update: { id?: string; plan_id?: string; token?: string; expires_at?: string | null; created_by?: string | null; created_at?: string; };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
