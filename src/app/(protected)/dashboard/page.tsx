@@ -250,7 +250,7 @@ export default async function DashboardPage() {
                 <thead><tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">Unidade</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Total</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Concluídas</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Andamento</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Pendentes</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Atrasadas</th><th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 text-center">Progresso</th></tr></thead>
                 <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                   {tenantSummaries.map((t) => (
-                    <tr key={t.id} className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/30 cursor-pointer" onClick={() => { /* link handled by td */ }}>
+                    <tr key={t.id} className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
                       <td className="px-4 py-2.5">
                         <Link href="/planos" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50 truncate max-w-[200px] block">{t.name}</Link>
                       </td>
