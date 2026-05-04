@@ -18,12 +18,31 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
 
+  // Poll unread count every 30s
+  useEffect(() => {
+    const fetch = () => { getUnreadCount().then(setUnread).catch(() => {}); };
+    fetch();
+    const interval = setInterval(fetch, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (open) {
       getNotifications().then(setNotifications);
     } else {
       getUnreadCount().then(setUnread);
     }
+  }, [open]);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-notification-bell]")) setOpen(false);
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
   }, [open]);
 
   const handleRead = async (id: string) => {
@@ -33,7 +52,7 @@ export function NotificationBell() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-notification-bell>
       <button onClick={() => setOpen(!open)} className="relative rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
         <Bell className="h-4 w-4" />
         {unread > 0 && (

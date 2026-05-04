@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isValidUrl } from "@/lib/sanitize";
 import { createTenantSchema } from "@/lib/validations/tenant";
 import { checkIsAdmin } from "@/app/actions/admin";
 import type { TenantFormState } from "@/types/tenant";
@@ -76,6 +77,15 @@ export async function switchTenant(tenantId: string): Promise<boolean> {
     const isAdmin = await checkIsAdmin();
 
     if (!isAdmin) {
+      const { data: member } = await supabase
+        .from("tenant_members")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!member) return false;
+    } else {
+      // Admin must also be a member — prevents switching to unassociated tenants
       const { data: member } = await supabase
         .from("tenant_members")
         .select("id")
@@ -180,6 +190,11 @@ export async function updateTenant(
       };
     }
 
+    const webhookUrl = (formData.get("teams_webhook_url") as string)?.trim() || "";
+    if (webhookUrl && !isValidUrl(webhookUrl, ["webhook.office.com", "office.com"])) {
+      return { message: "URL de webhook inválida. Deve ser HTTPS e do Microsoft Teams." };
+    }
+
     const adminClient = createAdminClient();
     const { error } = await adminClient
       .from("tenants")
@@ -187,7 +202,7 @@ export async function updateTenant(
         name: validated.data.name,
         slug: validated.data.slug,
         plan: validated.data.plan,
-        teams_webhook_url: (formData.get("teams_webhook_url") as string) || "",
+        teams_webhook_url: webhookUrl,
         updated_at: new Date().toISOString(),
       })
       .eq("id", tenantId);
@@ -212,6 +227,16 @@ export async function removeTenantMember(
     if (!memberId) return { message: "ID do membro obrigatório." };
 
     const adminClient = createAdminClient();
+
+    // Prevent removing the last owner
+    const { data: target } = await adminClient.from("tenant_members").select("tenant_id,role").eq("id", memberId).maybeSingle();
+    if (target?.role === "owner") {
+      const { data: owners } = await adminClient.from("tenant_members").select("id").eq("tenant_id", target.tenant_id).eq("role", "owner");
+      if ((owners || []).length <= 1) {
+        return { message: "Não é possível remover o último proprietário da empresa." };
+      }
+    }
+
     const { error } = await adminClient
       .from("tenant_members")
       .delete()
@@ -245,6 +270,16 @@ export async function updateTenantMemberRole(
     }
 
     const adminClient = createAdminClient();
+
+    // Prevent demoting the last owner
+    const { data: target } = await adminClient.from("tenant_members").select("tenant_id,role").eq("id", memberId).maybeSingle();
+    if (target?.role === "owner" && role !== "owner") {
+      const { data: owners } = await adminClient.from("tenant_members").select("id").eq("tenant_id", target.tenant_id).eq("role", "owner");
+      if ((owners || []).length <= 1) {
+        return { message: "Não é possível remover o último proprietário da empresa." };
+      }
+    }
+
     const { error } = await adminClient
       .from("tenant_members")
       .update({ role: role as "owner" | "admin" | "member" })

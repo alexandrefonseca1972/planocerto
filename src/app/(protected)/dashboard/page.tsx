@@ -63,11 +63,14 @@ export default async function DashboardPage() {
       for (const plan of tenantPlans) {
         const items = itemsByPlan.get(plan.id) || [];
         total += items.length;
-        completed += items.filter(i => i.status === 5).length;
-        const inProg = items.filter(i => i.status === 3 || i.status === 4);
-        progress += inProg.length;
-        pending += items.filter(i => i.status === 1 || i.status === 2).length;
-        overdue += items.filter(i => i.planned_end && i.planned_end < today && i.status !== 5).length;
+        const c = items.filter(i => i.status === 5);
+        completed += c.length;
+        const o = items.filter(i => i.planned_end && i.planned_end < today && i.status !== 5);
+        overdue += o.length;
+        const p = items.filter(i => (i.status === 3 || i.status === 4) && !o.includes(i));
+        progress += p.length;
+        const pend = items.filter(i => (i.status === 1 || i.status === 2) && !o.includes(i));
+        pending += pend.length;
 
         const upcoming = items.filter(i => i.planned_end && i.planned_end >= today && i.status !== 5)
           .sort((a, b) => (a.planned_end || "").localeCompare(b.planned_end || ""));
@@ -76,7 +79,7 @@ export default async function DashboardPage() {
         }
       }
 
-      tenantSummaries.push({ id: tenant.id, name: tenant.name, totalActions: total, completed, inProgress: progress, pending, progress: total > 0 ? Math.round(((completed + progress * 0.5) / total) * 100) : 0, overdue });
+      tenantSummaries.push({ id: tenant.id, name: tenant.name, totalActions: total, completed, inProgress: progress, pending, progress: total > 0 ? Math.round((completed / total) * 100) : 0, overdue });
       globalTotal += total; globalCompleted += completed; globalProgress += progress; globalPending += pending; globalOverdue += overdue;
     }
 
@@ -88,8 +91,8 @@ export default async function DashboardPage() {
     }
   } catch { /* fallback */ }
 
-  globalTotal = globalTotal || 1;
-  const completionRate = Math.round((globalCompleted / globalTotal) * 100);
+  globalTotal = globalTotal || 0;
+  const completionRate = globalTotal > 0 ? Math.round((globalCompleted / globalTotal) * 100) : 0;
   const now = new Date();
   const greeting = now.getHours() < 12 ? "Bom dia" : now.getHours() < 18 ? "Boa tarde" : "Boa noite";
 

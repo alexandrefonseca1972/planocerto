@@ -73,6 +73,11 @@ export async function createUser(
       };
     }
 
+    // Block admin creation via web form — use service role for admin provisioning
+    if (validated.data.role === "admin") {
+      return { message: "Criação de administradores requer acesso direto ao banco de dados." };
+    }
+
     const adminClient = createAdminClient();
 
     const { data, error } = await adminClient.auth.admin.createUser({
@@ -167,6 +172,15 @@ export async function updateUser(
         errors: validated.error.flatten().fieldErrors,
         message: "Verifique os campos e tente novamente.",
       };
+    }
+
+    // Block role escalation — admins cannot promote users to admin via web form
+    if (validated.data.role === "admin") {
+      const supabase = await createClient();
+      const { data: targetProfile } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+      if (targetProfile?.role !== "admin") {
+        return { message: "Promoção para administrador requer acesso direto ao banco de dados." };
+      }
     }
 
     const adminClient = createAdminClient();

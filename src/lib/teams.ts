@@ -7,46 +7,51 @@ interface TeamsCard {
 
 export async function sendTeamsNotification(webhookUrl: string, card: TeamsCard): Promise<boolean> {
   if (!webhookUrl) return false;
+
+  const facts = card.facts?.map(f => ({ name: f.name, value: f.value })) || [];
+
+  const body = {
+    type: "message",
+    attachments: [{
+      contentType: "application/vnd.microsoft.card.adaptive",
+      content: {
+        type: "AdaptiveCard",
+        version: "1.4",
+        body: [
+          {
+            type: "TextBlock",
+            text: card.title,
+            weight: "bolder",
+            size: "medium",
+            wrap: true,
+          },
+          {
+            type: "TextBlock",
+            text: card.text,
+            wrap: true,
+            spacing: "small",
+          },
+          ...(facts.length > 0 ? [{
+            type: "FactSet",
+            facts: facts.map(f => ({ title: f.name, value: f.value })),
+            spacing: "medium",
+          }] : []),
+        ],
+        $schema: "https://adaptivecards.io/schemas/adaptive-card.json",
+      },
+    }],
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
   try {
-    const facts = card.facts?.map(f => ({ name: f.name, value: f.value })) || [];
-
-    const body = {
-      type: "message",
-      attachments: [{
-        contentType: "application/vnd.microsoft.card.adaptive",
-        content: {
-          type: "AdaptiveCard",
-          version: "1.4",
-          body: [
-            {
-              type: "TextBlock",
-              text: card.title,
-              weight: "bolder",
-              size: "medium",
-              wrap: true,
-            },
-            {
-              type: "TextBlock",
-              text: card.text,
-              wrap: true,
-              spacing: "small",
-            },
-            ...(facts.length > 0 ? [{
-              type: "FactSet",
-              facts: facts.map(f => ({ title: f.name, value: f.value })),
-              spacing: "medium",
-            }] : []),
-          ],
-          $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
-        },
-      }],
-    };
-
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       cache: "no-store",
+      signal: controller.signal,
     });
 
     if (!res.ok) {
@@ -57,8 +62,14 @@ export async function sendTeamsNotification(webhookUrl: string, card: TeamsCard)
 
     return true;
   } catch (e) {
-    console.error("[Teams] Erro ao enviar notificação:", e);
+    if (e instanceof Error && e.name === "AbortError") {
+      console.error("[Teams] Webhook timeout (>5s)");
+    } else {
+      console.error("[Teams] Erro ao enviar notificação:", e);
+    }
     return false;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

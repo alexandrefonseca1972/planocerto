@@ -50,8 +50,38 @@ export async function getNotifications(): Promise<NotificationItem[]> {
 
 export async function getUnreadCount(): Promise<number> {
   try {
-    const notifications = await getNotifications();
-    return notifications.filter(n => !n.read).length;
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const { data: profile } = await supabase.from("profiles").select("active_tenant_id").eq("id", user.id).maybeSingle();
+    const tenantId = profile?.active_tenant_id;
+
+    // Fetch only IDs of active notifications targeted to this user
+    const { data: notificationIds } = await supabase
+      .from("notifications")
+      .select("id, expires_at")
+      .or(`target_type.eq.all,target_id.eq.${user.id},target_id.eq.${tenantId || ""}`)
+      .limit(500);
+
+    if (!notificationIds?.length) return 0;
+
+    const now = new Date();
+    const activeIds = notificationIds
+      .filter(n => !n.expires_at || new Date(n.expires_at) > now)
+      .map(n => n.id);
+
+    if (!activeIds.length) return 0;
+
+    // Get read notification IDs
+    const { data: reads } = await supabase
+      .from("notification_reads")
+      .select("notification_id")
+      .eq("user_id", user.id)
+      .in("notification_id", activeIds);
+
+    const readIds = new Set((reads || []).map(r => r.notification_id));
+    return activeIds.filter(id => !readIds.has(id)).length;
   } catch (error) { console.error("[getUnreadCount] Error:", error); return 0; }
 }
 
