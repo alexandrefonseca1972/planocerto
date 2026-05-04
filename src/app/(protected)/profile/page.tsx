@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "@/components/forms/profile-form";
+import { CalendarIntegration } from "@/components/profile/calendar-integration";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDate } from "@/lib/utils";
@@ -103,6 +104,8 @@ export default async function ProfilePage() {
           </dl>
         </CardContent>
       </Card>
+
+      <CalendarIntegration />
     </div>
   );
 }

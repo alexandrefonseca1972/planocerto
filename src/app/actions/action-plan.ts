@@ -177,6 +177,25 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
       }
     } catch (error) { console.error("[upsertItem] Teams notification error:", error); }
 
+    // Email notification
+    try {
+      const { data: plan } = await supabase.from("action_plans").select("title, tenant_id").eq("id", planId).single();
+      if (plan && payload.responsible) {
+        const { data: profiles } = await supabase.from("profiles").select("email").eq("name", payload.responsible).limit(1);
+        const email = profiles?.[0]?.email;
+        if (email) {
+          const wasCompleted = Number(payload.status) === 5;
+          const { sendEmail, itemCreatedEmail, itemCompletedEmail } = await import("@/lib/email");
+          const itemData = { number: payload.number, action: payload.action, responsible: payload.responsible || "", planTitle: plan.title };
+          if (wasCompleted) {
+            await sendEmail(email, itemCompletedEmail(itemData).subject, itemCompletedEmail(itemData).html);
+          } else if (!itemId) {
+            await sendEmail(email, itemCreatedEmail(itemData).subject, itemCreatedEmail(itemData).html);
+          }
+        }
+      }
+    } catch (error) { console.error("[upsertItem] Email notification error:", error); }
+
     return { success: true, message: itemId ? "Item atualizado!" : "Item criado!" };
   } catch (error) { console.error("[upsertItem] Error:", error); return { message: "Serviço indisponível." }; }
 }
@@ -202,7 +221,7 @@ export async function updateItemStatus(itemId: string, status: number): Promise<
     if (status < 1 || status > 5) return { message: "Status inválido." };
 
     const supabase = await createClient();
-    const { data: item } = await supabase.from("action_items").select("plan_id,number,action").eq("id", itemId).single();
+    const { data: item } = await supabase.from("action_items").select("plan_id,number,action,responsible").eq("id", itemId).single();
     if (!item) return { message: "Item não encontrado." };
 
     const { error } = await supabase.from("action_items").update({ status, updated_at: new Date().toISOString() }).eq("id", itemId);
@@ -213,6 +232,22 @@ export async function updateItemStatus(itemId: string, status: number): Promise<
     revalidatePath("/planos");
     revalidatePath("/dashboard");
     revalidatePath("/calendario");
+
+    // Email on completion
+    if (status === 5 && item.responsible) {
+      try {
+        const { data: plan } = await supabase.from("action_plans").select("title").eq("id", item.plan_id).single();
+        if (plan) {
+          const { data: profiles } = await supabase.from("profiles").select("email").eq("name", item.responsible).limit(1);
+          const email = profiles?.[0]?.email;
+          if (email) {
+            const { sendEmail, itemCompletedEmail } = await import("@/lib/email");
+            const itemData = { number: item.number, action: item.action, responsible: item.responsible, planTitle: plan.title };
+            await sendEmail(email, itemCompletedEmail(itemData).subject, itemCompletedEmail(itemData).html);
+          }
+        }
+      } catch { /* non-critical */ }
+    }
 
     return { success: true, message: "Status atualizado!" };
   } catch (error) { console.error("[updateItemStatus] Error:", error); return { message: "Serviço indisponível." }; }
