@@ -33,6 +33,14 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 - 🌙 Dark/Light mode
 - 📏 Controle de tamanho de fonte
 - 📤 Exportação Excel + PDF
+- 📅 Sincronização Google Calendar (OAuth 2.0)
+- 📈 Gráfico de Gantt interativo (zoom mês/trimestre/ano)
+
+## Documentação
+
+- [Manual do Usuário](docs/manual-usuario.md) — guia completo de uso
+- [Plano de Implementação](docs/plano-implementacao.md) — roadmap técnico
+- [CHANGELOG](CHANGELOG.md) — histórico de versões
 
 ## Variáveis de Ambiente
 
@@ -40,8 +48,9 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-RESEND_API_KEY=re_xxxxxxxxxxxx
-```
+RESEND_API_KEY=re_xxxxxxxxxxxx          # Notificações por email
+GOOGLE_CLIENT_ID=xxxxxxxx.apps.google... # Google Calendar sync
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxx      # Google Calendar sync
 
 ## Setup Local
 
