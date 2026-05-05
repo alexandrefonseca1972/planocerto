@@ -196,6 +196,21 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
       }
     } catch (error) { console.error("[upsertItem] Email notification error:", error); }
 
+    // Calendar sync
+    try {
+      const { syncItemToCalendar } = await import("@/app/actions/calendar-sync");
+      await syncItemToCalendar(
+        itemId || "",
+        planId,
+        payload.number,
+        payload.action,
+        payload.responsible || "",
+        payload.planned_start || null,
+        payload.planned_end || null,
+        Number(payload.status),
+      );
+    } catch (error) { console.error("[upsertItem] Calendar sync error:", error); }
+
     return { success: true, message: itemId ? "Item atualizado!" : "Item criado!" };
   } catch (error) { console.error("[upsertItem] Error:", error); return { message: "Serviço indisponível." }; }
 }
