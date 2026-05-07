@@ -6,7 +6,16 @@ import { DistributionCard } from "@/components/dashboard/distribution-card";
 import { ProgressByUnit } from "@/components/dashboard/progress-by-unit";
 import { DetailTable } from "@/components/dashboard/detail-table";
 import { useTenant } from "@/lib/contexts/tenant-context";
-import { Building2, CheckCircle2, Clock, Calendar, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  AlertTriangle,
+  ArrowUpRight,
+  ListTodo,
+  CircleDashed,
+} from "lucide-react";
 import Link from "next/link";
 
 interface TenantSummary {
@@ -45,7 +54,6 @@ export function DashboardClient({
   isAdmin,
   tenantSummaries,
   deadlines: allDeadlines,
-  sparklineData,
 }: DashboardClientProps) {
   const { selectedTenantIds } = useTenant();
 
@@ -71,8 +79,13 @@ export function DashboardClient({
     globalOverdue += summary.overdue;
   }
 
-  const completionRate =
-    globalTotal > 0 ? Math.round((globalCompleted / globalTotal) * 100) : 0;
+  const pct = (n: number) =>
+    globalTotal > 0 ? Math.round((n / globalTotal) * 100) : 0;
+  const completedPct = pct(globalCompleted);
+  const progressPct = pct(globalProgress);
+  const pendingPct = pct(globalPending);
+  const overduePct = pct(globalOverdue);
+
   const greeting =
     new Date().getHours() < 12
       ? "Bom dia"
@@ -81,66 +94,77 @@ export function DashboardClient({
         : "Boa noite";
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <p className="text-xs font-medium uppercase tracking-widest text-zinc-400">
-          {greeting}
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          {userName}
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Resumo executivo
-          {isAdmin && ` · ${tenantSummaries.length} unidades`}
-        </p>
+    <div className="space-y-4">
+      {/* Header (compact) */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-400">
+            {greeting}
+          </p>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {userName}
+          </h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Resumo executivo
+            {isAdmin && ` · ${tenantSummaries.length} unidades`}
+            {filteredSummaries.length !== tenantSummaries.length &&
+              ` · ${filteredSummaries.length} selecionadas`}
+          </p>
+        </div>
+        <Link
+          href="/planos"
+          className="inline-flex items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+        >
+          Ver planos <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
-      <Link
-        href="/planos"
-        className="inline-flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-      >
-        Ver planos <ArrowUpRight className="h-3.5 w-3.5" />
-      </Link>
-
-      {/* KPI Row */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          icon={Building2}
-          label="Unidades"
-          value={filteredSummaries.length}
-          subtitle="empresas selecionadas"
-          color="text-blue-600 dark:text-blue-400"
-          bg="bg-blue-50 dark:bg-blue-950/30"
+      {/* Status Row — 5 compact cards */}
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <StatusCard
+          icon={ListTodo}
+          label="Total"
+          value={globalTotal}
+          subtitle={`${filteredSummaries.length} unidades`}
+          color="text-zinc-700 dark:text-zinc-300"
+          accent="bg-zinc-500"
         />
-        <KpiCard
+        <StatusCard
           icon={CheckCircle2}
           label="Concluídas"
-          value={`${completionRate}%`}
-          subtitle={`${globalCompleted} de ${globalTotal}`}
+          value={globalCompleted}
+          percent={completedPct}
           color="text-emerald-600 dark:text-emerald-400"
-          bg="bg-emerald-50 dark:bg-emerald-950/30"
+          accent="bg-emerald-500"
         />
-        <KpiCard
+        <StatusCard
           icon={Clock}
           label="Em andamento"
           value={globalProgress}
-          subtitle={`${globalPending} pendentes`}
+          percent={progressPct}
           color="text-amber-600 dark:text-amber-400"
-          bg="bg-amber-50 dark:bg-amber-950/30"
+          accent="bg-amber-500"
         />
-        <KpiCard
+        <StatusCard
+          icon={CircleDashed}
+          label="Pendentes"
+          value={globalPending}
+          percent={pendingPct}
+          color="text-blue-600 dark:text-blue-400"
+          accent="bg-blue-500"
+        />
+        <StatusCard
           icon={AlertTriangle}
           label="Atrasadas"
           value={globalOverdue}
-          subtitle="ações com prazo vencido"
+          percent={overduePct}
           color="text-red-600 dark:text-red-400"
-          bg="bg-red-50 dark:bg-red-950/30"
+          accent="bg-red-500"
         />
       </div>
 
       {/* Middle Row: Charts + Deadlines + Progress */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-3">
         <DistributionCard
           completed={globalCompleted}
           progress={globalProgress}
@@ -149,26 +173,25 @@ export function DashboardClient({
           total={globalTotal}
         />
 
-        {/* Deadlines */}
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Calendar className="h-4 w-4 text-zinc-500" /> Prazos próximos
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             {filteredDeadlines.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <Calendar className="h-8 w-8 text-zinc-300 dark:text-zinc-600" />
-                <p className="mt-2 text-sm text-zinc-500">Nenhum prazo.</p>
+              <div className="flex flex-col items-center py-6 text-center">
+                <Calendar className="h-7 w-7 text-zinc-300 dark:text-zinc-600" />
+                <p className="mt-2 text-xs text-zinc-500">Nenhum prazo.</p>
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              <div className="space-y-1 max-h-64 overflow-y-auto">
                 {filteredDeadlines.map((d) => (
                   <Link
                     key={d.id}
                     href="/planos"
-                    className="flex items-start gap-2.5 rounded-md p-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 block"
+                    className="flex items-start gap-2 rounded-md p-1.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 block"
                   >
                     <span
                       className={cn(
@@ -181,12 +204,12 @@ export function DashboardClient({
                       {d.urgent ? "!" : d.number.slice(0, 2)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{d.title}</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="truncate text-xs font-medium">{d.title}</p>
+                      <p className="text-[11px] text-zinc-500">
                         {d.tenant} ·{" "}
-                        {new Date(
-                          d.deadline + "T00:00:00"
-                        ).toLocaleDateString("pt-BR")}
+                        {new Date(d.deadline + "T00:00:00").toLocaleDateString(
+                          "pt-BR"
+                        )}
                         {d.daysLeft <= 0 ? (
                           <span className="font-semibold text-red-500"> (hoje)</span>
                         ) : d.urgent ? (
@@ -206,7 +229,6 @@ export function DashboardClient({
           </CardContent>
         </Card>
 
-        {/* Progress per Unit */}
         <ProgressByUnit
           units={filteredSummaries.map((t) => ({
             id: t.id,
@@ -221,7 +243,6 @@ export function DashboardClient({
         />
       </div>
 
-      {/* Detail Table */}
       <DetailTable
         units={filteredSummaries.map((t) => ({
           id: t.id,
@@ -238,51 +259,54 @@ export function DashboardClient({
   );
 }
 
-function KpiCard({
+function StatusCard({
   icon: Icon,
   label,
   value,
+  percent,
   subtitle,
   color,
-  bg,
-  trend,
+  accent,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  value: string | number;
-  subtitle: string;
+  value: number;
+  percent?: number;
+  subtitle?: string;
   color: string;
-  bg: string;
-  trend?: boolean;
+  accent: string;
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          {label}
-        </CardTitle>
-        <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", bg)}>
-          <Icon className={cn("h-4.5 w-4.5", color)} />
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            {label}
+          </span>
+          <Icon className={cn("h-3.5 w-3.5 shrink-0", color)} />
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+        <div className="mt-1.5 flex items-baseline gap-1.5">
+          <span className="text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
             {value}
           </span>
-          {trend !== undefined && (
-            <span className={cn("text-xs", trend ? "text-emerald-500" : "text-red-500")}>
-              {trend ? (
-                <TrendingUp className="h-3 w-3 inline" />
-              ) : (
-                <TrendingDown className="h-3 w-3 inline" />
-              )}
+          {percent !== undefined && (
+            <span className={cn("text-xs font-semibold tabular-nums", color)}>
+              {percent}%
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-          {subtitle}
-        </p>
+        {subtitle ? (
+          <p className="mt-0.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+            {subtitle}
+          </p>
+        ) : percent !== undefined ? (
+          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+            <div
+              className={cn("h-full rounded-full transition-all", accent)}
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
