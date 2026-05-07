@@ -74,23 +74,19 @@ export function DashboardClient({
   }, [tenantSummaries]);
 
   const handleSelectionChange = (ids: string[]) => {
-    setSelectedTenantIds(ids.length === 0 ? tenantSummaries.map((t) => t.id) : ids);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids.length === 0 ? tenantSummaries.map((t) => t.id) : ids));
+    setSelectedTenantIds(ids);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
   };
 
   if (!mounted) return null;
 
-  const filteredSummaries =
-    selectedTenantIds.length === 0
-      ? tenantSummaries
-      : tenantSummaries.filter((t) => selectedTenantIds.includes(t.id));
+  const filteredSummaries = tenantSummaries.filter((t) =>
+    selectedTenantIds.includes(t.id)
+  );
 
-  const filteredDeadlines =
-    selectedTenantIds.length === 0
-      ? allDeadlines
-      : allDeadlines.filter((d) =>
-          filteredSummaries.some((t) => t.name === d.tenant)
-        );
+  const filteredDeadlines = allDeadlines.filter((d) =>
+    filteredSummaries.some((t) => t.name === d.tenant)
+  );
 
   let globalTotal = 0,
     globalCompleted = 0,

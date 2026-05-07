@@ -25,9 +25,8 @@ export function useTenantFilter(allTenantIds: string[]) {
   }, [allTenantIds]);
 
   const updateSelection = (ids: string[]) => {
-    const newIds = ids.length === 0 ? allTenantIds : ids;
-    setSelectedTenantIds(newIds);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newIds));
+    setSelectedTenantIds(ids);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
   };
 
   return {
