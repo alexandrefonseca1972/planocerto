@@ -119,7 +119,43 @@ export function DashboardClient({
         </Link>
       </div>
 
-      {/* Status Row — 5 compact cards */}
+      {/* KPI Row (original) — 4 cards */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon={Building2}
+          label="Unidades"
+          value={filteredSummaries.length}
+          subtitle="empresas selecionadas"
+          color="text-blue-600 dark:text-blue-400"
+          bg="bg-blue-50 dark:bg-blue-950/30"
+        />
+        <KpiCard
+          icon={CheckCircle2}
+          label="Concluídas"
+          value={`${completedPct}%`}
+          subtitle={`${globalCompleted} de ${globalTotal}`}
+          color="text-emerald-600 dark:text-emerald-400"
+          bg="bg-emerald-50 dark:bg-emerald-950/30"
+        />
+        <KpiCard
+          icon={Clock}
+          label="Em andamento"
+          value={globalProgress}
+          subtitle={`${globalPending} pendentes`}
+          color="text-amber-600 dark:text-amber-400"
+          bg="bg-amber-50 dark:bg-amber-950/30"
+        />
+        <KpiCard
+          icon={AlertTriangle}
+          label="Atrasadas"
+          value={globalOverdue}
+          subtitle="ações com prazo vencido"
+          color="text-red-600 dark:text-red-400"
+          bg="bg-red-50 dark:bg-red-950/30"
+        />
+      </div>
+
+      {/* Status Row — 5 compact cards with totals and percentages */}
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <StatusCard
           icon={ListTodo}
@@ -256,6 +292,43 @@ export function DashboardClient({
         }))}
       />
     </div>
+  );
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  subtitle,
+  color,
+  bg,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  subtitle: string;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          {label}
+        </CardTitle>
+        <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", bg)}>
+          <Icon className={cn("h-4.5 w-4.5", color)} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+          {value}
+        </span>
+        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+          {subtitle}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
