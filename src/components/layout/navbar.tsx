@@ -16,6 +16,7 @@ import { TenantSwitcher } from "@/components/layout/tenant-switcher";
 import { FontControl } from "@/components/layout/font-control";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { UserMenu } from "@/components/layout/user-menu";
 
 interface NavbarProps { user: User; isAdmin?: boolean; }
 
@@ -35,6 +36,10 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/planos", label: "Planos", icon: ClipboardList },
     { href: "/calendario", label: "Calendário", icon: Calendar },
+  ];
+
+  const mobileLinks = [
+    ...links,
     ...(isAdmin ? [{ href: "/admin/users", label: "Admin", icon: Shield }] : []),
     { href: "/profile", label: "Perfil", icon: UserCircle },
   ];
@@ -59,11 +64,11 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
           </nav>
 
           <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
             <ThemeToggle />
             <FontControl />
-            <div className="hidden items-center gap-2 border-l border-zinc-200/80 pl-3 sm:flex dark:border-zinc-700/80">
-              <Avatar className="h-8 w-8 ring-1 ring-zinc-200/50 dark:ring-zinc-700/50"><AvatarFallback className="text-[11px]">{userInitial}</AvatarFallback></Avatar>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleLogout} isLoading={loggingOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button>
+            <div className="hidden items-center border-l border-zinc-200/80 pl-3 sm:flex dark:border-zinc-700/80">
+              <UserMenu user={user} isAdmin={isAdmin} />
             </div>
           </div>
 
@@ -78,13 +83,13 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
           <div className="mb-3 flex items-center justify-between">
             <TenantSwitcher isAdmin={isAdmin} />
             <div className="flex items-center gap-1">
-            <NotificationBell />
-            <ThemeToggle />
+              <NotificationBell />
+              <ThemeToggle />
               <FontControl />
             </div>
           </div>
           <div className="space-y-0.5">
-            {links.map(l => (
+            {mobileLinks.map(l => (
               <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)}
                 className={cn("flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors", linkClass(l.href))}>
                 <l.icon className="h-4 w-4" /> {l.label}
