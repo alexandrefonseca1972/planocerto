@@ -89,6 +89,7 @@ export default async function DashboardPage() {
       itemsByPlan.get(item.plan_id)!.push(item);
     }
 
+    // Sparkline: last 4 weeks of completions
     const now = new Date();
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - now.getDay());
