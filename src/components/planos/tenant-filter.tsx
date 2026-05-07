@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Building2, X } from "lucide-react";
+import { Building2, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Tenant {
@@ -15,6 +13,23 @@ interface PlanosTenantFilterProps {
   tenants: Tenant[];
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
+}
+
+function CheckBox({ checked }: { checked: boolean }) {
+  return (
+    <div
+      className={cn(
+        "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+        checked
+          ? "border-zinc-900 bg-zinc-900 dark:border-zinc-50 dark:bg-zinc-50"
+          : "border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-800"
+      )}
+    >
+      {checked && (
+        <Check className="h-3 w-3 text-white dark:text-zinc-900" strokeWidth={3} />
+      )}
+    </div>
+  );
 }
 
 export function PlanosTenantFilter({
@@ -43,10 +58,12 @@ export function PlanosTenantFilter({
     onSelectionChange([]);
   };
 
+  const allSelected = selectedIds.length === tenants.length && tenants.length > 0;
+
   const displayText =
     selectedIds.length === 0
       ? "Nenhuma empresa"
-      : selectedIds.length === tenants.length
+      : allSelected
         ? "Todas as empresas"
         : selectedIds.length === 1
           ? tenants.find((t) => t.id === selectedIds[0])?.name || "1 empresa"
@@ -54,20 +71,19 @@ export function PlanosTenantFilter({
 
   return (
     <div className="relative inline-block">
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-2"
+      <button
+        type="button"
         onClick={() => setOpen(!open)}
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
       >
         <Building2 className="h-4 w-4" />
         {displayText}
-        {selectedIds.length > 0 && selectedIds.length < tenants.length && (
+        {selectedIds.length > 0 && !allSelected && (
           <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
             {selectedIds.length}
           </span>
         )}
-      </Button>
+      </button>
 
       {open && (
         <>
@@ -76,58 +92,48 @@ export function PlanosTenantFilter({
             onClick={() => setOpen(false)}
           />
           <div className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="border-b border-zinc-100 p-3 dark:border-zinc-700">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-xs"
+            <div className="border-b border-zinc-100 p-2 dark:border-zinc-700">
+              <button
+                type="button"
                 onClick={handleSelectAll}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
-                <Checkbox
-                  checked={selectedIds.length === tenants.length && tenants.length > 0}
-                  onChange={() => {}}
-                  className="mr-2"
-                />
-                {selectedIds.length === tenants.length
-                  ? "Desmarcar tudo"
-                  : "Marcar tudo"}
-              </Button>
+                <CheckBox checked={allSelected} />
+                <span>{allSelected ? "Desmarcar tudo" : "Marcar tudo"}</span>
+              </button>
             </div>
 
             <div className="max-h-64 overflow-y-auto p-2">
               {tenants.length === 0 ? (
-                <p className="text-xs text-zinc-500">Nenhuma empresa disponível</p>
+                <p className="px-3 py-2 text-xs text-zinc-500">Nenhuma empresa disponível</p>
               ) : (
-                tenants.map((tenant) => (
-                  <button
-                    key={tenant.id}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    onClick={() => handleToggle(tenant.id)}
-                  >
-                    <Checkbox
-                      checked={selectedIds.includes(tenant.id)}
-                      onChange={() => {}}
-                      className="h-4 w-4"
-                    />
-                    <span className="flex-1 text-left truncate">
-                      {tenant.name}
-                    </span>
-                  </button>
-                ))
+                tenants.map((tenant) => {
+                  const isChecked = selectedIds.includes(tenant.id);
+                  return (
+                    <button
+                      key={tenant.id}
+                      type="button"
+                      onClick={() => handleToggle(tenant.id)}
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      <CheckBox checked={isChecked} />
+                      <span className="flex-1 text-left truncate">{tenant.name}</span>
+                    </button>
+                  );
+                })
               )}
             </div>
 
             {selectedIds.length > 0 && (
               <div className="border-t border-zinc-100 p-2 dark:border-zinc-700">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start gap-2 text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+                <button
+                  type="button"
                   onClick={handleClear}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
                 >
                   <X className="h-3 w-3" />
                   Limpar seleção
-                </Button>
+                </button>
               </div>
             )}
           </div>
