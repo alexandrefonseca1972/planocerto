@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { DistributionCard } from "@/components/dashboard/distribution-card";
 import { ProgressByUnit } from "@/components/dashboard/progress-by-unit";
 import { DetailTable } from "@/components/dashboard/detail-table";
-import { TenantFilter } from "@/components/dashboard/tenant-filter";
+import { useTenant } from "@/lib/contexts/tenant-context";
 import { Building2, CheckCircle2, Clock, Calendar, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
@@ -41,8 +40,6 @@ interface DashboardClientProps {
   sparklineData: number[];
 }
 
-const STORAGE_KEY = "dashboard_selected_tenants";
-
 export function DashboardClient({
   userName,
   isAdmin,
@@ -50,35 +47,7 @@ export function DashboardClient({
   deadlines: allDeadlines,
   sparklineData,
 }: DashboardClientProps) {
-  const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([]);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const validIds = parsed.filter((id: string) =>
-          tenantSummaries.some((t) => t.id === id)
-        );
-        if (validIds.length > 0) {
-          setSelectedTenantIds(validIds);
-          return;
-        }
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    }
-    setSelectedTenantIds(tenantSummaries.map((t) => t.id));
-  }, [tenantSummaries]);
-
-  const handleSelectionChange = (ids: string[]) => {
-    setSelectedTenantIds(ids);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-  };
-
-  if (!mounted) return null;
+  const { selectedTenantIds } = useTenant();
 
   const filteredSummaries = tenantSummaries.filter((t) =>
     selectedTenantIds.includes(t.id)
@@ -114,29 +83,17 @@ export function DashboardClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-zinc-400">
-            {greeting}
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            {userName}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Resumo executivo
-            {isAdmin && ` · ${tenantSummaries.length} unidades`}
-          </p>
-        </div>
-        {tenantSummaries.length > 1 && (
-          <TenantFilter
-            tenants={tenantSummaries.map((t) => ({
-              id: t.id,
-              name: t.name,
-            }))}
-            selectedIds={selectedTenantIds}
-            onSelectionChange={handleSelectionChange}
-          />
-        )}
+      <div>
+        <p className="text-xs font-medium uppercase tracking-widest text-zinc-400">
+          {greeting}
+        </p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+          {userName}
+        </h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Resumo executivo
+          {isAdmin && ` · ${tenantSummaries.length} unidades`}
+        </p>
       </div>
 
       <Link

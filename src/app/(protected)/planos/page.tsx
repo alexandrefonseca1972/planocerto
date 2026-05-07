@@ -23,16 +23,12 @@ import { GanttChart } from "@/components/planos/plan-gantt";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
-import { useTenantFilter } from "@/lib/hooks/use-tenant-filter";
-import { PlanosTenantFilter } from "@/components/planos/tenant-filter";
 import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, FileDown, GanttChart as GanttIcon } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
 
 export default function PlanosPage() {
   const { currentTenant } = useTenant();
-  const { allTenants } = useTenant();
-  const { selectedTenantIds, updateSelection, mounted } = useTenantFilter(allTenants.map(t => t.id));
   const router = useRouter();
   const { toast } = useToast();
   const [plan, setPlan] = useState<ActionPlan | null>(null);
@@ -167,15 +163,6 @@ export default function PlanosPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      {/* Tenant Filter */}
-      {allTenants.length > 1 && mounted && (
-        <PlanosTenantFilter
-          tenants={allTenants.map(t => ({ id: t.id, name: t.name }))}
-          selectedIds={selectedTenantIds}
-          onSelectionChange={updateSelection}
-        />
-      )}
-
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
