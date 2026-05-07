@@ -62,8 +62,9 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    // Check login time restrictions and access protection
-    if (user && isProtectedPath) {
+    // Check login time restrictions and access protection (skip for API routes)
+    const isApiRoute = pathname.startsWith("/api");
+    if (user && isProtectedPath && !isApiRoute) {
       try {
         const { data: profile } = await supabase.from("profiles").select("login_start_time, login_end_time, is_active").eq("id", user.id).maybeSingle();
         if (profile && !profile.is_active) {

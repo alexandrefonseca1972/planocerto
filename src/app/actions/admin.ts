@@ -28,15 +28,7 @@ export async function checkIsAdmin(): Promise<boolean> {
 
     if (userError || !user) return false;
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError || !profile) return false;
-
-    return profile.role === "admin";
+    return user.user_metadata?.role === "admin";
   } catch (error) {
     console.error("[checkIsAdmin] Erro:", error);
     return false;

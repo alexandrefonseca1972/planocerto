@@ -44,21 +44,21 @@ export async function getCurrentTenant(): Promise<Tenant | null> {
       .maybeSingle();
 
     if (profile?.active_tenant_id) {
-      const { data: member } = await supabase
-        .from("tenant_members")
-        .select("tenant_id")
-        .eq("tenant_id", profile.active_tenant_id)
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (member) {
-        const { data: tenant } = await supabase
+      const [{ data: member }, { data: tenant }] = await Promise.all([
+        supabase
+          .from("tenant_members")
+          .select("tenant_id")
+          .eq("tenant_id", profile.active_tenant_id)
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
           .from("tenants")
           .select("*")
           .eq("id", profile.active_tenant_id)
-          .single();
-        if (tenant) return tenant as Tenant;
-      }
+          .single(),
+      ]);
+
+      if (member && tenant) return tenant as Tenant;
     }
 
     const tenants = await getUserTenants();
@@ -74,26 +74,13 @@ export async function switchTenant(tenantId: string): Promise<boolean> {
     } = await supabase.auth.getUser();
     if (!user) return false;
 
-    const isAdmin = await checkIsAdmin();
-
-    if (!isAdmin) {
-      const { data: member } = await supabase
-        .from("tenant_members")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (!member) return false;
-    } else {
-      // Admin must also be a member — prevents switching to unassociated tenants
-      const { data: member } = await supabase
-        .from("tenant_members")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (!member) return false;
-    }
+    const { data: member } = await supabase
+      .from("tenant_members")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!member) return false;
 
     const { error } = await supabase
       .from("profiles")
@@ -101,7 +88,9 @@ export async function switchTenant(tenantId: string): Promise<boolean> {
       .eq("id", user.id);
     if (error) return false;
 
-    revalidatePath("/", "layout");
+    revalidatePath("/dashboard");
+    revalidatePath("/planos");
+    revalidatePath("/calendario");
     return true;
   } catch (error) { console.error("[switchTenant] Error:", error); return false; }
 }

@@ -53,8 +53,6 @@ export async function login(
           "Erro ao realizar login. Verifique seus dados e tente novamente.",
       };
     }
-
-    revalidatePath("/", "layout");
   } catch (error) {
     console.error("[login] Erro:", error);
     return {
