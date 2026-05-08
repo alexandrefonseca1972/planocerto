@@ -35,7 +35,7 @@ export function Tooltip({ children, content, side = "top", delay = 500 }: Toolti
       {children}
       {show && (
         <div className={cn(
-          "pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-zinc-900 px-2.5 py-1.5 text-xs text-white shadow-lg dark:bg-zinc-50 dark:text-zinc-900",
+          "pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-brand-600 px-2.5 py-1.5 text-xs text-white shadow-lg dark:bg-brand-200 dark:text-brand-900",
           "animate-[fadeIn_150ms_ease-out]",
           sideClass[side]
         )}>

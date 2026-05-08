@@ -4,10 +4,27 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidUrl } from "@/lib/sanitize";
-import { createTenantSchema } from "@/lib/validations/tenant";
-import { checkIsAdmin } from "@/app/actions/admin";
+import { tenantFormSchema } from "@/lib/schemas/tenant-schemas";
+import { normalizeWebsite } from "@/lib/format-br";
+import { checkPermission } from "@/app/actions/admin";
+import { PERMISSIONS } from "@/lib/permissions";
 import type { TenantFormState } from "@/types/tenant";
 import type { Tenant, TenantMemberWithProfile } from "@/types/tenant";
+
+function readTenantForm(formData: FormData) {
+  return {
+    name: String(formData.get("name") || ""),
+    slug: String(formData.get("slug") || "").toLowerCase(),
+    plan: String(formData.get("plan") || "free"),
+    active: formData.get("active") === "on" || formData.get("active") === "true",
+    teams_webhook_url: String(formData.get("teams_webhook_url") || ""),
+    cnpj: String(formData.get("cnpj") || ""),
+    responsavel_nome: String(formData.get("responsavel_nome") || ""),
+    email: String(formData.get("email") || ""),
+    site: String(formData.get("site") || ""),
+    fone: String(formData.get("fone") || ""),
+  };
+}
 
 export async function getUserTenants(): Promise<Tenant[]> {
   try {
@@ -100,16 +117,10 @@ export async function createTenant(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_CREATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
-    const rawData = {
-      name: formData.get("name"),
-      slug: formData.get("slug"),
-      plan: formData.get("plan"),
-    };
-
-    const validated = createTenantSchema.safeParse(rawData);
+    const validated = tenantFormSchema.safeParse(readTenantForm(formData));
     if (!validated.success) {
       return {
         errors: validated.error.flatten().fieldErrors,
@@ -129,12 +140,21 @@ export async function createTenant(
         name: validated.data.name,
         slug: validated.data.slug,
         plan: validated.data.plan,
+        active: validated.data.active,
+        teams_webhook_url: validated.data.teams_webhook_url,
+        cnpj: validated.data.cnpj,
+        responsavel_nome: validated.data.responsavel_nome,
+        email: validated.data.email,
+        site: validated.data.site ? normalizeWebsite(validated.data.site) : "",
+        fone: validated.data.fone,
       })
       .select()
       .single();
 
     if (error) {
-      if (error.message.includes("duplicate")) {
+      if (error.message.includes("duplicate") || error.code === "23505") {
+        if (error.message.includes("cnpj"))
+          return { message: "Este CNPJ já está cadastrado em outra empresa." };
         return { message: "Este slug já está em uso. Escolha outro." };
       }
       return { message: "Erro ao criar empresa." };
@@ -159,19 +179,13 @@ export async function updateTenant(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_UPDATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const tenantId = formData.get("tenantId") as string;
     if (!tenantId) return { message: "ID da empresa obrigatório." };
 
-    const rawData = {
-      name: formData.get("name"),
-      slug: formData.get("slug"),
-      plan: formData.get("plan"),
-    };
-
-    const validated = createTenantSchema.safeParse(rawData);
+    const validated = tenantFormSchema.safeParse(readTenantForm(formData));
     if (!validated.success) {
       return {
         errors: validated.error.flatten().fieldErrors,
@@ -179,7 +193,7 @@ export async function updateTenant(
       };
     }
 
-    const webhookUrl = (formData.get("teams_webhook_url") as string)?.trim() || "";
+    const webhookUrl = validated.data.teams_webhook_url;
     if (webhookUrl && !isValidUrl(webhookUrl, ["webhook.office.com", "office.com"])) {
       return { message: "URL de webhook inválida. Deve ser HTTPS e do Microsoft Teams." };
     }
@@ -191,12 +205,23 @@ export async function updateTenant(
         name: validated.data.name,
         slug: validated.data.slug,
         plan: validated.data.plan,
+        active: validated.data.active,
         teams_webhook_url: webhookUrl,
+        cnpj: validated.data.cnpj,
+        responsavel_nome: validated.data.responsavel_nome,
+        email: validated.data.email,
+        site: validated.data.site ? normalizeWebsite(validated.data.site) : "",
+        fone: validated.data.fone,
         updated_at: new Date().toISOString(),
       })
       .eq("id", tenantId);
 
-    if (error) return { message: "Erro ao atualizar empresa." };
+    if (error) {
+      if (error.code === "23505" && error.message.includes("cnpj")) {
+        return { message: "Este CNPJ já está cadastrado em outra empresa." };
+      }
+      return { message: "Erro ao atualizar empresa." };
+    }
 
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
@@ -209,8 +234,8 @@ export async function removeTenantMember(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const memberId = formData.get("memberId") as string;
     if (!memberId) return { message: "ID do membro obrigatório." };
@@ -244,8 +269,8 @@ export async function updateTenantMemberRole(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const memberId = formData.get("memberId") as string;
     const role = formData.get("role") as string;
@@ -306,13 +331,33 @@ export async function getUserTenantIds(userId: string): Promise<string[]> {
   } catch (error) { console.error("[getUserTenantIds] Error:", error); return []; }
 }
 
+export async function getBulkUserTenantIds(userIds: string[]): Promise<Map<string, string[]>> {
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from("tenant_members")
+      .select("user_id, tenant_id")
+      .in("user_id", userIds);
+
+    const map = new Map<string, string[]>();
+    for (const row of data || []) {
+      if (!map.has(row.user_id)) map.set(row.user_id, []);
+      map.get(row.user_id)!.push(row.tenant_id);
+    }
+    for (const uid of userIds) {
+      if (!map.has(uid)) map.set(uid, []);
+    }
+    return map;
+  } catch (error) { console.error("[getBulkUserTenantIds] Error:", error); return new Map(); }
+}
+
 export async function setUserTenants(
   _prevState: TenantFormState,
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.USERS_MANAGE_TENANTS);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const userId = formData.get("userId") as string;
     if (!userId) return { message: "ID do usuário obrigatório." };
@@ -359,8 +404,8 @@ export async function deleteTenant(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_DELETE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const tenantId = formData.get("tenantId") as string;
     if (!tenantId) return { message: "ID da empresa obrigatório." };
     const adminClient = createAdminClient();
@@ -377,8 +422,8 @@ export async function addTenantMember(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const tenantId = formData.get("tenantId") as string;
     const email = (formData.get("email") as string)?.trim().toLowerCase();
     if (!tenantId || !email) return { message: "ID da empresa e email são obrigatórios." };

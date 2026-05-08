@@ -1,15 +1,21 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/layout/navbar";
+
+export const dynamic = "force-dynamic";
 import { TenantAwareWrapper } from "@/components/layout/tenant-aware-wrapper";
 import { ToastProvider } from "@/components/ui/toast";
 import { getUserTenants } from "@/app/actions/tenant";
+import { getPermissionsMap, buildCustomRolesMap } from "@/lib/permissions";
 import type { User } from "@supabase/supabase-js";
 import type { Tenant } from "@/types/tenant";
 
 async function getSessionData(): Promise<{
   user: User | null;
-  isAdmin: boolean;
+  userPermissions: Record<string, boolean>;
+  role: string;
   currentTenant: Tenant | null;
   tenants: Tenant[];
   error: boolean;
@@ -23,7 +29,8 @@ async function getSessionData(): Promise<{
     if (!user) {
       return {
         user: null,
-        isAdmin: false,
+        userPermissions: {},
+        role: "user",
         currentTenant: null,
         tenants: [],
         error: false,
@@ -32,11 +39,17 @@ async function getSessionData(): Promise<{
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, active_tenant_id")
+      .select("role, permissions, active_tenant_id")
       .eq("id", user.id)
       .maybeSingle();
 
-    const isAdmin = profile?.role === "admin";
+    const role = profile?.role ?? "user";
+    const permissions = (profile?.permissions ?? null) as Record<string, boolean> | null;
+
+    const adminClient = createAdminClient();
+    const { data: roles } = await adminClient.from("roles").select("name, permissions");
+    const customRolesMap = buildCustomRolesMap((roles || []) as { name: string; permissions: Record<string, boolean> }[]);
+    const userPermissions = getPermissionsMap(role, permissions, customRolesMap);
 
     const tenants = await getUserTenants();
 
@@ -45,11 +58,12 @@ async function getSessionData(): Promise<{
       tenants[0] ||
       null;
 
-    return { user, isAdmin, currentTenant, tenants, error: false };
+    return { user, userPermissions, role, currentTenant, tenants, error: false };
   } catch {
     return {
       user: null,
-      isAdmin: false,
+      userPermissions: {},
+      role: "user",
       currentTenant: null,
       tenants: [],
       error: true,
@@ -76,23 +90,23 @@ export default async function ProtectedLayout({
               Não foi possível verificar sua sessão. Tente novamente em alguns
               instantes.
             </p>
-            <a
+            <Link
               href="/auth"
               className="mt-4 inline-block text-sm font-medium text-zinc-900 underline dark:text-zinc-50"
             >
               Voltar para o login
-            </a>
+            </Link>
           </div>
         </main>
       </div>
     );
   }
 
-    if (!session.user) {
+  if (!session.user) {
     redirect("/auth");
   }
 
-  // Users with no tenants → pending approval page
+  // Users with no tenants -> pending approval page
   if (session.tenants.length === 0) {
     redirect("/pendente");
   }
@@ -104,7 +118,11 @@ export default async function ProtectedLayout({
         tenants={session.tenants}
       >
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-          <Navbar user={session.user} isAdmin={session.isAdmin} />
+          <Navbar
+            user={session.user}
+            userPermissions={session.userPermissions}
+            role={session.role}
+          />
           <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </main>

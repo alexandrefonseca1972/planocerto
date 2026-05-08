@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { sanitizeInput } from "@/lib/utils";
+import { sanitize } from "@/lib/sanitize";
 import { Mail, Lock, LogIn } from "lucide-react";
 import Link from "next/link";
 
@@ -48,7 +48,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           value={email}
           required
           onChange={(e) => {
-            setEmail(sanitizeInput(e.target.value));
+            setEmail(sanitize(e.target.value));
           }}
           aria-describedby={state.errors?.email ? "email-error" : undefined}
           aria-invalid={!!state.errors?.email}

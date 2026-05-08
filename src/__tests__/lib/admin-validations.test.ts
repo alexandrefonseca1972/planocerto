@@ -24,14 +24,24 @@ describe("createUserSchema", () => {
     expect(result.data?.role).toBe("admin");
   });
 
-  it("rejects invalid role", () => {
+  it("rejects empty role", () => {
     const result = createUserSchema.safeParse({
       email: "user@example.com",
       password: "StrongP@ss1",
       name: "Test",
-      role: "super_admin",
+      role: "",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts custom role names", () => {
+    const result = createUserSchema.safeParse({
+      email: "user@example.com",
+      password: "StrongP@ss1",
+      name: "Test",
+      role: "editor_regional",
+    });
+    expect(result.success).toBe(true);
   });
 
   it("rejects short password", () => {

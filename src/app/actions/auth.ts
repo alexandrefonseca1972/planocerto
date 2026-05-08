@@ -154,7 +154,7 @@ export async function resetPassword(
     const supabase = await createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(
       validated.data.email,
-      { redirectTo: "https://planocerto.ruphus.app/auth/update-password" }
+      { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/update-password` }
     );
 
     if (error) {
@@ -215,6 +215,10 @@ export async function updateProfile(
   try {
     const rawData = {
       name: formData.get("name"),
+      phone: String(formData.get("phone") || ""),
+      is_whatsapp:
+        formData.get("is_whatsapp") === "on" ||
+        formData.get("is_whatsapp") === "true",
     };
 
     const validated = profileSchema.safeParse(rawData);
@@ -247,9 +251,26 @@ export async function updateProfile(
       return { message: "Erro ao atualizar perfil. Tente novamente." };
     }
 
+    // Carrega social_media existente para mesclar a flag is_whatsapp
+    const { data: prev } = await supabase
+      .from("profiles")
+      .select("social_media")
+      .eq("id", user.id)
+      .maybeSingle();
+    const socialMedia: Record<string, unknown> = {
+      ...((prev?.social_media as Record<string, unknown> | null) || {}),
+      is_whatsapp: validated.data.is_whatsapp,
+    };
+
     await supabase
       .from("profiles")
-      .update({ name: validated.data.name, updated_at: new Date().toISOString() })
+      .update({
+        name: validated.data.name,
+        phone: validated.data.phone,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        social_media: socialMedia as any,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", user.id);
 
     revalidatePath("/profile");

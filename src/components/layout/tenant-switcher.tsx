@@ -4,17 +4,22 @@ import { useState, useRef, useEffect } from "react";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { Building2, ChevronDown, Check, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PERMISSIONS } from "@/lib/permissions";
 import Link from "next/link";
 
 interface TenantSwitcherProps {
-  isAdmin?: boolean;
+  userPermissions?: Record<string, boolean>;
 }
 
-export function TenantSwitcher({ isAdmin }: TenantSwitcherProps) {
+export function TenantSwitcher({ userPermissions = {} }: TenantSwitcherProps) {
   const { allTenants, selectedTenantIds, setSelectedTenantIds, isSwitching } =
     useTenant();
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const canManageTenants =
+    userPermissions[PERMISSIONS.TENANTS_READ] ||
+    userPermissions[PERMISSIONS.TENANTS_MANAGE_MEMBERS];
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -31,6 +36,22 @@ export function TenantSwitcher({ isAdmin }: TenantSwitcherProps) {
       <div className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-400 dark:border-zinc-700">
         <Building2 className="h-3.5 w-3.5" />
         <span>Sem empresas</span>
+      </div>
+    );
+  }
+
+  // Quando o usuário só tem acesso a 1 empresa, exibe estaticamente (sem dropdown).
+  // Único critério de habilitação do switcher: ter acesso a múltiplas empresas.
+  if (allTenants.length === 1) {
+    return (
+      <div
+        className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-1.5 text-sm dark:border-zinc-700"
+        title="Você tem acesso a apenas uma empresa"
+      >
+        <Building2 className="h-3.5 w-3.5 text-zinc-500" />
+        <span className="max-w-[200px] truncate font-medium text-zinc-700 dark:text-zinc-300">
+          {allTenants[0].name}
+        </span>
       </div>
     );
   }
@@ -135,7 +156,7 @@ export function TenantSwitcher({ isAdmin }: TenantSwitcherProps) {
               );
             })}
           </div>
-          {isAdmin && (
+          {canManageTenants && (
             <div className="border-t border-zinc-200 dark:border-zinc-700">
               <Link
                 href="/admin/tenants"

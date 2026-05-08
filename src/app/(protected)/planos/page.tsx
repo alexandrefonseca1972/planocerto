@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useEffect, useMemo } from "react";
+import { useActionState, useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
@@ -15,7 +16,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
-import { sanitizeInput, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { sanitize } from "@/lib/sanitize";
 import { ExportCsv } from "@/components/layout/export-csv";
 import { flattenItems, fmt, trunc, FarolIcon } from "@/components/planos/plan-utils";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
@@ -241,7 +243,7 @@ export default function PlanosPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
           <Input placeholder="Buscar ações..." value={searchQuery}
-            onChange={e => setSearchQuery(sanitizeInput(e.target.value))}
+            onChange={e => setSearchQuery(sanitize(e.target.value))}
             className="pl-8 h-9 text-sm" />
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -463,57 +465,325 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
   </>;
 }
 
+/**
+ * Portaliza dialogs para document.body — necessário quando o componente
+ * renderiza dentro de uma tabela (`<tr>`/`<td>`), onde divs de overlay são
+ * HTML inválido e causam hydration mismatch.
+ */
+function DialogsPortal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setMounted(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
+
 function EditRow({ item, planId, inlineAction, inlinePending, onCancel }: {
   item: ActionItem; planId: string; inlineAction: (p: FormData) => void; inlinePending: boolean; onCancel: () => void;
 }) {
+  const [action, setAction] = useState(item.action);
+  const [responsible, setResponsible] = useState(item.responsible || "");
+  const [plannedEnd, setPlannedEnd] = useState(item.planned_end || "");
+  const [status, setStatus] = useState(String(item.status));
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmSave, setConfirmSave] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const isDirty =
+    action !== item.action ||
+    responsible !== (item.responsible || "") ||
+    plannedEnd !== (item.planned_end || "") ||
+    status !== String(item.status);
+
+  const isValid = action.trim().length >= 1;
+  const showActionError = touched && !isValid;
+
+  // Diff legível para o diálogo de confirmação
+  const diff = useMemo(() => {
+    const out: { label: string; from: string; to: string }[] = [];
+    if (action !== item.action) {
+      out.push({ label: "Ação", from: item.action || "—", to: action || "—" });
+    }
+    if (responsible !== (item.responsible || "")) {
+      out.push({
+        label: "Responsável",
+        from: item.responsible || "—",
+        to: responsible || "—",
+      });
+    }
+    if (plannedEnd !== (item.planned_end || "")) {
+      out.push({
+        label: "Prazo",
+        from: item.planned_end ? fmt(item.planned_end) : "—",
+        to: plannedEnd ? fmt(plannedEnd) : "—",
+      });
+    }
+    if (status !== String(item.status)) {
+      out.push({
+        label: "Status",
+        from: STATUS_FAROL[item.status]?.label || "—",
+        to: STATUS_FAROL[Number(status)]?.label || "—",
+      });
+    }
+    return out;
+  }, [action, responsible, plannedEnd, status, item]);
+
+  const tryCancel = () => {
+    if (isDirty) setConfirmCancel(true);
+    else onCancel();
+  };
+
+  const tryDiscard = () => {
+    setConfirmCancel(false);
+    onCancel();
+  };
+
+  const tryRequestSave = () => {
+    if (!isValid) {
+      setTouched(true);
+      return;
+    }
+    if (!isDirty) {
+      // Sem alterações: fecha sem ação
+      onCancel();
+      return;
+    }
+    setConfirmSave(true);
+  };
+
+  const confirmAndSave = () => {
+    setConfirmSave(false);
+    formRef.current?.requestSubmit();
+  };
+
+  // ESC fecha (com confirmação se dirty)
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      // Dialogs próprios cuidam do Esc deles
+      if (confirmCancel || confirmSave) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        tryCancel();
+      }
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty, confirmCancel, confirmSave]);
+
+  function handleSubmit(fd: FormData) {
+    if (!isValid) {
+      setTouched(true);
+      return;
+    }
+    inlineAction(fd);
+  }
+
   return (
-    <td colSpan={10} className="px-3 py-2">
-      <form action={inlineAction} className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="itemId" value={item.id} />
-        <input type="hidden" name="planId" value={planId} />
-        <input type="hidden" name="number" value={item.number} />
-        <input type="hidden" name="sort_order" value={String(item.sort_order)} />
-        <input type="hidden" name="parent_id" value={item.parent_id || ""} />
-        <input type="hidden" name="why" value={item.why || ""} />
-        <input type="hidden" name="where" value={item.where || ""} />
-        <input type="hidden" name="cost" value={item.cost || ""} />
-        <input type="hidden" name="expected_result" value={item.expected_result || ""} />
-        <input type="hidden" name="actual_result" value={item.actual_result || ""} />
-        <input type="hidden" name="observations" value={item.observations || ""} />
-        <input type="hidden" name="planned_start" value={item.planned_start || ""} />
-        <input type="hidden" name="planned_end" value={item.planned_end || ""} />
-        <input type="hidden" name="actual_start" value={item.actual_start || ""} />
-        <input type="hidden" name="actual_end" value={item.actual_end || ""} />
-        <div className="flex-1 min-w-[200px]">
-          <input name="action" defaultValue={item.action} required
-            className="w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-zinc-800 dark:text-zinc-50" placeholder="Ação..." autoFocus />
-        </div>
-        <div className="w-28">
-          <input name="responsible" defaultValue={item.responsible || ""}
-            className="w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-zinc-800 dark:text-zinc-50" placeholder="Resp." />
-        </div>
-        <div className="w-28">
-          <input name="planned_end" type="date" defaultValue={item.planned_end || ""}
-            className="w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-zinc-800 dark:text-zinc-50" />
-        </div>
-        <div className="w-28">
-          <select name="status" defaultValue={String(item.status)}
-            className="w-full rounded border border-amber-300 bg-white px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-zinc-800 dark:text-zinc-50">
-            {Object.entries(STATUS_FAROL).map(([k, v]) => <option key={k} value={k}>{v.dot} {v.label}</option>)}
-          </select>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button type="submit" size="sm" isLoading={inlinePending} className="h-8"><Check className="h-3.5 w-3.5" /></Button>
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onCancel}><X className="h-3.5 w-3.5" /></Button>
-        </div>
-      </form>
-    </td>
+    <>
+      <td
+        colSpan={10}
+        className="border-l-2 border-l-accent-500 bg-accent-50/40 px-3 py-2 dark:bg-accent-950/20"
+      >
+        <form
+          ref={formRef}
+          action={handleSubmit}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && isValid && !inlinePending) {
+              e.preventDefault();
+              tryRequestSave();
+            }
+          }}
+          className="flex flex-wrap items-end gap-2"
+        >
+          <input type="hidden" name="itemId" value={item.id} />
+          <input type="hidden" name="planId" value={planId} />
+          <input type="hidden" name="number" value={item.number} />
+          <input type="hidden" name="sort_order" value={String(item.sort_order)} />
+          <input type="hidden" name="parent_id" value={item.parent_id || ""} />
+          <input type="hidden" name="why" value={item.why || ""} />
+          <input type="hidden" name="where" value={item.where || ""} />
+          <input type="hidden" name="cost" value={item.cost || ""} />
+          <input type="hidden" name="expected_result" value={item.expected_result || ""} />
+          <input type="hidden" name="actual_result" value={item.actual_result || ""} />
+          <input type="hidden" name="observations" value={item.observations || ""} />
+          <input type="hidden" name="planned_start" value={item.planned_start || ""} />
+          <input type="hidden" name="actual_start" value={item.actual_start || ""} />
+          <input type="hidden" name="actual_end" value={item.actual_end || ""} />
+
+          <div className="flex-1 min-w-[200px]">
+            <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Ação <span className="text-red-600">*</span>
+              {isDirty && (
+                <span className="ml-1.5 inline-flex h-1.5 w-1.5 rounded-full bg-accent-500" aria-label="Modificado" />
+              )}
+            </label>
+            <input
+              name="action"
+              value={action}
+              onChange={(e) => { setAction(e.target.value); if (!touched) setTouched(true); }}
+              required
+              autoFocus
+              maxLength={500}
+              aria-invalid={showActionError}
+              className={cn(
+                "w-full rounded-md border bg-white px-2 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500 dark:bg-zinc-800 dark:text-zinc-50",
+                showActionError
+                  ? "border-red-400 dark:border-red-600"
+                  : "border-accent-300 dark:border-accent-700",
+              )}
+              placeholder="Descreva a ação..."
+            />
+            {showActionError && (
+              <p className="mt-0.5 text-[10px] text-red-600">Ação obrigatória.</p>
+            )}
+          </div>
+
+          <div className="w-32">
+            <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Responsável
+            </label>
+            <input
+              name="responsible"
+              value={responsible}
+              onChange={(e) => setResponsible(e.target.value)}
+              maxLength={200}
+              className="w-full rounded-md border border-accent-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 dark:border-accent-700 dark:bg-zinc-800 dark:text-zinc-50"
+              placeholder="Nome"
+            />
+          </div>
+
+          <div className="w-32">
+            <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Prazo
+            </label>
+            <input
+              name="planned_end"
+              type="date"
+              value={plannedEnd}
+              onChange={(e) => setPlannedEnd(e.target.value)}
+              className="w-full rounded-md border border-accent-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 dark:border-accent-700 dark:bg-zinc-800 dark:text-zinc-50"
+            />
+          </div>
+
+          <div className="w-36">
+            <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Status
+            </label>
+            <select
+              name="status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full rounded-md border border-accent-300 bg-white px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-accent-500 dark:border-accent-700 dark:bg-zinc-800 dark:text-zinc-50"
+            >
+              {Object.entries(STATUS_FAROL).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.dot} {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-[9px] font-medium text-zinc-400">
+              Esc · Ctrl+Enter
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                isLoading={inlinePending}
+                disabled={!isValid || inlinePending}
+                className="h-8"
+                title="Salvar (Ctrl/⌘ + Enter)"
+                onClick={tryRequestSave}
+              >
+                <Check className="h-3.5 w-3.5" /> Salvar
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={tryCancel}
+                title="Cancelar (Esc)"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </form>
+      </td>
+
+      <DialogsPortal>
+        {/* Confirmação de descarte */}
+        <AlertDialog open={confirmCancel} onOpenChange={(open) => !open && setConfirmCancel(false)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Você fez modificações neste item que ainda não foram salvas. Deseja
+                descartá-las?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmCancel(false)}>
+                Continuar editando
+              </AlertDialogCancel>
+              <Button variant="destructive" onClick={tryDiscard}>
+                <X className="h-4 w-4" /> Descartar
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Confirmação ao salvar — com diff */}
+        <AlertDialog open={confirmSave} onOpenChange={(open) => !open && setConfirmSave(false)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar alterações?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {`Item ${item.number}: revise o que será salvo:`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <ul className="my-2 space-y-1.5 rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+              {diff.map((d) => (
+                <li key={d.label} className="text-xs">
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                    {d.label}:
+                  </span>{" "}
+                  <span className="text-zinc-500 line-through">{d.from}</span>{" "}
+                  <span className="text-zinc-400">→</span>{" "}
+                  <span className="font-semibold text-accent-700 dark:text-accent-300">
+                    {d.to}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmSave(false)}>
+                Continuar editando
+              </AlertDialogCancel>
+              <Button onClick={confirmAndSave} isLoading={inlinePending}>
+                <Check className="h-4 w-4" /> Confirmar e salvar
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </DialogsPortal>
+    </>
   );
 }
 
 function PlanFormDialog({ plan, tenantId, state, action, isPending, onClose }: {
   plan: ActionPlan | null; tenantId: string; state: ActionPlanFormState; action: (p: FormData) => void; isPending: boolean; onClose: () => void;
 }) {
+  const router = useRouter();
   const [title, setTitle] = useState(plan?.title || "");
   const [unit, setUnit] = useState(plan?.unit || "");
   const [director, setDirector] = useState(plan?.director || "");
@@ -530,7 +800,7 @@ function PlanFormDialog({ plan, tenantId, state, action, isPending, onClose }: {
     const result = await createPlanFromTemplate(templateId, tenantId);
     if (result.success) {
       onClose();
-      window.location.reload();
+      router.refresh();
     } else {
       setTemplateLoading(false);
     }
@@ -642,13 +912,13 @@ function FieldV({ label, name, value, onChange, multiline, required, placeholder
       </div>
       {multiline ? (
         <textarea name={name} value={value} placeholder={placeholder} required={required} rows={2}
-          onChange={e => { const v = sanitizeInput(e.target.value); onChange?.(v); }}
+          onChange={e => { const v = sanitize(e.target.value); onChange?.(v); }}
           className={cn("flex w-full rounded-lg border bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 resize-none transition-all",
             showError ? "border-red-300 focus-visible:ring-red-500" : valid === false ? "border-amber-300 focus-visible:ring-amber-500" : "border-zinc-200 focus-visible:ring-zinc-500 dark:border-zinc-700"
           )} />
       ) : (
         <Input name={name} type={type} value={value} placeholder={placeholder} required={required}
-          onChange={e => { const v = type !== "date" && type !== "number" ? sanitizeInput(e.target.value) : e.target.value; onChange?.(v); }}
+          onChange={e => { const v = type !== "date" && type !== "number" ? sanitize(e.target.value) : e.target.value; onChange?.(v); }}
           className={cn("transition-all rounded-lg",
             showError ? "border-red-300 focus-visible:ring-red-500" : valid === false ? "border-amber-300 focus-visible:ring-amber-500" : "focus:shadow-md"
           )} />
@@ -711,7 +981,7 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
                 <span className={cn("font-mono text-xs transition-colors", actionText.length > 500 ? "text-red-500 font-semibold" : actionText.length > 480 ? "text-amber-500" : "text-zinc-400")}>{actionText.length}/500</span>
               </div>
               <textarea name="action" value={actionText} required rows={2}
-                onChange={e => { const v = sanitizeInput(e.target.value); setActionText(v); }}
+                onChange={e => { const v = sanitize(e.target.value); setActionText(v); }}
                 placeholder="Descreva a ação"
                 className={cn("flex w-full rounded-lg border bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 resize-none transition-all",
                   actionText.length > 0 && actionText.length < 3 ? "border-red-300 focus-visible:ring-red-500" : actionText.length > 500 ? "border-red-300 focus-visible:ring-red-500" : "border-zinc-200 focus-visible:ring-zinc-500 dark:border-zinc-700"
@@ -785,11 +1055,11 @@ function Field({ label, name, value, onChange, multiline, required, placeholder,
       </div>
       {multiline ? (
         <textarea name={name} value={value} placeholder={placeholder} required={required} rows={2}
-          onChange={e => { const v = sanitizeInput(e.target.value); onChange?.(v); }}
+          onChange={e => { const v = sanitize(e.target.value); onChange?.(v); }}
           className="flex w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 resize-none transition-shadow focus:shadow-md" />
       ) : (
         <Input name={name} type={type} value={value} placeholder={placeholder} required={required}
-          onChange={e => { const v = type !== "date" && type !== "number" ? sanitizeInput(e.target.value) : e.target.value; onChange?.(v); }}
+          onChange={e => { const v = type !== "date" && type !== "number" ? sanitize(e.target.value) : e.target.value; onChange?.(v); }}
           className="transition-shadow focus:shadow-md" />
       )}
     </div>

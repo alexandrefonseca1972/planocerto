@@ -15,7 +15,7 @@ export const registerSchema = z
     name: z
       .string()
       .min(2, "Nome deve ter pelo menos 2 caracteres.")
-      .max(100, "Nome deve ter no máximo 100 caracteres.")
+      .max(100, "Nome deve ter no máximo 100 caracteres.")
       .trim(),
     email: z
       .string()
@@ -26,7 +26,7 @@ export const registerSchema = z
     password: z
       .string()
       .min(8, "Senha deve ter pelo menos 8 caracteres.")
-      .max(72, "Senha deve ter no máximo 72 caracteres.")
+      .max(72, "Senha deve ter no máximo 72 caracteres.")
       .regex(/[a-z]/, "Senha deve conter pelo menos uma letra minúscula.")
       .regex(/[A-Z]/, "Senha deve conter pelo menos uma letra maiúscula.")
       .regex(/[0-9]/, "Senha deve conter pelo menos um número.")
@@ -34,10 +34,10 @@ export const registerSchema = z
         /[^a-zA-Z0-9]/,
         "Senha deve conter pelo menos um caractere especial."
       ),
-    confirmPassword: z.string().min(1, "Confirmação de senha é obrigatória."),
+    confirmPassword: z.string().min(1, "Confirmação de senha é obrigatória."),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "As senhas não conferem.",
+    message: "As senhas não conferem.",
     path: ["confirmPassword"],
   });
 
@@ -45,8 +45,10 @@ export const profileSchema = z.object({
   name: z
     .string()
     .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres.")
+    .max(100, "Nome deve ter no máximo 100 caracteres.")
     .trim(),
+  phone: z.string().trim().max(20, "Telefone muito longo.").default(""),
+  is_whatsapp: z.boolean().default(false),
 });
 
 export const resetSchema = z.object({
@@ -63,7 +65,7 @@ export const updatePasswordSchema = z
     password: z
       .string()
       .min(8, "Senha deve ter pelo menos 8 caracteres.")
-      .max(72, "Senha deve ter no máximo 72 caracteres.")
+      .max(72, "Senha deve ter no máximo 72 caracteres.")
       .regex(/[a-z]/, "Senha deve conter pelo menos uma letra minúscula.")
       .regex(/[A-Z]/, "Senha deve conter pelo menos uma letra maiúscula.")
       .regex(/[0-9]/, "Senha deve conter pelo menos um número.")

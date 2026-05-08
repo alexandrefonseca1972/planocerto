@@ -85,7 +85,8 @@ export async function proxy(request: NextRequest) {
     }
 
     if (!user && isProtectedPath) {
-      return NextResponse.redirect(new URL("/auth", request.url));
+      const url = new URL("/auth", request.url);
+      return NextResponse.redirect(url);
     }
 
     return supabaseResponse;

@@ -3,16 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Users, Building2, Bell } from "lucide-react";
+import { PERMISSIONS } from "@/lib/permissions";
+import { Users, Building2, Bell, Shield, ListChecks } from "lucide-react";
 
-const links = [
-  { href: "/admin/users", label: "Usuários", icon: Users },
-  { href: "/admin/tenants", label: "Empresas", icon: Building2 },
-  { href: "/admin/notifications", label: "Notificações", icon: Bell },
+interface NavLink {
+  href: string;
+  label: string;
+  icon: typeof Users;
+  permission?: string;
+}
+
+const allLinks: NavLink[] = [
+  { href: "/admin/users", label: "Usuários", icon: Users, permission: PERMISSIONS.USERS_READ },
+  { href: "/admin/tenants", label: "Empresas", icon: Building2, permission: PERMISSIONS.TENANTS_READ },
+  { href: "/admin/roles", label: "Papéis", icon: Shield, permission: PERMISSIONS.ROLES_MANAGE },
+  { href: "/admin/catalogos", label: "Catálogos", icon: ListChecks, permission: PERMISSIONS.ADMIN_ACCESS },
+  { href: "/admin/notifications", label: "Notificações", icon: Bell, permission: PERMISSIONS.NOTIFICATIONS_CREATE },
 ];
 
-export function AdminNav() {
+export function AdminNav({ userPermissions = {} }: { userPermissions?: Record<string, boolean> }) {
   const pathname = usePathname();
+
+  const links = allLinks.filter(
+    (link) => !link.permission || userPermissions[link.permission]
+  );
 
   return (
     <nav className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">

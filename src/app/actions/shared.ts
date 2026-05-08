@@ -2,12 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 import { z } from "zod";
+import { checkPermission } from "@/app/actions/admin";
+import { PERMISSIONS } from "@/lib/permissions";
+
+type ActionItemInsert = Database["public"]["Tables"]["action_items"]["Insert"];
 
 // --- Copy Plan ---
 
 export async function copyPlan(sourcePlanId: string, targetTenantId: string): Promise<{ message: string; success?: boolean }> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
@@ -37,16 +45,16 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
 
     // Map old IDs to new IDs
     const idMap = new Map<string, string>();
+    const batchItems: Record<string, unknown>[] = [];
 
-    // Insert all items with new IDs
     for (const item of items) {
       const newId = crypto.randomUUID();
       idMap.set(item.id, newId);
 
-      await supabase.from("action_items").insert({
+      batchItems.push({
         id: newId,
         plan_id: newPlan.id,
-        parent_id: null, // Will be updated after all items are created
+        parent_id: null,
         number: item.number,
         sort_order: item.sort_order,
         action: item.action,
@@ -57,20 +65,27 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
         planned_end: item.planned_end,
         cost: item.cost,
         expected_result: item.expected_result,
-        status: 1, // Reset status to "Not Started"
+        status: 1,
         observations: item.observations,
       });
     }
 
+    await supabase.from("action_items").insert(batchItems as ActionItemInsert[]);
+
     // Update parent_id references
+    const parentUpdates: { id: string; parent_id: string }[] = [];
     for (const item of items) {
       if (item.parent_id && idMap.has(item.parent_id)) {
         const newId = idMap.get(item.id);
         const newParentId = idMap.get(item.parent_id);
         if (newId && newParentId) {
-          await supabase.from("action_items").update({ parent_id: newParentId }).eq("id", newId);
+          parentUpdates.push({ id: newId, parent_id: newParentId });
         }
       }
+    }
+
+    for (const update of parentUpdates) {
+      await supabase.from("action_items").update({ parent_id: update.parent_id }).eq("id", update.id);
     }
 
     revalidatePath("/planos");
@@ -191,6 +206,9 @@ export async function getTemplates(): Promise<{ id: string; name: string; title:
 
 export async function createPlanFromTemplate(templateId: string, tenantId: string): Promise<{ message: string; success?: boolean }> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
@@ -220,13 +238,13 @@ export async function createPlanFromTemplate(templateId: string, tenantId: strin
 
     // Map old IDs to new IDs and insert items
     const idMap = new Map<string, string>();
+    const batchItems: Record<string, unknown>[] = [];
 
-    // First pass: create all items
     for (const item of templateItems) {
       const newId = crypto.randomUUID();
       idMap.set(item.id, newId);
 
-      await supabase.from("action_items").insert({
+      batchItems.push({
         id: newId,
         plan_id: newPlan.id,
         parent_id: null,
@@ -242,15 +260,22 @@ export async function createPlanFromTemplate(templateId: string, tenantId: strin
       });
     }
 
-    // Second pass: update parent references
+    await supabase.from("action_items").insert(batchItems as ActionItemInsert[]);
+
+    // Update parent references
+    const parentUpdates: { id: string; parent_id: string }[] = [];
     for (const item of templateItems) {
       if (item.parent_id && idMap.has(item.parent_id)) {
         const newId = idMap.get(item.id);
         const newParentId = idMap.get(item.parent_id);
         if (newId && newParentId) {
-          await supabase.from("action_items").update({ parent_id: newParentId }).eq("id", newId);
+          parentUpdates.push({ id: newId, parent_id: newParentId });
         }
       }
+    }
+
+    for (const update of parentUpdates) {
+      await supabase.from("action_items").update({ parent_id: update.parent_id }).eq("id", update.id);
     }
 
     revalidatePath("/planos");

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { checkIsAdmin } from "@/app/actions/admin";
+import { checkPermission } from "@/app/actions/admin";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export interface NotificationItem {
   id: string;
@@ -98,8 +99,8 @@ export async function createNotification(
   _prev: NotificationFormState, formData: FormData
 ): Promise<NotificationFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_CREATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const title = formData.get("title") as string;
     const message = formData.get("message") as string;
@@ -130,8 +131,8 @@ export async function deleteNotification(
   _prev: NotificationFormState, formData: FormData
 ): Promise<NotificationFormState> {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) return { message: "Acesso negado." };
+    const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_DELETE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const id = formData.get("notificationId") as string;
     if (!id) return { message: "ID obrigatório." };
     const supabase = await createClient();

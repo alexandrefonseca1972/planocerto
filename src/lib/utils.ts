@@ -5,11 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function sanitizeInput(value: string): string {
-  if (typeof value !== "string") return "";
-  return value.replace(/[<>]/g, "");
-}
-
 export function formatDate(date: string | Date | null | undefined): string {
   if (!date) return "Não disponível";
   try {
@@ -25,10 +20,4 @@ export function formatDate(date: string | Date | null | undefined): string {
   } catch {
     return "Data inválida";
   }
-}
-
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "Ocorreu um erro inesperado. Tente novamente.";
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import {
   createTenant,
@@ -14,12 +14,19 @@ import {
 import type {
   TenantFormState,
   TenantMemberWithProfile,
+  Tenant,
 } from "@/types/tenant";
-import type { Tenant } from "@/types/tenant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Select } from "@/components/ui/select";
+import { Field } from "@/components/ui/field";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { useLiveValidation } from "@/lib/hooks/use-live-validation";
+import { tenantFormSchema, type TenantFormValues } from "@/lib/schemas/tenant-schemas";
+import { formatCNPJ, formatPhone } from "@/lib/format-br";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -29,7 +36,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
-import { sanitizeInput, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import {
   Building2,
   Plus,
@@ -38,118 +45,172 @@ import {
   Users,
   X,
   Shield,
-  User,
+  User as UserIcon,
   UserPlus,
   Crown,
+  CheckCircle2,
+  CircleSlash,
 } from "lucide-react";
 
 const initialState: TenantFormState = { message: undefined, errors: {} };
 
+const PLAN_LABEL = { free: "Gratuito", pro: "Profissional", enterprise: "Enterprise" } as const;
+
+function planBadge(plan: Tenant["plan"]) {
+  if (plan === "enterprise") return <Badge variant="default">Enterprise</Badge>;
+  if (plan === "pro") return <Badge variant="accent">Profissional</Badge>;
+  return <Badge variant="muted">Gratuito</Badge>;
+}
+
+function slugify(s: string) {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50);
+}
+
 export default function AdminTenantsPage() {
   const { allTenants, currentTenant } = useTenant();
   const [showCreate, setShowCreate] = useState(false);
-  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
-  const [deletingTenant, setDeletingTenant] = useState<Tenant | null>(null);
-  const [managingTenant, setManagingTenant] = useState<Tenant | null>(null);
+  const [editing, setEditing] = useState<Tenant | null>(null);
+  const [deleting, setDeleting] = useState<Tenant | null>(null);
+  const [managing, setManaging] = useState<Tenant | null>(null);
+  const [search, setSearch] = useState("");
 
   const [createState, createAction, isCreating] = useActionState(createTenant, initialState);
   const [updateState, updateAction, isUpdating] = useActionState(updateTenant, initialState);
   const [deleteState, deleteAction, isDeleting] = useActionState(deleteTenant, initialState);
 
-  const planLabel: Record<string, string> = {
-    free: "Gratuito", pro: "Profissional", enterprise: "Enterprise",
-  };
-  const planColor: Record<string, string> = {
-    free: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200",
-    pro: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-    enterprise: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  };
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return allTenants;
+    return allTenants.filter(
+      (t) => t.name.toLowerCase().includes(q) || t.slug.toLowerCase().includes(q),
+    );
+  }, [search, allTenants]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Empresas
+          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            <Building2 className="h-5 w-5 text-accent-600" /> Empresas
           </h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Gerencie empresas e seus membros.
+            {allTenants.length} {allTenants.length === 1 ? "empresa" : "empresas"} ·
+            Gerencie organizações e seus membros.
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4" /> Nova empresa
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar empresa..."
+            className="h-9 w-64"
+          />
+          <Button onClick={() => setShowCreate(true)} size="sm">
+            <Plus className="h-4 w-4" /> Nova Empresa
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {allTenants.map((tenant) => (
-          <Card
-            key={tenant.id}
-            className={`transition-shadow hover:shadow-md ${
-              currentTenant?.id === tenant.id
-                ? "ring-2 ring-zinc-900 dark:ring-zinc-50"
-                : ""
-            }`}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
-                    <Building2 className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-zinc-500">
+            {allTenants.length === 0
+              ? "Nenhuma empresa cadastrada."
+              : "Nenhum resultado para a busca."}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((tenant) => {
+            const isActive = currentTenant?.id === tenant.id;
+            return (
+              <Card
+                key={tenant.id}
+                className={`transition-all hover:shadow-md ${
+                  isActive
+                    ? "ring-2 ring-accent-500 ring-offset-2 dark:ring-offset-zinc-900"
+                    : ""
+                }`}
+              >
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/40">
+                        <Building2 className="h-5 w-5 text-brand-600 dark:text-brand-200" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                          {tenant.name}
+                        </h3>
+                        <p className="truncate font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
+                          {tenant.slug}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      {planBadge(tenant.plan)}
+                      {isActive && <Badge variant="accent">Atual</Badge>}
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-base">{tenant.name}</CardTitle>
-                    <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                      {tenant.slug}
-                    </p>
+
+                  <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+                    <span className="inline-flex items-center gap-1">
+                      {tenant.active ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          Ativa
+                        </>
+                      ) : (
+                        <>
+                          <CircleSlash className="h-3 w-3 text-zinc-400" />
+                          Inativa
+                        </>
+                      )}
+                    </span>
+                    <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                    <span>Criada em {formatDate(tenant.created_at)}</span>
                   </div>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${planColor[tenant.plan]}`}
-                >
-                  {planLabel[tenant.plan]}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
-                Criado em {formatDate(tenant.created_at)}
-              </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setManagingTenant(tenant)}
-                >
-                  <Users className="mr-1 h-3.5 w-3.5" />
-                  Membros
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditingTenant(tenant)}
-                  aria-label="Editar empresa"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeletingTenant(tenant)}
-                  aria-label="Excluir empresa"
-                  className="text-red-600 hover:text-red-700 dark:text-red-400"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+
+                  <div className="flex items-center justify-between gap-1 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                    <Button variant="ghost" size="sm" onClick={() => setManaging(tenant)}>
+                      <Users className="h-3.5 w-3.5" /> Membros
+                    </Button>
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditing(tenant)}
+                        aria-label="Editar empresa"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleting(tenant)}
+                        aria-label="Excluir empresa"
+                        className="text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {showCreate && (
         <TenantFormDialog
-          title="Nova empresa"
           state={createState}
           action={createAction}
           isPending={isCreating}
@@ -157,51 +218,48 @@ export default function AdminTenantsPage() {
         />
       )}
 
-      {editingTenant && (
+      {editing && (
         <TenantFormDialog
-          title="Editar empresa"
           state={updateState}
           action={updateAction}
           isPending={isUpdating}
-          onClose={() => setEditingTenant(null)}
-          tenant={editingTenant}
+          onClose={() => setEditing(null)}
+          tenant={editing}
         />
       )}
 
       <AlertDialog
-        open={!!deletingTenant}
-        onOpenChange={(open) => { if (!open) setDeletingTenant(null); }}
+        open={!!deleting}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
       >
-        {deletingTenant && (
+        {deleting && (
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Excluir empresa</AlertDialogTitle>
+              <AlertDialogTitle>Excluir empresa?</AlertDialogTitle>
               <AlertDialogDescription>
                 Tem certeza que deseja excluir{" "}
                 <strong className="text-zinc-900 dark:text-zinc-50">
-                  {deletingTenant.name}
+                  {deleting.name}
                 </strong>
-                ? Todos os dados associados serão perdidos.
+                ? Todos os dados associados (planos, escolas, empresas B2B,
+                cenários, áreas, unidades) serão perdidos.
               </AlertDialogDescription>
             </AlertDialogHeader>
 
-            {deleteState.message && (
-              <div className={`mb-3 rounded-md p-3 text-sm ${
-                deleteState.success
-                  ? "border border-emerald-300 bg-emerald-50 text-emerald-800"
-                  : "border border-red-300 bg-red-50 text-red-800"
-              }`}>
+            {deleteState.message && !deleteState.success && (
+              <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
                 {deleteState.message}
               </div>
             )}
 
             <form action={deleteAction}>
-              <input type="hidden" name="tenantId" value={deletingTenant.id} />
+              <input type="hidden" name="tenantId" value={deleting.id} />
               <AlertDialogFooter>
-                <AlertDialogCancel />
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <Button type="submit" variant="destructive" isLoading={isDeleting}>
-                  <Trash2 className="h-4 w-4" />
-                  Excluir
+                  <Trash2 className="h-4 w-4" /> Excluir
                 </Button>
               </AlertDialogFooter>
             </form>
@@ -209,108 +267,321 @@ export default function AdminTenantsPage() {
         )}
       </AlertDialog>
 
-      {managingTenant && (
-        <MemberManager
-          tenant={managingTenant}
-          onClose={() => setManagingTenant(null)}
-        />
-      )}
+      {managing && <MemberManager tenant={managing} onClose={() => setManaging(null)} />}
     </div>
   );
 }
 
 function TenantFormDialog({
-  title,
   state,
   action,
   isPending,
   onClose,
   tenant,
 }: {
-  title: string;
   state: TenantFormState;
   action: (payload: FormData) => void;
   isPending: boolean;
   onClose: () => void;
   tenant?: Tenant;
 }) {
+  const isEdit = !!tenant;
+  const initial: TenantFormValues = useMemo(
+    () => ({
+      name: tenant?.name || "",
+      slug: tenant?.slug || "",
+      plan: (tenant?.plan as TenantFormValues["plan"]) || "free",
+      active: tenant?.active ?? true,
+      teams_webhook_url: tenant?.teams_webhook_url || "",
+      cnpj: tenant?.cnpj || "",
+      responsavel_nome: tenant?.responsavel_nome || "",
+      email: tenant?.email || "",
+      site: tenant?.site || "",
+      fone: tenant?.fone || "",
+    }),
+    [tenant],
+  );
+
+  const { values, setValue, errors, markTouched, isValid, isDirty, validateAll } =
+    useLiveValidation<TenantFormValues>(tenantFormSchema, initial);
+
+  const [slugTouched, setSlugTouched] = useState(false);
+
+  // Auto-gera slug a partir do nome enquanto usuário não tocar manualmente no slug
+  useEffect(() => {
+    if (slugTouched || isEdit) return;
+    const auto = slugify(values.name);
+    if (auto !== values.slug) setValue("slug", auto);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.name, slugTouched, isEdit]);
+
+  const filled =
+    (values.name.trim().length >= 2 ? 1 : 0) +
+    (values.slug.trim().length >= 2 ? 1 : 0) +
+    (values.plan ? 1 : 0);
+
+  function submit() {
+    if (!validateAll()) return;
+    const fd = new FormData();
+    if (tenant) fd.set("tenantId", tenant.id);
+    fd.set("name", values.name);
+    fd.set("slug", values.slug);
+    fd.set("plan", values.plan);
+    if (values.active) fd.set("active", "on");
+    fd.set("teams_webhook_url", values.teams_webhook_url || "");
+    fd.set("cnpj", values.cnpj || "");
+    fd.set("responsavel_nome", values.responsavel_nome || "");
+    fd.set("email", values.email || "");
+    fd.set("site", values.site || "");
+    fd.set("fone", values.fone || "");
+    action(fd);
+  }
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-4 backdrop-blur-sm"
-      onClick={onClose}
+    <FormDialog
+      open
+      title={isEdit ? "Editar empresa" : "Nova empresa"}
+      subtitle={
+        isEdit
+          ? "Atualize os dados da empresa"
+          : "Cadastre uma nova organização (camada acima das unidades)"
+      }
+      isDirty={isDirty}
+      onClose={onClose}
+      onSubmit={submit}
+      isSaving={isPending}
+      canSave={isValid}
+      serverError={!state.success ? state.message : undefined}
+      progress={{ filled, total: 3 }}
+      submitLabel={isEdit ? "Salvar alterações" : "Criar empresa"}
+      size="lg"
     >
-      <div
-        className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
+      <Field
+        id="t-name"
+        label="Nome"
+        required
+        helpText="Nome legível da organização (ex: Estácio, IDOMED, IBMEC)."
+        maxLength={100}
+        value={values.name}
+        error={errors.name || (state.errors?.name?.[0] as string | undefined)}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            {title}
-          </h3>
-          <button onClick={onClose} className="rounded p-1 text-zinc-400 hover:text-zinc-600">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <form action={action} className="space-y-4">
-          {tenant && <input type="hidden" name="tenantId" value={tenant.id} />}
-          <div className="space-y-1.5">
-            <Label htmlFor="t-name">Nome</Label>
-            <Input
-              id="t-name" name="name" placeholder="Nome da empresa"
-              defaultValue={tenant?.name} required
-              onChange={(e) => { e.target.value = sanitizeInput(e.target.value); }}
+        <Input
+          id="t-name"
+          name="name"
+          maxLength={100}
+          autoComplete="off"
+          placeholder="Ex: Estácio"
+          value={values.name}
+          onChange={(e) => setValue("name", e.target.value)}
+          onBlur={() => markTouched("name")}
+          aria-invalid={Boolean(errors.name)}
+        />
+      </Field>
+
+      <Field
+        id="t-slug"
+        label="Slug"
+        required
+        helpText={
+          isEdit
+            ? "Identificador único para URLs. Cuidado ao alterar (afeta links existentes)."
+            : "Gerado automaticamente a partir do nome. Você pode editar."
+        }
+        maxLength={50}
+        value={values.slug}
+        error={errors.slug || (state.errors?.slug?.[0] as string | undefined)}
+      >
+        <Input
+          id="t-slug"
+          name="slug"
+          maxLength={50}
+          autoComplete="off"
+          placeholder="estacio"
+          value={values.slug}
+          onChange={(e) => {
+            setSlugTouched(true);
+            setValue("slug", slugify(e.target.value));
+          }}
+          onBlur={() => markTouched("slug")}
+          aria-invalid={Boolean(errors.slug)}
+          className="font-mono"
+        />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field id="t-plan" label="Plano" required helpText="Nível de assinatura.">
+          <Select
+            id="t-plan"
+            name="plan"
+            value={values.plan}
+            onChange={(e) =>
+              setValue("plan", e.target.value as TenantFormValues["plan"])
+            }
+            onBlur={() => markTouched("plan")}
+          >
+            <option value="free">{PLAN_LABEL.free}</option>
+            <option value="pro">{PLAN_LABEL.pro}</option>
+            <option value="enterprise">{PLAN_LABEL.enterprise}</option>
+          </Select>
+        </Field>
+
+        <Field id="t-active" label="Status" helpText="Empresas inativas ficam ocultas.">
+          <div className="flex h-10 items-center px-1">
+            <Switch
+              id="t-active"
+              checked={values.active}
+              onChange={(e) => setValue("active", e.currentTarget.checked)}
+              label={values.active ? "Ativa" : "Inativa"}
             />
-            {state.errors?.name && <p className="text-sm text-red-600">{state.errors.name[0]}</p>}
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="t-slug">Slug</Label>
-            <Input
-              id="t-slug" name="slug" placeholder="nome-da-empresa"
-              defaultValue={tenant?.slug} required
-              onChange={(e) => {
-                e.target.value = sanitizeInput(e.target.value).toLowerCase().replace(/\s+/g, "-");
-              }}
-            />
-            {state.errors?.slug && <p className="text-sm text-red-600">{state.errors.slug[0]}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="t-plan">Plano</Label>
-            <select
-              id="t-plan" name="plan" defaultValue={tenant?.plan || "free"}
-              className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-            >
-              <option value="free">Gratuito</option>
-              <option value="pro">Profissional</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="t-webhook">Teams Webhook URL</Label>
-            <Input
-              id="t-webhook" name="teams_webhook_url" placeholder="https://xxx.webhook.office.com/..."
-              defaultValue={tenant?.teams_webhook_url || ""}
-              onChange={(e) => { e.target.value = sanitizeInput(e.target.value); }}
-            />
-            <p className="text-xs text-zinc-400">Receba notificações no Microsoft Teams quando ações forem criadas ou atualizadas.</p>
-          </div>
-          {state.message && (
-            <div className={`rounded-md p-3 text-sm ${
-              state.success
-                ? "border border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-                : "border border-red-300 bg-red-50 text-red-800 dark:border-red-700 dark:bg-red-950/50 dark:text-red-300"
-            }`}>
-              {state.message}
-            </div>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" isLoading={isPending}>
-              {title === "Nova empresa" ? "Criar" : "Salvar"}
-            </Button>
-          </div>
-        </form>
+        </Field>
       </div>
-    </div>
+
+      {/* Bloco: Cadastro / Contato — todos opcionais */}
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50/40 p-3 dark:border-zinc-700 dark:bg-zinc-800/20">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          Cadastro & Contato (opcional)
+        </p>
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field
+              id="t-cnpj"
+              label="CNPJ"
+              helpText="Documento da empresa."
+              error={errors.cnpj}
+              value={values.cnpj}
+            >
+              <Input
+                id="t-cnpj"
+                name="cnpj"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="00.000.000/0000-00"
+                value={values.cnpj}
+                onChange={(e) => setValue("cnpj", formatCNPJ(e.target.value))}
+                onBlur={() => markTouched("cnpj")}
+                aria-invalid={Boolean(errors.cnpj)}
+                maxLength={18}
+                className="font-mono"
+              />
+            </Field>
+
+            <Field
+              id="t-fone"
+              label="Telefone"
+              helpText="DDD + número (fixo ou celular)."
+              error={errors.fone}
+              value={values.fone}
+            >
+              <Input
+                id="t-fone"
+                name="fone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                placeholder="(11) 99999-9999"
+                value={values.fone}
+                onChange={(e) => setValue("fone", formatPhone(e.target.value))}
+                onBlur={() => markTouched("fone")}
+                aria-invalid={Boolean(errors.fone)}
+                maxLength={15}
+                className="font-mono"
+              />
+            </Field>
+          </div>
+
+          <Field
+            id="t-responsavel"
+            label="Nome do responsável"
+            helpText="Pessoa de contato principal."
+            error={errors.responsavel_nome}
+            value={values.responsavel_nome}
+            maxLength={120}
+          >
+            <Input
+              id="t-responsavel"
+              name="responsavel_nome"
+              autoComplete="off"
+              placeholder="Ex: Maria Silva"
+              maxLength={120}
+              value={values.responsavel_nome}
+              onChange={(e) => setValue("responsavel_nome", e.target.value)}
+              onBlur={() => markTouched("responsavel_nome")}
+              aria-invalid={Boolean(errors.responsavel_nome)}
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field
+              id="t-email"
+              label="E-mail"
+              helpText="Contato corporativo."
+              error={errors.email}
+              value={values.email}
+              maxLength={120}
+            >
+              <Input
+                id="t-email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="off"
+                placeholder="contato@empresa.com.br"
+                maxLength={120}
+                value={values.email}
+                onChange={(e) => setValue("email", e.target.value.trim())}
+                onBlur={() => markTouched("email")}
+                aria-invalid={Boolean(errors.email)}
+              />
+            </Field>
+
+            <Field
+              id="t-site"
+              label="Site"
+              helpText="Página oficial."
+              error={errors.site}
+              value={values.site}
+              maxLength={200}
+            >
+              <Input
+                id="t-site"
+                name="site"
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                placeholder="empresa.com.br"
+                maxLength={200}
+                value={values.site}
+                onChange={(e) => setValue("site", e.target.value.trim())}
+                onBlur={() => markTouched("site")}
+                aria-invalid={Boolean(errors.site)}
+              />
+            </Field>
+          </div>
+        </div>
+      </div>
+
+      <Field
+        id="t-webhook"
+        label="Microsoft Teams Webhook"
+        helpText="Opcional. Recebe notificações de criação/atualização de planos."
+        error={errors.teams_webhook_url}
+        value={values.teams_webhook_url}
+        maxLength={500}
+      >
+        <Input
+          id="t-webhook"
+          name="teams_webhook_url"
+          type="url"
+          autoComplete="off"
+          placeholder="https://xxx.webhook.office.com/webhookb2/..."
+          value={values.teams_webhook_url}
+          onChange={(e) => setValue("teams_webhook_url", e.target.value)}
+          onBlur={() => markTouched("teams_webhook_url")}
+          aria-invalid={Boolean(errors.teams_webhook_url)}
+        />
+      </Field>
+    </FormDialog>
   );
 }
 
@@ -338,49 +609,62 @@ function MemberManager({
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [tenant.id]);
 
-  const roleLabel: Record<string, string> = { owner: "Dono", admin: "Admin", member: "Membro" };
-  const roleColor: Record<string, string> = {
-    owner: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-    admin: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-    member: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  // Re-carrega ao adicionar com sucesso
+  useEffect(() => {
+    if (addState.success) {
+      getTenantMembers(tenant.id).then(setMembers);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addState.success]);
+
+  const roleLabel: Record<string, string> = {
+    owner: "Dono",
+    admin: "Admin",
+    member: "Membro",
+  };
+  const roleVariant: Record<string, "warning" | "accent" | "success"> = {
+    owner: "warning",
+    admin: "accent",
+    member: "success",
   };
   const roleIcon: Record<string, React.ReactNode> = {
     owner: <Crown className="h-3 w-3" />,
     admin: <Shield className="h-3 w-3" />,
-    member: <User className="h-3 w-3" />,
+    member: <UserIcon className="h-3 w-3" />,
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-4 backdrop-blur-sm"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div
-        className="w-full max-w-lg rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-zinc-200 p-4 dark:border-zinc-700">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-700">
           <div>
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               Membros
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{tenant.name}</p>
           </div>
-          <button onClick={onClose} className="rounded p-1 text-zinc-400 hover:text-zinc-600">
-            <X className="h-5 w-5" />
-          </button>
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
-        <div className="p-4">
-          <form action={addAction} className="mb-4 flex gap-2">
+        <div className="space-y-4 p-6">
+          <form action={addAction} className="flex gap-2">
             <input type="hidden" name="tenantId" value={tenant.id} />
             <Input
               name="email"
               type="email"
-              placeholder="Email do usuário..."
+              placeholder="email@usuário.com"
               className="flex-1"
               required
             />
@@ -391,11 +675,13 @@ function MemberManager({
           </form>
 
           {addState.message && (
-            <div className={`mb-3 rounded-md p-2 text-xs ${
-              addState.success
-                ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
-                : "bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300"
-            }`}>
+            <div
+              className={`rounded-md p-2 text-xs ${
+                addState.success
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                  : "border border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300"
+              }`}
+            >
               {addState.message}
             </div>
           )}
@@ -404,13 +690,15 @@ function MemberManager({
             {loading ? (
               <p className="py-8 text-center text-sm text-zinc-400">Carregando...</p>
             ) : members.length === 0 ? (
-              <p className="py-8 text-center text-sm text-zinc-400">Nenhum membro.</p>
+              <p className="py-8 text-center text-sm text-zinc-400">
+                Nenhum membro nesta empresa.
+              </p>
             ) : (
               <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {members.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between py-2.5">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium dark:bg-zinc-800">
+                  <li key={m.id} className="flex items-center justify-between gap-2 py-2.5">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
                         {(m.profiles?.name?.[0] || m.profiles?.email?.[0] || "?").toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -418,10 +706,10 @@ function MemberManager({
                           <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
                             {m.profiles?.name || "Sem nome"}
                           </p>
-                          <span className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium ${roleColor[m.role]}`}>
+                          <Badge variant={roleVariant[m.role] || "muted"} className="gap-0.5">
                             {roleIcon[m.role]}
                             {roleLabel[m.role]}
-                          </span>
+                          </Badge>
                         </div>
                         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                           {m.profiles?.email || "—"}
@@ -431,22 +719,36 @@ function MemberManager({
                     <div className="flex shrink-0 items-center gap-1">
                       <form action={roleAction} className="flex items-center gap-1">
                         <input type="hidden" name="memberId" value={m.id} />
-                        <select
+                        <Select
                           name="role"
                           defaultValue={m.role}
-                          className="h-7 rounded border border-zinc-200 bg-white px-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+                          className="h-7 px-1.5 text-xs"
                         >
                           <option value="owner">Dono</option>
                           <option value="admin">Admin</option>
                           <option value="member">Membro</option>
-                        </select>
-                        <Button type="submit" variant="ghost" size="icon" className="h-7 w-7" isLoading={isChangingRole}>
+                        </Select>
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          isLoading={isChangingRole}
+                          aria-label="Salvar papel"
+                        >
                           <Pencil className="h-3 w-3" />
                         </Button>
                       </form>
                       <form action={removeAction}>
                         <input type="hidden" name="memberId" value={m.id} />
-                        <Button type="submit" variant="ghost" size="icon" className="h-7 w-7 text-red-600" isLoading={isRemoving}>
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          isLoading={isRemoving}
+                          aria-label="Remover membro"
+                        >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </form>

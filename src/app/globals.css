@@ -129,6 +129,27 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes brandPulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50%      { opacity: 1;    transform: scale(1.08); }
+}
+
+@keyframes brandDot {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.7); }
+  40%           { opacity: 1;    transform: scale(1);   }
+}
+
+@keyframes loadingBar {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(100%); }
+  100% { transform: translateX(300%); }
+}
+
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 @theme {
   --color-zinc-50: oklch(0.97 0.005 255);
   --color-zinc-100: oklch(0.94 0.01 255);
@@ -141,6 +162,32 @@
   --color-zinc-800: oklch(0.20 0.04 258);
   --color-zinc-900: oklch(0.16 0.04 258);
   --color-zinc-950: oklch(0.12 0.03 258);
+
+  /* Brand: navy YDUQS #013759. Cor primária (substitui o "preto"). */
+  --color-brand-50:  #e6edf2;
+  --color-brand-100: #ccdbe5;
+  --color-brand-200: #99b8cc;
+  --color-brand-300: #6694b2;
+  --color-brand-400: #337199;
+  --color-brand-500: #1a4f7f;
+  --color-brand-600: #013759;
+  --color-brand-700: #012d4a;
+  --color-brand-800: #01233a;
+  --color-brand-900: #001a2b;
+  --color-brand-950: #000d15;
+
+  /* Accent: teal YDUQS #33afab. Highlights, links, focus, ícones. */
+  --color-accent-50:  #e8f7f6;
+  --color-accent-100: #c6ecea;
+  --color-accent-200: #92d8d4;
+  --color-accent-300: #5fc4be;
+  --color-accent-400: #44b9b3;
+  --color-accent-500: #33afab;
+  --color-accent-600: #2c9692;
+  --color-accent-700: #267d79;
+  --color-accent-800: #1f6461;
+  --color-accent-900: #194b48;
+  --color-accent-950: #0d2624;
 }
 
 @layer base {

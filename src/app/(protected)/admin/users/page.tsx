@@ -1,42 +1,50 @@
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { UsersTable } from "@/app/(protected)/admin/users/users-table";
+import type { RoleRow } from "@/app/actions/admin";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import type { Profile } from "@/types/auth";
 
 export const metadata: Metadata = {
   title: "Usuários | PlanoCerto",
   description: "Gerencie os usuários do PlanoCerto.",
 };
 
-interface Profile {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  created_at: string;
-  updated_at: string;
-}
+const PER_PAGE = 20;
 
 interface PageResult {
   success: boolean;
   users?: Profile[];
+  total?: number;
+  customRoles?: RoleRow[];
   errorMessage?: string;
 }
 
-async function fetchUsers(): Promise<PageResult> {
+async function fetchUsers(page: number): Promise<PageResult> {
   try {
     const adminClient = createAdminClient();
-    const { data: profiles, error } = await adminClient
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
 
-    if (error) {
-      return { success: false, errorMessage: `Erro ao carregar: ${error.message}` };
+    const [countResult, profilesResult, rolesResult] = await Promise.all([
+      adminClient.from("profiles").select("*", { count: "exact", head: true }),
+      adminClient.from("profiles").select("*").order("created_at", { ascending: false }).range((page - 1) * PER_PAGE, (page - 1) * PER_PAGE + PER_PAGE - 1),
+      adminClient.from("roles").select("*").order("name"),
+    ]);
+
+    if (countResult.error) {
+      return { success: false, errorMessage: `Erro ao carregar: ${countResult.error.message}` };
     }
 
-    return { success: true, users: (profiles || []) as Profile[] };
+    if (profilesResult.error) {
+      return { success: false, errorMessage: `Erro ao carregar: ${profilesResult.error.message}` };
+    }
+
+    return {
+      success: true,
+      users: (profilesResult.data || []) as Profile[],
+      total: countResult.count ?? 0,
+      customRoles: (rolesResult.data || []) as RoleRow[],
+    };
   } catch {
     return {
       success: false,
@@ -45,8 +53,14 @@ async function fetchUsers(): Promise<PageResult> {
   }
 }
 
-export default async function AdminUsersPage() {
-  const result = await fetchUsers();
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const params = await searchParams;
+  const page = Math.max(1, parseInt(params.page || "1", 10) || 1);
+  const result = await fetchUsers(page);
 
   if (!result.success) {
     return (
@@ -63,5 +77,13 @@ export default async function AdminUsersPage() {
     );
   }
 
-  return <UsersTable users={result.users!} />;
+  return (
+    <UsersTable
+      users={result.users!}
+      total={result.total!}
+      currentPage={page}
+      perPage={PER_PAGE}
+      customRoles={result.customRoles || []}
+    />
+  );
 }

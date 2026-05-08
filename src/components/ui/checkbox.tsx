@@ -22,8 +22,8 @@ const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
             className="peer sr-only"
             {...props}
           />
-          <div className="flex h-4 w-4 items-center justify-center rounded border border-zinc-300 bg-white transition-colors peer-checked:border-zinc-900 peer-checked:bg-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:peer-checked:border-zinc-50 dark:peer-checked:bg-zinc-50">
-            <Check className="h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100 dark:text-zinc-900" />
+          <div className="flex h-4 w-4 items-center justify-center rounded border border-zinc-300 bg-white transition-colors peer-checked:border-brand-600 peer-checked:bg-brand-600 dark:border-zinc-600 dark:bg-zinc-800 dark:peer-checked:border-brand-200 dark:peer-checked:bg-brand-200">
+            <Check className="h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100 dark:text-brand-900" />
           </div>
         </div>
         {label && (

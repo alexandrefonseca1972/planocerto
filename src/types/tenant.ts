@@ -6,6 +6,11 @@ export interface Tenant {
   active: boolean;
   logo_url: string | null;
   teams_webhook_url: string;
+  cnpj: string;
+  responsavel_nome: string;
+  email: string;
+  site: string;
+  fone: string;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +39,11 @@ export interface TenantFormState {
     plan?: string[];
     email?: string[];
     role?: string[];
+    cnpj?: string[];
+    responsavel_nome?: string[];
+    site?: string[];
+    fone?: string[];
+    teams_webhook_url?: string[];
   };
   success?: boolean;
 }

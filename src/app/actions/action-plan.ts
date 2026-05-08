@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState } from "@/types/action-plan";
 import { notifyPlanAction } from "@/lib/teams";
+import { checkPermission } from "@/app/actions/admin";
+import { PERMISSIONS } from "@/lib/permissions";
 
 async function logAudit(planId: string, action: string, data: Record<string, unknown>, itemId?: string) {
   try {
@@ -134,6 +136,9 @@ export async function deletePlan(_prev: ActionPlanFormState, formData: FormData)
 
 export async function upsertItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
     const itemId = formData.get("itemId") as string;
     const planId = formData.get("planId") as string;
     if (!planId) return { message: "Plano obrigatório." };
@@ -195,21 +200,6 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
         }
       }
     } catch (error) { console.error("[upsertItem] Email notification error:", error); }
-
-    // Calendar sync
-    try {
-      const { syncItemToCalendar } = await import("@/app/actions/calendar-sync");
-      await syncItemToCalendar(
-        itemId || "",
-        planId,
-        payload.number,
-        payload.action,
-        payload.responsible || "",
-        payload.planned_start || null,
-        payload.planned_end || null,
-        Number(payload.status),
-      );
-    } catch (error) { console.error("[upsertItem] Calendar sync error:", error); }
 
     return { success: true, message: itemId ? "Item atualizado!" : "Item criado!" };
   } catch (error) { console.error("[upsertItem] Error:", error); return { message: "Serviço indisponível." }; }

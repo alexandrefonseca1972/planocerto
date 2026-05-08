@@ -1,12 +1,15 @@
 import { Resend } from "resend";
-import { getEnvVar } from "@/lib/env";
+import { getOptionalEnvVar } from "@/lib/env";
 
-const resend = new Resend(getEnvVar("RESEND_API_KEY"));
+const apiKey = getOptionalEnvVar("RESEND_API_KEY");
+const resend = apiKey ? new Resend(apiKey) : null;
 
-const FROM = "PlanoCerto <notifications@planocerto.ruphus.app>";
+const FROM = `PlanoCerto <${process.env.NEXT_PUBLIC_SITE_URL ? `notifications@${new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname}` : "no-reply@planocerto.app"}>`;
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://planocerto.app";
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  if (!to) return false;
+  if (!to || !resend) return false;
   try {
     const { error } = await resend.emails.send({ from: FROM, to, subject, html });
     if (error) {
@@ -32,8 +35,8 @@ export function itemCreatedEmail(item: { number: string; action: string; respons
           <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Ação</td><td style="padding:8px;border:1px solid #e4e4e7">${item.action}</td></tr>
           <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Responsável</td><td style="padding:8px;border:1px solid #e4e4e7">${item.responsible || "—"}</td></tr>
         </table>
-        <a href="https://planocerto.ruphus.app/planos" style="display:inline-block;background:#18181b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px">Ver no PlanoCerto</a>
-        <p style="color:#a1a1aa;font-size:12px;margin:20px 0 0">PlanoCerto · powered by Ruphus</p>
+        <a href="${siteUrl}/planos" style="display:inline-block;background:#18181b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px">Ver no PlanoCerto</a>
+        <p style="color:#a1a1aa;font-size:12px;margin:20px 0 0">PlanoCerto</p>
       </div>`,
   };
 }
@@ -50,8 +53,8 @@ export function itemCompletedEmail(item: { number: string; action: string; respo
           <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Ação</td><td style="padding:8px;border:1px solid #e4e4e7">${item.action}</td></tr>
           <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Responsável</td><td style="padding:8px;border:1px solid #e4e4e7">${item.responsible || "—"}</td></tr>
         </table>
-        <a href="https://planocerto.ruphus.app/planos" style="display:inline-block;background:#059669;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px">Ver no PlanoCerto</a>
-        <p style="color:#a1a1aa;font-size:12px;margin:20px 0 0">PlanoCerto · powered by Ruphus</p>
+        <a href="${siteUrl}/planos" style="display:inline-block;background:#059669;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px">Ver no PlanoCerto</a>
+        <p style="color:#a1a1aa;font-size:12px;margin:20px 0 0">PlanoCerto</p>
       </div>`,
   };
 }

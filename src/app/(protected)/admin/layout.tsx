@@ -1,9 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminNav } from "@/app/(protected)/admin/admin-nav";
+import { hasPermission, getPermissionsMap, buildCustomRolesMap, PERMISSIONS } from "@/lib/permissions";
 
 async function checkAdminAccess(): Promise<{
   authorized: boolean;
+  userPermissions: Record<string, boolean>;
+  role: string;
   error: boolean;
 }> {
   try {
@@ -12,20 +16,30 @@ async function checkAdminAccess(): Promise<{
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return { authorized: false, error: false };
+    if (!user) return { authorized: false, userPermissions: {}, role: "user", error: false };
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, permissions")
       .eq("id", user.id)
       .maybeSingle();
 
+    const role = profile?.role ?? "user";
+    const permissions = (profile?.permissions ?? null) as Record<string, boolean> | null;
+
+    const adminClient = createAdminClient();
+    const { data: roles } = await adminClient.from("roles").select("name, permissions");
+    const customRolesMap = buildCustomRolesMap((roles || []) as { name: string; permissions: Record<string, boolean> }[]);
+    const userPermissions = getPermissionsMap(role, permissions, customRolesMap);
+
     return {
-      authorized: profile?.role === "admin",
+      authorized: hasPermission(permissions, role, PERMISSIONS.ADMIN_ACCESS, customRolesMap),
+      userPermissions,
+      role,
       error: false,
     };
   } catch {
-    return { authorized: false, error: true };
+    return { authorized: false, userPermissions: {}, role: "user", error: true };
   }
 }
 
@@ -70,7 +84,7 @@ export default async function AdminLayout({
         </p>
       </div>
 
-      <AdminNav />
+      <AdminNav userPermissions={access.userPermissions} />
 
       {children}
     </div>

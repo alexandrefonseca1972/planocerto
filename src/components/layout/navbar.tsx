@@ -7,6 +7,7 @@ import { logout } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { PlanocertoLogo } from "@/components/layout/planocerto-logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PERMISSIONS } from "@/lib/permissions";
 import type { User } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import {
@@ -18,14 +19,19 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { UserMenu } from "@/components/layout/user-menu";
 
-interface NavbarProps { user: User; isAdmin?: boolean; }
+interface NavbarProps {
+  user: User;
+  userPermissions: Record<string, boolean>;
+  role: string;
+}
 
-export function Navbar({ user, isAdmin }: NavbarProps) {
+export function Navbar({ user, userPermissions, role }: NavbarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   const userInitial = (user.user_metadata?.name?.[0] || user.email?.[0] || "?").toUpperCase();
+  const canAccessAdmin = userPermissions[PERMISSIONS.ADMIN_ACCESS];
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -40,7 +46,7 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
 
   const mobileLinks = [
     ...links,
-    ...(isAdmin ? [{ href: "/admin/users", label: "Admin", icon: Shield }] : []),
+    ...(canAccessAdmin ? [{ href: "/admin/users", label: "Admin", icon: Shield }] : []),
     { href: "/profile", label: "Perfil", icon: UserCircle },
   ];
 
@@ -56,7 +62,7 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
         <div className="flex h-14 items-center gap-4">
           <PlanocertoLogo href="/dashboard" />
           <div className="hidden items-center gap-1 sm:flex">
-            <TenantSwitcher isAdmin={isAdmin} />
+            <TenantSwitcher userPermissions={userPermissions} />
           </div>
 
           <nav className="hidden items-center gap-1 sm:flex">
@@ -68,11 +74,11 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
             <ThemeToggle />
             <FontControl />
             <div className="hidden items-center border-l border-zinc-200/80 pl-3 sm:flex dark:border-zinc-700/80">
-              <UserMenu user={user} isAdmin={isAdmin} />
+              <UserMenu user={user} userPermissions={userPermissions} role={role} />
             </div>
           </div>
 
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="sm:hidden rounded-md p-2 -mr-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="sm:hidden rounded-md p-2 -mr-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
@@ -81,7 +87,7 @@ export function Navbar({ user, isAdmin }: NavbarProps) {
       {mobileOpen && (
         <div className="border-t border-zinc-200 bg-white px-4 pb-4 pt-3 dark:border-zinc-700 dark:bg-zinc-900 sm:hidden animate-[slideDown_150ms_ease-out]">
           <div className="mb-3 flex items-center justify-between">
-            <TenantSwitcher isAdmin={isAdmin} />
+            <TenantSwitcher userPermissions={userPermissions} />
             <div className="flex items-center gap-1">
               <NotificationBell />
               <ThemeToggle />

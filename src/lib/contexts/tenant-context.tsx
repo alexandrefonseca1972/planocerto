@@ -3,8 +3,8 @@
 import {
   createContext,
   useContext,
-  useState,
   useEffect,
+  useState,
   useCallback,
   useMemo,
   type ReactNode,
@@ -48,32 +48,36 @@ export function TenantProvider({
   const [activeTenantId, setActiveTenantId] = useState<string | null>(
     initialTenant?.id || null
   );
+  // Inicializa igual no servidor e no cliente para evitar hydration mismatch.
+  // Hidrata de localStorage só depois do mount.
   const [selectedTenantIds, setSelectedTenantIdsState] = useState<string[]>(
-    initialTenant ? [initialTenant.id] : []
+    initialTenant ? [initialTenant.id] : [],
   );
   const [isSwitching, setIsSwitching] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as string[];
+      const validIds = parsed.filter((id) =>
+        initialTenants.some((t) => t.id === id),
+      );
+      if (validIds.length > 0) {
+        setSelectedTenantIdsState(validIds);
+      }
+    } catch {
       try {
-        const parsed = JSON.parse(stored) as string[];
-        const validIds = parsed.filter((id) =>
-          initialTenants.some((t) => t.id === id)
-        );
-        if (validIds.length > 0) {
-          setSelectedTenantIdsState(validIds);
-          return;
-        }
-      } catch {
         localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // localStorage indisponível
       }
     }
-    if (initialTenant) {
-      setSelectedTenantIdsState([initialTenant.id]);
-    }
-  }, [initialTenant, initialTenants]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // initialTenants é estável (vem do server component) — não dispara loop
+  }, [initialTenants]);
 
   const setSelectedTenantIds = useCallback(
     (ids: string[]) => {

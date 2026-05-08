@@ -1,14 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useMemo } from "react";
 import { signup } from "@/app/actions/auth";
 import type { FormState } from "@/types/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
-import { sanitizeInput } from "@/lib/utils";
-import { UserPlus, User, Mail } from "lucide-react";
+import { sanitize } from "@/lib/sanitize";
+import { cn } from "@/lib/utils";
+import { UserPlus, User, Mail, Check } from "lucide-react";
 
 const initialState: FormState = {
   message: undefined,
@@ -23,11 +24,35 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const [state, formAction, isPending] = useActionState(signup, initialState);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [passwordValue, setPasswordValue] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     nameRef.current?.focus();
   }, []);
+
+  const passwordStrength = useMemo(() => {
+    const p = passwordValue;
+    if (!p) return { score: 0, label: "", color: "" };
+    let score = 0;
+    if (p.length >= 8) score++;
+    if (p.length >= 12) score++;
+    if (/[a-z]/.test(p)) score++;
+    if (/[A-Z]/.test(p)) score++;
+    if (/[0-9]/.test(p)) score++;
+    if (/[^a-zA-Z0-9]/.test(p)) score++;
+    if (score <= 2) return { score, label: "Fraca", color: "bg-red-500" };
+    if (score <= 4) return { score, label: "Média", color: "bg-amber-500" };
+    return { score, label: "Forte", color: "bg-emerald-500" };
+  }, [passwordValue]);
+
+  const passwordReqs = useMemo(() => [
+    { met: passwordValue.length >= 8, label: "8+ caracteres" },
+    { met: /[a-z]/.test(passwordValue), label: "Letra minúscula" },
+    { met: /[A-Z]/.test(passwordValue), label: "Letra maiúscula" },
+    { met: /[0-9]/.test(passwordValue), label: "Número" },
+    { met: /[^a-zA-Z0-9]/.test(passwordValue), label: "Caractere especial" },
+  ], [passwordValue]);
 
   if (state.success) {
     return (
@@ -87,7 +112,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           value={name}
           required
           onChange={(e) => {
-            setName(sanitizeInput(e.target.value));
+            setName(sanitize(e.target.value));
           }}
           aria-describedby={state.errors?.name ? "name-error" : undefined}
           aria-invalid={!!state.errors?.name}
@@ -118,7 +143,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           value={email}
           required
           onChange={(e) => {
-            setEmail(sanitizeInput(e.target.value));
+            setEmail(sanitize(e.target.value));
           }}
           aria-describedby={state.errors?.email ? "email-error" : undefined}
           aria-invalid={!!state.errors?.email}
@@ -144,11 +169,45 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           name="password"
           autoComplete="new-password"
           placeholder="Mínimo 8 caracteres"
+          value={passwordValue}
           required
+          onChange={(e) => setPasswordValue(e.target.value)}
           aria-describedby={state.errors?.password ? "password-error" : undefined}
           aria-invalid={!!state.errors?.password}
           className="transition-all duration-200 focus:shadow-md"
         />
+        {passwordValue && (
+          <div className="space-y-1.5 animate-[slideDown_200ms_ease-out]">
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 flex-1 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all duration-300", passwordStrength.color)}
+                  style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
+                />
+              </div>
+              <span className={cn(
+                "text-xs font-medium",
+                passwordStrength.score <= 2 ? "text-red-500" : passwordStrength.score <= 4 ? "text-amber-500" : "text-emerald-500"
+              )}>
+                {passwordStrength.label}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              {passwordReqs.map((req) => (
+                <span
+                  key={req.label}
+                  className={cn(
+                    "text-[11px] transition-colors flex items-center gap-1",
+                    req.met ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"
+                  )}
+                >
+                  {req.met ? <Check className="h-3 w-3" /> : <span className="inline-block w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />}
+                  {req.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {state.errors?.password && (
           <div
             key={`pwd-err-${state.message}`}
