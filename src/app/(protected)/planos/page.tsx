@@ -28,6 +28,7 @@ import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
 import { CommentSection } from "@/components/planos/comment-section";
+import { StatusDot } from "@/components/planos/status-dot";
 import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, GanttChart as GanttIcon, Paperclip, MessageSquare, Receipt } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
@@ -475,14 +476,11 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
       </div>
     </td>
     <td className="px-1 sm:px-3 py-2.5 text-center align-top" onClick={e => e.stopPropagation()}>
-      <button
+      <StatusDot
+        status={item.status}
+        item={item}
         onClick={() => setInlineEditId(inlineEditId === item.id ? null : item.id)}
-        className={cn("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-all hover:scale-105 hover:shadow-sm", st.color)}
-        title={`Status: ${st.label} — clique para alterar`}
-      >
-        <FarolIcon status={item.status} />
-        <span className="hidden sm:inline text-[10px]">{st.label}</span>
-      </button>
+      />
     </td>
     <td className="sticky right-0 z-10 bg-inherit px-1 sm:px-2 py-2.5 align-top" onClick={e => e.stopPropagation()}>
       <div className="flex justify-end gap-0.5">
