@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { DocsViewer } from '@/components/ui/docs-viewer';
 import { DOCS_SECTIONS } from '@/lib/docs-sections';
-import { HelpCircle, BookOpen, Mail, Phone, MessageCircle, ArrowRight } from 'lucide-react';
+import { HelpCircle, BookOpen, ArrowRight } from 'lucide-react';
 
 const QUICK_GUIDE_FEATURES = [
   {
@@ -115,7 +115,7 @@ export default function HelpPage() {
       {/* Quick Access Cards */}
       <section>
         <h2 className="text-2xl font-bold mb-6">Acesso Rápido</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardHeader>
               <BookOpen className="h-8 w-8 text-primary mb-2" />
@@ -136,15 +136,6 @@ export default function HelpPage() {
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <MessageCircle className="h-8 w-8 text-primary mb-2" />
-              <CardTitle className="text-lg">Entrar em Contato</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Fale com nossa equipe de suporte
-            </CardContent>
-          </Card>
         </div>
       </section>
 
@@ -241,57 +232,6 @@ export default function HelpPage() {
       <section className="bg-muted/30 -mx-4 -mb-6 px-4 py-8 lg:-mx-8 lg:px-8">
         <h2 className="text-2xl font-bold mb-6">Documentação Completa</h2>
         <DocsViewer sections={DOCS_SECTIONS} defaultSection="getting-started" />
-      </section>
-
-      {/* Contact Section */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-bold">Entre em Contato</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <Mail className="h-6 w-6 text-primary mb-2" />
-              <CardTitle className="text-lg">Email</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Envie suas dúvidas por email
-              </p>
-              <a href="mailto:suporte@planocerto.com" className="text-primary font-medium text-sm hover:underline">
-                suporte@planocerto.com
-              </a>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <Phone className="h-6 w-6 text-primary mb-2" />
-              <CardTitle className="text-lg">Telefone</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Suporte disponível de seg-sex, 9:00-17:00
-              </p>
-              <a href="tel:+551199999999" className="text-primary font-medium text-sm hover:underline">
-                (11) 99999-9999
-              </a>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <MessageCircle className="h-6 w-6 text-primary mb-2" />
-              <CardTitle className="text-lg">Chat</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Chat ao vivo com nossa equipe
-              </p>
-              <Button size="sm" className="w-full">
-                Iniciar Chat
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
       </section>
 
       {/* Footer */}
