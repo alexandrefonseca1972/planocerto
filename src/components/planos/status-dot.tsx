@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/types/action-plan";
 import { STATUS_FAROL } from "@/types/action-plan";
@@ -29,6 +30,9 @@ const STATUS_DOT_RING: Record<number, string> = {
 };
 
 export function StatusDot({ status, item, children, onClick }: StatusDotProps) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const st = STATUS_FAROL[status] || STATUS_FAROL[1];
   const dotColor = STATUS_DOT_COLORS[status] || STATUS_DOT_COLORS[1];
   const ringColor = STATUS_DOT_RING[status] || STATUS_DOT_RING[1];
@@ -52,12 +56,27 @@ export function StatusDot({ status, item, children, onClick }: StatusDotProps) {
     tooltipLines.push(`Conclusão: ${percentage}%`);
   }
 
+  const handleMouseEnter = () => {
+    timeoutRef.current = setTimeout(() => {
+      setShowTooltip(true);
+    }, 3000);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setShowTooltip(false);
+  };
+
   return (
     <button
       onClick={(e) => {
         e.stopPropagation();
         onClick?.();
       }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={cn(
         "inline-flex items-center justify-center h-7 w-7 rounded-full transition-all",
         "group relative cursor-pointer",
@@ -69,33 +88,35 @@ export function StatusDot({ status, item, children, onClick }: StatusDotProps) {
       {/* Colored dot */}
       <div className={cn("h-3 w-3 rounded-full shadow-sm", dotColor)} />
 
-      {/* Tooltip on hover */}
-      <div className={cn(
-        "invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50",
-        "bg-zinc-900 dark:bg-zinc-950 text-white text-xs rounded px-3 py-2 whitespace-nowrap",
-        "pointer-events-none shadow-lg"
-      )}>
-        <div className="font-semibold">{st.label}</div>
-        {item?.responsible && (
-          <div className="text-zinc-300 text-[11px] mt-1">👤 {item.responsible}</div>
-        )}
-        {item?.planned_end && (
-          <div className="text-zinc-300 text-[11px]">📅 {item.planned_end}</div>
-        )}
-        {percentage > 0 && (
-          <div className="text-zinc-300 text-[11px] mt-1 font-semibold">
-            ✓ Conclusão: {percentage}%
-          </div>
-        )}
-      </div>
+      {/* Tooltip on hover with delay */}
+      {showTooltip && (
+        <div className={cn(
+          "absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50",
+          "bg-zinc-900 dark:bg-zinc-950 text-white text-xs rounded px-3 py-2 whitespace-nowrap",
+          "pointer-events-none shadow-lg animate-in fade-in duration-200"
+        )}>
+          <div className="font-semibold">{st.label}</div>
+          {item?.responsible && (
+            <div className="text-zinc-300 text-[11px] mt-1">👤 {item.responsible}</div>
+          )}
+          {item?.planned_end && (
+            <div className="text-zinc-300 text-[11px]">📅 {item.planned_end}</div>
+          )}
+          {percentage > 0 && (
+            <div className="text-zinc-300 text-[11px] mt-1 font-semibold">
+              ✓ Conclusão: {percentage}%
+            </div>
+          )}
 
-      {/* Tooltip arrow */}
-      <div className={cn(
-        "invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 z-50",
-        "w-1.5 h-1.5 bg-zinc-900 dark:bg-zinc-950 rotate-45",
-        "pointer-events-none",
-        "mb-0.5"
-      )} />
+          {/* Tooltip arrow */}
+          <div className={cn(
+            "absolute bottom-full left-1/2 -translate-x-1/2 z-50",
+            "w-1.5 h-1.5 bg-zinc-900 dark:bg-zinc-950 rotate-45",
+            "pointer-events-none",
+            "mb-0.5"
+          )} />
+        </div>
+      )}
     </button>
   );
 }
