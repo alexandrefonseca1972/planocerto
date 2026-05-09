@@ -7,8 +7,9 @@ import {
   createUserSchema,
   updateUserSchema,
   permissionsSchema,
+  sanitizePermissions,
 } from "@/lib/validations/admin";
-import { PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
+import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
 import type { FormState } from "@/types/auth";
 
 export interface AdminFormState extends FormState {
@@ -141,6 +142,20 @@ export async function checkPermission(requiredPermission: Permission): Promise<b
   }
 }
 
+const BUILTIN_ROLES = new Set(["super_admin", "admin", "manager", "user", "viewer"]);
+
+async function getValidRoleNames(): Promise<Set<string>> {
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient.from("roles").select("name");
+    const names = new Set(BUILTIN_ROLES);
+    for (const r of data || []) names.add(r.name);
+    return names;
+  } catch {
+    return new Set(BUILTIN_ROLES);
+  }
+}
+
 async function requirePermission(
   requiredPermission: Permission
 ): Promise<{ authorized: boolean; currentUserId?: string; profile?: UserProfile; error?: AdminFormState }> {
@@ -184,11 +199,15 @@ export async function createUser(
     const adminCheck = await requirePermission(PERMISSIONS.USERS_CREATE);
     if (!adminCheck.authorized) return adminCheck.error!;
 
+    const passwordRaw = formData.get("password");
     const rawData = {
       email: formData.get("email"),
       name: formData.get("name"),
       role: formData.get("role"),
-      password: formData.get("password") as string || undefined,
+      password:
+        typeof passwordRaw === "string" && passwordRaw.length > 0
+          ? passwordRaw
+          : undefined,
     };
 
     const tenantIds = formData.getAll("tenantIds") as string[];
@@ -199,6 +218,14 @@ export async function createUser(
       return {
         errors: validated.error.flatten().fieldErrors,
         message: "Verifique os campos e tente novamente.",
+      };
+    }
+
+    const validRoles = await getValidRoleNames();
+    if (!validRoles.has(validated.data.role)) {
+      return {
+        errors: { role: ["Papel inválido."] },
+        message: "Verifique o papel selecionado.",
       };
     }
 
@@ -271,7 +298,7 @@ export async function createUser(
     revalidatePath("/", "layout");
 
     const message = isGenerated
-      ? `Usuário criado com sucesso! A senha gerada é: ${generatedPassword}`
+      ? "Usuário criado. Senha temporária exibida acima — copie e envie por canal seguro."
       : "Usuário criado com sucesso!";
 
     return { success: true, message, data: isGenerated ? { password: generatedPassword } : undefined };
@@ -312,16 +339,36 @@ export async function updateUser(
       };
     }
 
+    const validRoles = await getValidRoleNames();
+    if (!validRoles.has(validated.data.role)) {
+      return {
+        errors: { role: ["Papel inválido."] },
+        message: "Verifique o papel selecionado.",
+      };
+    }
+
+    if (adminCheck.currentUserId === userId && validated.data.role !== adminCheck.profile?.role) {
+      return { message: "Você não pode alterar seu próprio papel." };
+    }
+
     const isActive = formData.get("is_active") === "true";
-    const tenantIds = formData.getAll("tenantIds") as string[];
+    const tenantIdsRaw = formData.getAll("tenantIds") as string[];
+    const tenantIds = Array.from(new Set(tenantIdsRaw.filter(Boolean)));
+    const tenantsTouched = formData.has("tenantIds") || formData.has("tenantsTouched");
 
     let parsedPermissions: Record<string, boolean> | null = null;
     if (rawData.permissions) {
-      const permsResult = permissionsSchema.safeParse(JSON.parse(rawData.permissions));
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(rawData.permissions);
+      } catch {
+        return { message: "Estrutura de permissões inválida." };
+      }
+      const permsResult = permissionsSchema.safeParse(parsedJson);
       if (!permsResult.success) {
         return { message: "Estrutura de permissões inválida." };
       }
-      parsedPermissions = permsResult.data;
+      parsedPermissions = sanitizePermissions(permsResult.data, ALL_PERMISSIONS);
     }
 
     if (validated.data.login_start_time && validated.data.login_end_time) {
@@ -363,7 +410,7 @@ export async function updateUser(
       return { message: mapError(profileError.message) };
     }
 
-    if (tenantIds.length > 0) {
+    if (tenantsTouched) {
       const { data: existing } = await adminClient
         .from("tenant_members")
         .select("tenant_id")
@@ -392,22 +439,30 @@ export async function updateUser(
       }
     }
 
-    // Áreas (escopo por usuário) — substitui o conjunto inteiro
-    const areaIds = formData.getAll("areaIds") as string[];
-    await adminClient.from("user_areas").delete().eq("user_id", userId);
-    if (areaIds.length > 0) {
-      await adminClient.from("user_areas").insert(
-        areaIds.map((areaId) => ({ user_id: userId, area_id: areaId }))
+    // Áreas (escopo por usuário) — substitui o conjunto inteiro só se a seção foi renderizada
+    if (formData.has("areasTouched") || formData.has("areaIds")) {
+      const areaIds = Array.from(
+        new Set((formData.getAll("areaIds") as string[]).filter(Boolean))
       );
+      await adminClient.from("user_areas").delete().eq("user_id", userId);
+      if (areaIds.length > 0) {
+        await adminClient.from("user_areas").insert(
+          areaIds.map((areaId) => ({ user_id: userId, area_id: areaId }))
+        );
+      }
     }
 
-    // Unidades (escopo por usuário) — substitui o conjunto inteiro
-    const unitIds = formData.getAll("unitIds") as string[];
-    await adminClient.from("user_units").delete().eq("user_id", userId);
-    if (unitIds.length > 0) {
-      await adminClient.from("user_units").insert(
-        unitIds.map((unitId) => ({ user_id: userId, unit_id: unitId }))
+    // Unidades (escopo por usuário) — substitui o conjunto inteiro só se a seção foi renderizada
+    if (formData.has("unitsTouched") || formData.has("unitIds")) {
+      const unitIds = Array.from(
+        new Set((formData.getAll("unitIds") as string[]).filter(Boolean))
       );
+      await adminClient.from("user_units").delete().eq("user_id", userId);
+      if (unitIds.length > 0) {
+        await adminClient.from("user_units").insert(
+          unitIds.map((unitId) => ({ user_id: userId, unit_id: unitId }))
+        );
+      }
     }
 
     await auditLog(adminCheck.currentUserId!, userId, "update_user", {

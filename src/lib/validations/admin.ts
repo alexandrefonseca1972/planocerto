@@ -2,6 +2,8 @@ import { z } from "zod";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+const ALLOWED_BUILTIN_ROLES = ["super_admin", "admin", "manager", "user", "viewer"] as const;
+
 export const createUserSchema = z.object({
   email: z
     .string()
@@ -11,15 +13,13 @@ export const createUserSchema = z.object({
     .transform((v) => v.toLowerCase()),
   password: z
     .string()
-    .min(8, "Senha deve ter pelo menos 8 caracteres.")
     .max(72, "Senha deve ter no máximo 72 caracteres.")
-    .regex(/[a-z]/, "Senha deve conter pelo menos uma letra minúscula.")
-    .regex(/[A-Z]/, "Senha deve conter pelo menos uma letra maiúscula.")
-    .regex(/[0-9]/, "Senha deve conter pelo menos um número.")
-    .regex(
-      /[^a-zA-Z0-9]/,
-      "Senha deve conter pelo menos um caractere especial."
-    ),
+    .optional()
+    .refine((v) => !v || v.length >= 8, "Senha deve ter pelo menos 8 caracteres.")
+    .refine((v) => !v || /[a-z]/.test(v), "Senha deve conter pelo menos uma letra minúscula.")
+    .refine((v) => !v || /[A-Z]/.test(v), "Senha deve conter pelo menos uma letra maiúscula.")
+    .refine((v) => !v || /[0-9]/.test(v), "Senha deve conter pelo menos um número.")
+    .refine((v) => !v || /[^a-zA-Z0-9]/.test(v), "Senha deve conter pelo menos um caractere especial."),
   name: z
     .string()
     .min(2, "Nome deve ter pelo menos 2 caracteres.")
@@ -27,6 +27,8 @@ export const createUserSchema = z.object({
     .trim(),
   role: z.string().min(1, "Papel é obrigatório.").trim(),
 });
+
+export { ALLOWED_BUILTIN_ROLES };
 
 export const updateUserSchema = z.object({
   name: z
@@ -67,6 +69,19 @@ export const updateUserSchema = z.object({
 });
 
 export const permissionsSchema = z.record(z.string(), z.boolean());
+
+export function sanitizePermissions(
+  raw: Record<string, unknown>,
+  allowed: readonly string[]
+): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const key of allowed) {
+    if (key in raw && typeof raw[key] === "boolean") {
+      out[key] = raw[key] as boolean;
+    }
+  }
+  return out;
+}
 
 export const deactivateUserSchema = z.object({
   userId: z.string().min(1, "ID do usuário é obrigatório."),

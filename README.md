@@ -36,11 +36,19 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 - 📅 Sincronização Google Calendar (OAuth 2.0)
 - 📈 Gráfico de Gantt interativo (zoom mês/trimestre/ano)
 
-## Documentação
+## 📚 Documentação Completa
 
-- [Manual do Usuário](docs/manual-usuario.md) — guia completo de uso
-- [Plano de Implementação](docs/plano-implementacao.md) — roadmap técnico
-- [CHANGELOG](CHANGELOG.md) — histórico de versões
+Acesse **[docs/](docs/README.md)** para documentação completa:
+
+### Para Usuários
+- 📖 [Manual do Usuário](docs/MANUAL-USUARIO.md) — Guia completo de uso (Dashboard, Planos, Financeiro, Admin)
+- ⚡ [Guia Rápido](docs/GUIA-RAPIDO.md) — Comandos essenciais e referências rápidas
+
+### Para Desenvolvedores
+- 🏗️ [Documentação Técnica](docs/DOCUMENTACAO-TECNICA.md) — Stack, estrutura, permissões, banco de dados
+- 🏗️ [Arquitetura](docs/ARQUITETURA.md) — Visão aprofundada da arquitetura e fluxos
+- 🔌 [API Reference](docs/API-REFERENCE.md) — Server Actions, Supabase, exemplos de código
+- 📋 [Centro de Docs](docs/README.md) — Índice e navegação principal
 
 ## Variáveis de Ambiente
 

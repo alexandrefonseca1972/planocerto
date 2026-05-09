@@ -10,6 +10,8 @@ import {
   GraduationCap,
   Building2,
   Calculator,
+  Truck,
+  Tag,
 } from "lucide-react";
 import {
   Breadcrumb,
@@ -65,6 +67,20 @@ const dictionaries: CatalogCard[] = [
     label: "Prioridades",
     description: "Alta, Média, Baixa.",
     icon: AlertTriangle,
+    status: "ready",
+  },
+  {
+    href: "/admin/catalogos/fornecedores",
+    label: "Fornecedores",
+    description: "Cadastro de fornecedores e contatos.",
+    icon: Truck,
+    status: "ready",
+  },
+  {
+    href: "/admin/catalogos/categorias-despesa",
+    label: "Categorias de despesa",
+    description: "Marketing, Folha, Aluguel, Insumos…",
+    icon: Tag,
     status: "ready",
   },
   {

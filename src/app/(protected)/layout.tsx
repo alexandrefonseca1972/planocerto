@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 export const dynamic = "force-dynamic";
 import { TenantAwareWrapper } from "@/components/layout/tenant-aware-wrapper";
 import { ToastProvider } from "@/components/ui/toast";
+import { HelpModal } from "@/components/ui/help-modal";
 import { getUserTenants } from "@/app/actions/tenant";
 import { getPermissionsMap, buildCustomRolesMap } from "@/lib/permissions";
 import type { User } from "@supabase/supabase-js";
@@ -126,6 +127,7 @@ export default async function ProtectedLayout({
           <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </main>
+          <HelpModal />
         </div>
       </TenantAwareWrapper>
     </ToastProvider>

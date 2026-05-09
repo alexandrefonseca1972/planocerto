@@ -21,13 +21,44 @@ interface PageResult {
   errorMessage?: string;
 }
 
-async function fetchUsers(page: number): Promise<PageResult> {
+async function fetchUsers(
+  page: number,
+  search: string,
+  status: "all" | "active" | "inactive"
+): Promise<PageResult> {
   try {
     const adminClient = createAdminClient();
+    const from = (page - 1) * PER_PAGE;
+    const to = from + PER_PAGE - 1;
+
+    let countQuery = adminClient.from("profiles").select("*", { count: "exact", head: true });
+    let listQuery = adminClient
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (search) {
+      const escaped = search.replace(/[%,]/g, " ").trim();
+      if (escaped) {
+        const pattern = `%${escaped}%`;
+        const orFilter = `name.ilike.${pattern},email.ilike.${pattern},role.ilike.${pattern}`;
+        countQuery = countQuery.or(orFilter);
+        listQuery = listQuery.or(orFilter);
+      }
+    }
+
+    if (status === "active") {
+      countQuery = countQuery.eq("is_active", true);
+      listQuery = listQuery.eq("is_active", true);
+    } else if (status === "inactive") {
+      countQuery = countQuery.eq("is_active", false);
+      listQuery = listQuery.eq("is_active", false);
+    }
 
     const [countResult, profilesResult, rolesResult] = await Promise.all([
-      adminClient.from("profiles").select("*", { count: "exact", head: true }),
-      adminClient.from("profiles").select("*").order("created_at", { ascending: false }).range((page - 1) * PER_PAGE, (page - 1) * PER_PAGE + PER_PAGE - 1),
+      countQuery,
+      listQuery,
       adminClient.from("roles").select("*").order("name"),
     ]);
 
@@ -56,11 +87,14 @@ async function fetchUsers(page: number): Promise<PageResult> {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; status?: string }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page || "1", 10) || 1);
-  const result = await fetchUsers(page);
+  const search = (params.q || "").slice(0, 100);
+  const status: "all" | "active" | "inactive" =
+    params.status === "active" || params.status === "inactive" ? params.status : "all";
+  const result = await fetchUsers(page, search, status);
 
   if (!result.success) {
     return (
@@ -84,6 +118,8 @@ export default async function AdminUsersPage({
       currentPage={page}
       perPage={PER_PAGE}
       customRoles={result.customRoles || []}
+      initialSearch={search}
+      initialStatus={status}
     />
   );
 }

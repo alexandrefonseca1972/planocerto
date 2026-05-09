@@ -21,6 +21,10 @@ export const PERMISSIONS = {
   SETTINGS_MANAGE: "settings.manage",
   ADMIN_ACCESS: "admin.access",
   ROLES_MANAGE: "roles.manage",
+  FINANCE_READ: "finance.read",
+  FINANCE_CREATE: "finance.create",
+  FINANCE_UPDATE: "finance.update",
+  FINANCE_DELETE: "finance.delete",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -71,6 +75,10 @@ export const ROLES: Record<string, RoleDefinition> = {
       PERMISSIONS.REPORTS_VIEW,
       PERMISSIONS.ROLES_MANAGE,
       PERMISSIONS.ADMIN_ACCESS,
+      PERMISSIONS.FINANCE_READ,
+      PERMISSIONS.FINANCE_CREATE,
+      PERMISSIONS.FINANCE_UPDATE,
+      PERMISSIONS.FINANCE_DELETE,
     ],
   },
   user: {
@@ -81,13 +89,18 @@ export const ROLES: Record<string, RoleDefinition> = {
       PERMISSIONS.PLANS_CREATE,
       PERMISSIONS.PLANS_READ,
       PERMISSIONS.PLANS_UPDATE,
+      PERMISSIONS.FINANCE_READ,
     ],
   },
   viewer: {
     key: "viewer",
     label: "Visualizador",
     description: "Apenas leitura de planos.",
-    permissions: [PERMISSIONS.PLANS_READ, PERMISSIONS.REPORTS_VIEW],
+    permissions: [
+      PERMISSIONS.PLANS_READ,
+      PERMISSIONS.REPORTS_VIEW,
+      PERMISSIONS.FINANCE_READ,
+    ],
   },
 };
 
@@ -218,6 +231,15 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
     ],
   },
   {
+    label: "Financeiro",
+    permissions: [
+      PERMISSIONS.FINANCE_READ,
+      PERMISSIONS.FINANCE_CREATE,
+      PERMISSIONS.FINANCE_UPDATE,
+      PERMISSIONS.FINANCE_DELETE,
+    ],
+  },
+  {
     label: "Outros",
     permissions: [PERMISSIONS.TEMPLATES_MANAGE, PERMISSIONS.REPORTS_VIEW],
   },
@@ -246,4 +268,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [PERMISSIONS.SETTINGS_MANAGE]: "Gerenciar configurações",
   [PERMISSIONS.ROLES_MANAGE]: "Gerenciar papéis",
   [PERMISSIONS.ADMIN_ACCESS]: "Acessar painel admin",
+  [PERMISSIONS.FINANCE_READ]: "Ver financeiro",
+  [PERMISSIONS.FINANCE_CREATE]: "Criar contas a pagar",
+  [PERMISSIONS.FINANCE_UPDATE]: "Editar contas a pagar",
+  [PERMISSIONS.FINANCE_DELETE]: "Excluir contas a pagar",
 };

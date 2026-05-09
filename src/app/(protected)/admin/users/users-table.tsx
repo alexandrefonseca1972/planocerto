@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useActionState, useState, useCallback, useEffect, useRef, useMemo, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter, usePathname } from "next/navigation";
 import {
   createUser,
   updateUser,
@@ -131,7 +132,26 @@ function gravatarUrl(email: string, size = 40): string {
   return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=mp&r=g`;
 }
 
-function exportToCSV(users: Profile[], tenants: Tenant[], userTenantMap: Map<string, string[]>) {
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  manager: "Gerente",
+  viewer: "Visualizador",
+  user: "Usuário",
+};
+
+function roleLabel(role: string, customRoles: RoleRow[]): string {
+  if (ROLE_LABELS[role]) return ROLE_LABELS[role];
+  const custom = customRoles.find((r) => r.name === role);
+  return custom?.name || role;
+}
+
+function exportToCSV(
+  users: Profile[],
+  tenants: Tenant[],
+  userTenantMap: Map<string, string[]>,
+  customRoles: RoleRow[]
+) {
   const headers = ["Nome", "Email", "Papel", "Ativo", "Restrição de Horário", "Empresas", "Criado em"];
   const rows = users.map((u) => {
     const tenantIds = userTenantMap.get(u.id) || [];
@@ -145,7 +165,7 @@ function exportToCSV(users: Profile[], tenants: Tenant[], userTenantMap: Map<str
     return [
       u.name,
       u.email,
-      u.role === "admin" ? "Admin" : u.role === "manager" ? "Gerente" : u.role === "viewer" ? "Visualizador" : "Usuário",
+      roleLabel(u.role, customRoles),
       u.is_active ? "Sim" : "Não",
       timeRestriction,
       tenantNames,
@@ -172,21 +192,29 @@ export function UsersTable({
   currentPage,
   perPage,
   customRoles = [],
+  initialSearch = "",
+  initialStatus = "all",
 }: {
   users: Profile[];
   total: number;
   currentPage: number;
   perPage: number;
   customRoles?: RoleRow[];
+  initialSearch?: string;
+  initialStatus?: "all" | "active" | "inactive";
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [, startTransition] = useTransition();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
   const [deactivatingUser, setDeactivatingUser] = useState<Profile | null>(null);
   const [reactivatingUser, setReactivatingUser] = useState<Profile | null>(null);
   const [resendingUser, setResendingUser] = useState<Profile | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+  const [search, setSearch] = useState(initialSearch);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(initialStatus);
   const [sortKey, setSortKey] = useState<keyof Profile>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
@@ -209,7 +237,46 @@ export function UsersTable({
   const [deactivateState, deactivateAction, isDeactivating] = useActionState(deactivateUser, createInitialState);
   const [activateState, activateAction, isActivating] = useActionState(activateUser, createInitialState);
   const [resendState, resendAction, isResending] = useActionState(resendConfirmation, createInitialState);
-  const [, bulkDeleteAction, isBulkDeleting] = useActionState(bulkDeleteUsers, createInitialState);
+  const [bulkDeleteState, bulkDeleteAction, isBulkDeleting] = useActionState(bulkDeleteUsers, createInitialState);
+
+  useEffect(() => {
+    if (!bulkDeleteState.success) return;
+    const t = setTimeout(() => {
+      setSelectedIds(new Set());
+      setConfirmingBulkDelete(false);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [bulkDeleteState]);
+
+  useEffect(() => {
+    if (!deleteState.success) return;
+    const t = setTimeout(() => setDeletingUser(null), 0);
+    return () => clearTimeout(t);
+  }, [deleteState]);
+
+  useEffect(() => {
+    if (!deactivateState.success) return;
+    const t = setTimeout(() => setDeactivatingUser(null), 0);
+    return () => clearTimeout(t);
+  }, [deactivateState]);
+
+  useEffect(() => {
+    if (!activateState.success) return;
+    const t = setTimeout(() => setReactivatingUser(null), 0);
+    return () => clearTimeout(t);
+  }, [activateState]);
+
+  useEffect(() => {
+    if (!resendState.success) return;
+    const t = setTimeout(() => setResendingUser(null), 0);
+    return () => clearTimeout(t);
+  }, [resendState]);
+
+  useEffect(() => {
+    if (!updateState.success) return;
+    const t = setTimeout(() => setEditingUser(null), 0);
+    return () => clearTimeout(t);
+  }, [updateState]);
 
   useEffect(() => {
     getAllTenants().then(setAllTenants);
@@ -252,30 +319,41 @@ export function UsersTable({
     [sortKey]
   );
 
+  const pushQuery = useCallback(
+    (next: { q?: string; status?: "all" | "active" | "inactive"; page?: number }) => {
+      const sp = new URLSearchParams();
+      const q = next.q ?? search;
+      const st = next.status ?? statusFilter;
+      const page = next.page ?? 1;
+      if (q.trim()) sp.set("q", q.trim());
+      if (st !== "all") sp.set("status", st);
+      if (page > 1) sp.set("page", String(page));
+      const qs = sp.toString();
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname);
+      });
+    },
+    [router, pathname, search, statusFilter]
+  );
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
+      if (search !== initialSearch) {
+        pushQuery({ q: search, page: 1 });
+      }
     }, DEBOUNCE_MS);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [search]);
+  }, [search, initialSearch, pushQuery]);
 
   const filteredSorted = useMemo(() => {
     const filtered = users.filter((u) => {
-      const q = debouncedSearch.toLowerCase();
-      const matchesSearch =
-        !q ||
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q);
-
       const matchesTenant =
         !tenantFilter ||
         (userTenantMap.get(u.id) || []).includes(tenantFilter);
-
-      return matchesSearch && matchesTenant;
+      return matchesTenant;
     });
 
     return [...filtered].sort((a, b) => {
@@ -290,7 +368,7 @@ export function UsersTable({
       const cmp = String(aVal).localeCompare(String(bVal));
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [users, debouncedSearch, tenantFilter, sortKey, sortDir, userTenantMap]);
+  }, [users, tenantFilter, sortKey, sortDir, userTenantMap]);
 
   const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === filteredSorted.length && filteredSorted.length > 0) {
@@ -329,16 +407,25 @@ export function UsersTable({
 
   const handleCreateClose = useCallback(() => {
     setShowCreateDialog(false);
-    if (createState.success) {
-      if (createState.data?.password) {
-        setGeneratedPassword(createState.data.password);
-      }
-    }
+  }, []);
+
+  useEffect(() => {
+    if (!createState.success) return;
+    const pw = createState.data?.password ?? null;
+    const t = setTimeout(() => {
+      setShowCreateDialog(false);
+      if (pw) setGeneratedPassword(pw);
+    }, 0);
+    return () => clearTimeout(t);
   }, [createState]);
 
   const pageUrl = (page: number) => {
-    if (page <= 1) return "/admin/users";
-    return `/admin/users?page=${page}`;
+    const sp = new URLSearchParams();
+    if (search.trim()) sp.set("q", search.trim());
+    if (statusFilter !== "all") sp.set("status", statusFilter);
+    if (page > 1) sp.set("page", String(page));
+    const qs = sp.toString();
+    return qs ? `/admin/users?${qs}` : "/admin/users";
   };
 
   return (
@@ -360,11 +447,27 @@ export function UsersTable({
                   className="pl-8"
                 />
               </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  const v = e.target.value as "all" | "active" | "inactive";
+                  setStatusFilter(v);
+                  setSelectedIds(new Set());
+                  pushQuery({ status: v, page: 1 });
+                }}
+                className="h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                aria-label="Filtrar por status"
+              >
+                <option value="all">Todos status</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </select>
               {allTenants.length > 0 && (
                 <select
                   value={tenantFilter}
                   onChange={(e) => { setTenantFilter(e.target.value); setSelectedIds(new Set()); }}
                   className="h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                  aria-label="Filtrar por empresa"
                 >
                   <option value="">Todas empresas</option>
                   {allTenants.map((t) => (
@@ -381,7 +484,8 @@ export function UsersTable({
                   exportToCSV(
                     filteredSorted,
                     allTenants,
-                    userTenantMap
+                    userTenantMap,
+                    customRoles
                   )
                 }
                 title="Exportar para CSV"
@@ -402,15 +506,24 @@ export function UsersTable({
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
                 {selectedIds.size} selecionado(s)
               </span>
-              <form action={bulkDeleteAction} className="flex items-center gap-2 ml-auto">
-                {Array.from(selectedIds).map((id) => (
-                  <input key={id} type="hidden" name="userIds" value={id} />
-                ))}
-                <Button type="submit" variant="destructive" size="sm" isLoading={isBulkDeleting}>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Limpar
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setConfirmingBulkDelete(true)}
+                >
                   <Trash2 className="h-3 w-3" />
                   Excluir selecionados
                 </Button>
-              </form>
+              </div>
             </div>
           )}
 
@@ -522,27 +635,25 @@ export function UsersTable({
                       <span
                         className={cn(
                           "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                          user.role === "admin"
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                            : user.role === "manager"
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                              : user.role === "viewer"
-                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
-                                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          user.role === "super_admin"
+                            ? "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300"
+                            : user.role === "admin"
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                              : user.role === "manager"
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                : user.role === "viewer"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                                  : user.role === "user"
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                    : "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
                         )}
                       >
-                        {user.role === "admin" ? (
+                        {user.role === "admin" || user.role === "super_admin" ? (
                           <Shield className="h-3 w-3" />
                         ) : (
                           <User className="h-3 w-3" />
                         )}
-                        {user.role === "admin"
-                          ? "Admin"
-                          : user.role === "manager"
-                            ? "Gerente"
-                            : user.role === "viewer"
-                              ? "Visualizador"
-                              : "Usuário"}
+                        {roleLabel(user.role, customRoles)}
                       </span>
                     </td>
                     <td className="px-3 py-3">
@@ -626,7 +737,7 @@ export function UsersTable({
                       colSpan={7}
                       className="px-3 py-12 text-center text-zinc-500 dark:text-zinc-400"
                     >
-                      {debouncedSearch || tenantFilter
+                      {search || tenantFilter || statusFilter !== "all"
                         ? "Nenhum usuário encontrado."
                         : "Nenhum usuário cadastrado."}
                     </td>
@@ -689,6 +800,44 @@ export function UsersTable({
       )}
 
       <AlertDialog
+        open={confirmingBulkDelete}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingBulkDelete(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir usuários em lote</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir permanentemente{" "}
+              <strong className="text-zinc-900 dark:text-zinc-50">
+                {selectedIds.size} usuário(s)
+              </strong>
+              ? Esta ação não pode ser desfeita. Usuários com vínculos ativos
+              (empresas ou planos) não serão excluídos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {statusMessage(bulkDeleteState)}
+
+          <form action={bulkDeleteAction}>
+            {Array.from(selectedIds).map((id) => (
+              <input key={id} type="hidden" name="userIds" value={id} />
+            ))}
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmingBulkDelete(false)}>
+                Cancelar
+              </AlertDialogCancel>
+              <Button type="submit" variant="destructive" isLoading={isBulkDeleting}>
+                <Trash2 className="h-4 w-4" />
+                Excluir {selectedIds.size}
+              </Button>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
         open={!!deletingUser}
         onOpenChange={(open) => {
           if (!open) {
@@ -718,7 +867,8 @@ export function UsersTable({
                         <p>- {deleteImpact.actionPlans} plano(s) de ação</p>
                       )}
                       <p className="mt-1 font-medium">
-                        Esses vínculos serão perdidos com a exclusão.
+                        Remova os vínculos antes de excluir, ou apenas
+                        desative o usuário.
                       </p>
                     </div>
                   )}
@@ -732,7 +882,15 @@ export function UsersTable({
               <input type="hidden" name="userId" value={deletingUser.id} />
               <AlertDialogFooter>
                 <AlertDialogCancel />
-                <Button type="submit" variant="destructive" isLoading={isDeleting}>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  isLoading={isDeleting}
+                  disabled={
+                    !!deleteImpact &&
+                    (deleteImpact.tenantMemberships > 0 || deleteImpact.actionPlans > 0)
+                  }
+                >
                   <Trash2 className="h-4 w-4" />
                   Excluir
                 </Button>
@@ -948,11 +1106,11 @@ function CreateUserDialog({
                   defaultValue="user"
                   className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                 >
+                  <option value="viewer">Visualizador</option>
                   <option value="user">Usuário</option>
                   <option value="manager">Gerente</option>
                   <option value="admin">Admin</option>
                   <option value="super_admin">Super Admin</option>
-                  <option value="viewer">Visualizador</option>
                   {customRoles.map((role) => (
                     <option key={role.id} value={role.name}>{role.name}</option>
                   ))}
@@ -1167,6 +1325,9 @@ function EditUserDialog({
 
         <form action={action} className="flex flex-1 min-h-0 flex-col">
           <input type="hidden" name="userId" value={user.id} />
+          <input type="hidden" name="tenantsTouched" value="1" />
+          <input type="hidden" name="areasTouched" value="1" />
+          <input type="hidden" name="unitsTouched" value="1" />
 
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
 

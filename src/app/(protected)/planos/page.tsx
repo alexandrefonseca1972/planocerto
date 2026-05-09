@@ -2,11 +2,14 @@
 
 import { useActionState, useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { getPlans, getItems, getAuditLog, createPlan, updatePlan, deletePlan, upsertItem, deleteItem, updateItemStatus, bulkUpdateStatus } from "@/app/actions/action-plan";
 import { getTemplates, createPlanFromTemplate } from "@/app/actions/shared";
+import { getContasSummaryByPlan, type ItemContasSummary } from "@/app/actions/contas-pagar";
+import { formatBRL } from "@/lib/format-br";
 import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState } from "@/types/action-plan";
 import { STATUS_FAROL } from "@/types/action-plan";
 import { Button } from "@/components/ui/button";
@@ -18,14 +21,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { sanitize } from "@/lib/sanitize";
-import { ExportCsv } from "@/components/layout/export-csv";
 import { flattenItems, fmt, trunc, FarolIcon } from "@/components/planos/plan-utils";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { GanttChart } from "@/components/planos/plan-gantt";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
-import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, FileDown, GanttChart as GanttIcon } from "lucide-react";
+import { CommentSection } from "@/components/planos/comment-section";
+import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, GanttChart as GanttIcon, Paperclip, MessageSquare, Receipt } from "lucide-react";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
 
@@ -35,6 +38,7 @@ export default function PlanosPage() {
   const { toast } = useToast();
   const [plan, setPlan] = useState<ActionPlan | null>(null);
   const [items, setItems] = useState<ActionItem[]>([]);
+  const [contasSummary, setContasSummary] = useState<Record<string, ItemContasSummary>>({});
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
@@ -51,6 +55,7 @@ export default function PlanosPage() {
   const [deletingPlan, setDeletingPlan] = useState<ActionPlan | null>(null);
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<ActionItem | null>(null);
+  const [editingItemTab, setEditingItemTab] = useState<"principal" | "datas" | "resultados" | "anexos" | "comentarios">("principal");
   const [deletingItem, setDeletingItem] = useState<ActionItem | null>(null);
 
   const [planCreateState, planCreateAction, isPlanCreating] = useActionState(createPlan, init);
@@ -81,8 +86,12 @@ export default function PlanosPage() {
     let c = false;
     (async () => {
       setLoading(true);
-      const [i, a] = await Promise.all([getItems(plan.id), getAuditLog(plan.id)]);
-      if (!c) { setItems(i); setAuditLog(a); setLoading(false); }
+      const [i, a, cs] = await Promise.all([
+        getItems(plan.id),
+        getAuditLog(plan.id),
+        getContasSummaryByPlan(plan.id),
+      ]);
+      if (!c) { setItems(i); setAuditLog(a); setContasSummary(cs); setLoading(false); }
     })();
     return () => { c = true; };
   }, [plan?.id]);
@@ -198,10 +207,6 @@ export default function PlanosPage() {
             <StatPill color="bg-amber-500" label="Pendentes" value={counts.pending} />
             <div className="ml-auto flex items-center gap-2">
               <BulkStatusButton planId={plan?.id || ""} filteredItems={filteredItems} toast={toast} router={router} />
-              <ExportCsv items={items} filename={`plano-${plan?.unit || plan?.title || "export"}`} />
-              <Button variant="ghost" size="sm" onClick={() => plan && window.open(`/api/plans/${plan.id}/pdf`, "_blank")} title="Exportar PDF">
-                <FileDown className="h-4 w-4 mr-1" /> PDF
-              </Button>
               <Button variant="ghost" size="sm" onClick={() => { const modes: ("table" | "kanban" | "gantt")[] = ["table", "kanban", "gantt"]; const idx = modes.indexOf(viewMode); const next = modes[(idx + 1) % 3]; setViewMode(next); localStorage.setItem("planos-view", next); }} title="Alternar visualização">
                 {viewMode === "table" ? <Columns3 className="h-4 w-4 mr-1" /> : viewMode === "kanban" ? <GanttIcon className="h-4 w-4 mr-1" /> : <Table2 className="h-4 w-4 mr-1" />}
                 {viewMode === "table" ? "Kanban" : viewMode === "kanban" ? "Gantt" : "Tabela"}
@@ -314,7 +319,7 @@ export default function PlanosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {renderItems(items, 0, expandedRows, toggleRow, setEditingItem, setShowItemForm, setDeletingItem, inlineEditId, setInlineEditId, inlineAction, isInlineSaving)}
+                  {renderItems(items, 0, expandedRows, toggleRow, setEditingItem, setShowItemForm, setDeletingItem, inlineEditId, setInlineEditId, inlineAction, isInlineSaving, (it, tab) => { setEditingItem(it); setEditingItemTab(tab); setShowItemForm(true); }, contasSummary)}
                 </tbody>
               </table>
             </div>
@@ -343,9 +348,9 @@ export default function PlanosPage() {
       </AlertDialog>
 
       {showItemForm && (
-        <ItemFormDialog item={editingItem} planId={plan.id} items={items}
+        <ItemFormDialog item={editingItem} planId={plan.id} items={items} initialTab={editingItemTab}
           state={itemState} action={itemAction} isPending={isItemSaving}
-          onClose={() => { setShowItemForm(false); setEditingItem(null); }} />
+          onClose={() => { setShowItemForm(false); setEditingItem(null); setEditingItemTab("principal"); }} />
       )}
 
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
@@ -369,6 +374,8 @@ function renderItems(
   onEdit: (i: ActionItem) => void, onShowForm: (s: boolean) => void, onDelete: (i: ActionItem) => void,
   inlineEditId: string | null, setInlineEditId: (id: string | null) => void,
   inlineAction: (p: FormData) => void, inlinePending: boolean,
+  onOpenTab: (i: ActionItem, tab: "principal" | "datas" | "resultados" | "anexos" | "comentarios") => void,
+  contasSummary: Record<string, ItemContasSummary>,
   rowIndex = { value: 0 },
 ): React.ReactNode[] {
   const rows: React.ReactNode[] = [];
@@ -396,24 +403,27 @@ function renderItems(
           <EditRow item={item} planId={item.plan_id} inlineAction={inlineAction} inlinePending={inlinePending} onCancel={() => setInlineEditId(null)} />
         ) : (
           <ViewRow item={item} depth={depth} isGroup={isGroup} isExpanded={isExpanded} st={st}
-            onEdit={onEdit} onShowForm={onShowForm} onDelete={onDelete} setInlineEditId={setInlineEditId} inlineEditId={inlineEditId} />
+            onEdit={onEdit} onShowForm={onShowForm} onDelete={onDelete} setInlineEditId={setInlineEditId} inlineEditId={inlineEditId} onOpenTab={onOpenTab}
+            contasSummary={contasSummary[item.id]} />
         )}
       </tr>
     );
     rowIndex.value++;
     if (isGroup && isExpanded && item.children) {
-      rows.push(...renderItems(item.children, depth + 1, expandedRows, toggleRow, onEdit, onShowForm, onDelete, inlineEditId, setInlineEditId, inlineAction, inlinePending, rowIndex));
+      rows.push(...renderItems(item.children, depth + 1, expandedRows, toggleRow, onEdit, onShowForm, onDelete, inlineEditId, setInlineEditId, inlineAction, inlinePending, onOpenTab, contasSummary, rowIndex));
     }
     if (!isGroup && item.children) {
-      rows.push(...renderItems(item.children, depth + 1, expandedRows, toggleRow, onEdit, onShowForm, onDelete, inlineEditId, setInlineEditId, inlineAction, inlinePending, rowIndex));
+      rows.push(...renderItems(item.children, depth + 1, expandedRows, toggleRow, onEdit, onShowForm, onDelete, inlineEditId, setInlineEditId, inlineAction, inlinePending, onOpenTab, contasSummary, rowIndex));
     }
   }
   return rows;
 }
 
-function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShowForm: _onShowForm, onDelete, setInlineEditId, inlineEditId }: {
+function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShowForm: _onShowForm, onDelete, setInlineEditId, inlineEditId, onOpenTab, contasSummary }: {
   item: ActionItem; depth: number; isGroup: boolean; isExpanded: boolean; st: typeof STATUS_FAROL[number];
   onEdit: (i: ActionItem) => void; onShowForm: (s: boolean) => void; onDelete: (i: ActionItem) => void; setInlineEditId: (id: string | null) => void; inlineEditId: string | null;
+  onOpenTab: (i: ActionItem, tab: "principal" | "datas" | "resultados" | "anexos" | "comentarios") => void;
+  contasSummary?: ItemContasSummary;
 }) {
   const showFull = isExpanded && isGroup;
   return <>
@@ -441,7 +451,29 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
     <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top tabular-nums hidden md:table-cell">{item.planned_end ? fmt(item.planned_end) : "—"}</td>
     <td className={cn("px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top", showFull ? "table-cell" : "hidden lg:table-cell")}>{item.where || "—"}</td>
     <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top tabular-nums hidden lg:table-cell">{item.planned_start ? fmt(item.planned_start) : "—"}</td>
-    <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top font-mono tabular-nums hidden lg:table-cell">{item.cost || "—"}</td>
+    <td className="px-2 sm:px-3 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top font-mono tabular-nums hidden lg:table-cell">
+      <div className="flex flex-col gap-0.5">
+        <span>{item.cost || "—"}</span>
+        {contasSummary && contasSummary.count > 0 && (
+          <Link
+            href={`/financeiro/contas-a-pagar?item_id=${item.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "inline-flex items-center gap-1 self-start rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors hover:opacity-80",
+              contasSummary.tem_atrasada
+                ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                : contasSummary.total_em_aberto > 0
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+            )}
+            title={`${contasSummary.count} conta(s) — em aberto: ${formatBRL(contasSummary.total_em_aberto)} • pago: ${formatBRL(contasSummary.total_pago)}`}
+          >
+            <Receipt className="h-2.5 w-2.5" />
+            {contasSummary.count} • {formatBRL(contasSummary.total_em_aberto)}
+          </Link>
+        )}
+      </div>
+    </td>
     <td className="px-1 sm:px-3 py-2.5 text-center align-top" onClick={e => e.stopPropagation()}>
       <button
         onClick={() => setInlineEditId(inlineEditId === item.id ? null : item.id)}
@@ -454,6 +486,19 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
     </td>
     <td className="sticky right-0 z-10 bg-inherit px-1 sm:px-2 py-2.5 align-top" onClick={e => e.stopPropagation()}>
       <div className="flex justify-end gap-0.5">
+        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md" onClick={() => onOpenTab(item, "anexos")} title="Anexos">
+          <Paperclip className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md" onClick={() => onOpenTab(item, "comentarios")} title="Comentários">
+          <MessageSquare className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+        </Button>
+        <Link
+          href={`/financeiro/contas-a-pagar?from_item=${item.id}`}
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 sm:h-7 sm:w-7"
+          title="Gerar conta a pagar"
+        >
+          <Receipt className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+        </Link>
         <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md" onClick={() => setInlineEditId(item.id)} title="Editar">
           <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
         </Button>
@@ -929,11 +974,12 @@ function FieldV({ label, name, value, onChange, multiline, required, placeholder
   );
 }
 
-function ItemFormDialog({ item, planId, items, state, action, isPending, onClose }: {
+function ItemFormDialog({ item, planId, items, state, action, isPending, onClose, initialTab = "principal" }: {
   item: ActionItem | null; planId: string; items: ActionItem[]; state: ActionPlanFormState; action: (p: FormData) => void; isPending: boolean; onClose: () => void;
+  initialTab?: "principal" | "datas" | "resultados" | "anexos" | "comentarios";
 }) {
   const [isGroup, setIsGroup] = useState(!item?.parent_id && !!(item?.children?.length));
-  const [tab, setTab] = useState<"principal" | "datas" | "resultados">("principal");
+  const [tab, setTab] = useState<"principal" | "datas" | "resultados" | "anexos" | "comentarios">(initialTab);
   const [actionText, setActionText] = useState(item?.action || "");
   const groups = flattenItems(items).filter(i => i.id !== item?.id && (i.children?.length || 0) > 0);
   const allItems = flattenItems(items);
@@ -948,13 +994,19 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
         {item && <input type="hidden" name="itemId" value={item.id} />}
         <input type="hidden" name="planId" value={planId} />
         <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
-          {(["principal", "datas", "resultados"] as const).map(t => (
-            <button key={t} type="button" onClick={() => setTab(t)}
-              className={cn("flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                tab === t ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300")}>
-              {t === "principal" ? "Principal" : t === "datas" ? "Datas" : "Resultados"}
-            </button>
-          ))}
+          {(["principal", "datas", "resultados", "anexos", "comentarios"] as const).map(t => {
+            const needsItem = t === "anexos" || t === "comentarios";
+            const isDisabled = needsItem && !item?.id;
+            const labels: Record<typeof t, string> = { principal: "Principal", datas: "Datas", resultados: "Resultados", anexos: "Anexos", comentarios: "Comentários" };
+            return (
+              <button key={t} type="button" onClick={() => setTab(t)} disabled={isDisabled}
+                className={cn("flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  tab === t ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300",
+                  isDisabled ? "opacity-40 cursor-not-allowed" : "")}>
+                {labels[t]}
+              </button>
+            );
+          })}
         </div>
         {tab === "principal" && (
           <div className="space-y-3">
@@ -1022,13 +1074,32 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
             <Field label="Resultado Esperado" name="expected_result" value={item?.expected_result || ""} multiline placeholder="O que se espera alcançar" />
             <Field label="Resultado Real" name="actual_result" value={item?.actual_result || ""} multiline placeholder="Alcançado" />
             <Field label="Observações" name="observations" value={item?.observations || ""} multiline placeholder="Acompanhamento" />
-            {item?.id && <AttachmentSection itemId={item.id} />}
           </div>
         )}
-        {state.message && !state.success && <Msg state={state} />}
+        {tab === "anexos" && (
+          <div className="space-y-3">
+            {item?.id ? (
+              <AttachmentSection itemId={item.id} />
+            ) : (
+              <p className="text-xs text-zinc-400 text-center py-4">Salve o item antes de anexar arquivos.</p>
+            )}
+          </div>
+        )}
+        {tab === "comentarios" && (
+          <div className="space-y-3">
+            {item?.id ? (
+              <CommentSection itemId={item.id} />
+            ) : (
+              <p className="text-xs text-zinc-400 text-center py-4">Salve o item antes de adicionar comentários.</p>
+            )}
+          </div>
+        )}
+        {state.message && !state.success && tab !== "anexos" && tab !== "comentarios" && <Msg state={state} />}
         <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
-          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" isLoading={isPending} disabled={!actionText.trim()}><Check className="h-4 w-4 mr-1" />{item ? "Salvar" : "Criar"}</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{tab === "anexos" || tab === "comentarios" ? "Fechar" : "Cancelar"}</Button>
+          {tab !== "anexos" && tab !== "comentarios" && (
+            <Button type="submit" isLoading={isPending} disabled={!actionText.trim()}><Check className="h-4 w-4 mr-1" />{item ? "Salvar" : "Criar"}</Button>
+          )}
         </div>
       </form>
     </Modal>

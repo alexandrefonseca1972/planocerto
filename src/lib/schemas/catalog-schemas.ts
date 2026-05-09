@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidCNPJ, isValidPhone, isValidEmail } from "@/lib/format-br";
 
 /**
  * Schemas zod compartilhados entre server actions e client components.
@@ -65,6 +66,49 @@ export const unitSchema = z.object({
     .max(100, "Nome deve ter no máximo 100 caracteres."),
   area_id: z.string().uuid().nullable(),
   uf: z.enum(UFS).default(""),
+  sort_order: z.coerce.number().int().min(0).max(9999).default(0),
+  active: z.boolean().default(true),
+});
+
+export const fornecedorSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Nome deve ter pelo menos 2 caracteres.")
+    .max(120, "Nome deve ter no máximo 120 caracteres."),
+  cnpj: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .default("")
+    .refine((v) => !v || isValidCNPJ(v), "CNPJ inválido."),
+  categoria: z.string().trim().max(80).optional().default(""),
+  contato_nome: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .default("")
+    .refine(
+      (v) => !v || v.length >= 2,
+      "Nome do contato deve ter pelo menos 2 caracteres.",
+    ),
+  contato_email: z
+    .string()
+    .trim()
+    .max(160)
+    .optional()
+    .default("")
+    .refine((v) => !v || isValidEmail(v), "E-mail inválido."),
+  contato_telefone: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .default("")
+    .refine((v) => !v || isValidPhone(v), "Telefone inválido (use DDD + 8 ou 9 dígitos)."),
+  observacoes: z.string().trim().max(2000).optional().default(""),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });

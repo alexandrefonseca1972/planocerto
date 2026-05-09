@@ -89,3 +89,20 @@ export function normalizeWebsite(value: string): string {
 
 /** Devolve só os dígitos (uso no save de CNPJ/fone). */
 export const stripFormat = onlyDigits;
+
+/** Formata número como moeda brasileira (R$ 1.234,56). */
+export function formatBRL(value: number | null | undefined): string {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return n.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+/** Formata data ISO (YYYY-MM-DD) como dd/mm/aaaa para exibição. */
+export function formatDateBR(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}

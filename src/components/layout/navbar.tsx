@@ -11,7 +11,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import type { User } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, UserCircle, LogOut, Menu, X, Shield, ClipboardList, Calendar,
+  LayoutDashboard, UserCircle, LogOut, Menu, X, Shield, ClipboardList, Calendar, Wallet, HelpCircle,
 } from "lucide-react";
 import { TenantSwitcher } from "@/components/layout/tenant-switcher";
 import { FontControl } from "@/components/layout/font-control";
@@ -38,10 +38,14 @@ export function Navbar({ user, userPermissions, role }: NavbarProps) {
     try { await logout(); } catch { setLoggingOut(false); }
   }
 
+  const canAccessFinance = userPermissions[PERMISSIONS.FINANCE_READ];
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/planos", label: "Planos", icon: ClipboardList },
     { href: "/calendario", label: "Calendário", icon: Calendar },
+    ...(canAccessFinance
+      ? [{ href: "/financeiro", label: "Financeiro", icon: Wallet }]
+      : []),
   ];
 
   const mobileLinks = [
@@ -71,6 +75,9 @@ export function Navbar({ user, userPermissions, role }: NavbarProps) {
 
           <div className="ml-auto flex items-center gap-1">
             <NotificationBell />
+            <Link href="/help" className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 transition-colors" title="Ajuda e documentação">
+              <HelpCircle className="h-5 w-5" />
+            </Link>
             <ThemeToggle />
             <FontControl />
             <div className="hidden items-center border-l border-zinc-200/80 pl-3 sm:flex dark:border-zinc-700/80">

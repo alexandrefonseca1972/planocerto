@@ -99,7 +99,11 @@ const commentSchema = z.object({
   content: z.string().trim().min(1, "Comentário obrigatório.").max(2000),
 });
 
-export async function addComment(itemId: string, content: string): Promise<{ message: string; success?: boolean }> {
+export async function addComment(itemId: string, content: string): Promise<{
+  message: string;
+  success?: boolean;
+  comment?: { id: string; content: string; user_id: string; author: string; created_at: string };
+}> {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -108,16 +112,21 @@ export async function addComment(itemId: string, content: string): Promise<{ mes
     const v = commentSchema.safeParse({ content });
     if (!v.success) return { message: "Comentário inválido." };
 
-    const { error } = await supabase.from("item_comments").insert({
-      item_id: itemId,
-      user_id: user.id,
-      content: v.data.content,
-    });
+    const { data: inserted, error } = await supabase
+      .from("item_comments")
+      .insert({ item_id: itemId, user_id: user.id, content: v.data.content })
+      .select("id, content, user_id, created_at")
+      .single();
 
-    if (error) return { message: "Erro ao comentar." };
+    if (error || !inserted) return { message: "Erro ao comentar." };
 
-    revalidatePath("/planos");
-    return { success: true, message: "Comentário adicionado!" };
+    const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).single();
+
+    return {
+      success: true,
+      message: "Comentário adicionado!",
+      comment: { ...inserted, author: profile?.name || "Usuário" },
+    };
   } catch (error) { console.error("[addComment] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
@@ -147,7 +156,6 @@ export async function deleteComment(commentId: string): Promise<{ message: strin
     if (!user) return { message: "Não autenticado." };
 
     await supabase.from("item_comments").delete().eq("id", commentId).eq("user_id", user.id);
-    revalidatePath("/planos");
     return { success: true, message: "Comentário removido." };
   } catch (error) { console.error("[deleteComment] Error:", error); return { message: "Serviço indisponível." }; }
 }

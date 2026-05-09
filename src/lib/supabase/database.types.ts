@@ -258,6 +258,27 @@ export interface Database {
         Update: { id?: string; name?: string; sort_order?: number; active?: boolean; color?: string; created_at?: string; updated_at?: string; };
         Relationships: [];
       };
+      fornecedores: {
+        Row: {
+          id: string; tenant_id: string | null; name: string; cnpj: string;
+          categoria: string; contato_nome: string; contato_email: string;
+          contato_telefone: string; observacoes: string;
+          sort_order: number; active: boolean; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; tenant_id?: string | null; name: string; cnpj?: string;
+          categoria?: string; contato_nome?: string; contato_email?: string;
+          contato_telefone?: string; observacoes?: string;
+          sort_order?: number; active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; tenant_id?: string | null; name?: string; cnpj?: string;
+          categoria?: string; contato_nome?: string; contato_email?: string;
+          contato_telefone?: string; observacoes?: string;
+          sort_order?: number; active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
       schools: {
         Row: {
           id: string; tenant_id: string; unit_id: string | null;
@@ -411,9 +432,129 @@ export interface Database {
         };
         Relationships: [];
       };
+      categorias_despesa: {
+        Row: {
+          id: string; tenant_id: string | null; name: string;
+          sort_order: number; active: boolean;
+          created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; tenant_id?: string | null; name: string;
+          sort_order?: number; active?: boolean;
+          created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; tenant_id?: string | null; name?: string;
+          sort_order?: number; active?: boolean;
+          created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      contas_pagar: {
+        Row: {
+          id: string; tenant_id: string;
+          plan_id: string | null; item_id: string | null;
+          fornecedor_id: string | null; categoria_id: string | null;
+          descricao: string; documento: string;
+          emissao: string | null;
+          valor_total: number;
+          status: "pendente" | "parcial" | "quitado" | "cancelado";
+          observacoes: string;
+          created_by: string | null;
+          created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; tenant_id: string;
+          plan_id?: string | null; item_id?: string | null;
+          fornecedor_id?: string | null; categoria_id?: string | null;
+          descricao: string; documento?: string;
+          emissao?: string | null;
+          valor_total: number;
+          status?: "pendente" | "parcial" | "quitado" | "cancelado";
+          observacoes?: string;
+          created_by?: string | null;
+          created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; tenant_id?: string;
+          plan_id?: string | null; item_id?: string | null;
+          fornecedor_id?: string | null; categoria_id?: string | null;
+          descricao?: string; documento?: string;
+          emissao?: string | null;
+          valor_total?: number;
+          status?: "pendente" | "parcial" | "quitado" | "cancelado";
+          observacoes?: string;
+          created_by?: string | null;
+          created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      parcelas_pagar: {
+        Row: {
+          id: string; conta_id: string; numero: number;
+          data_vencimento: string; valor: number;
+          data_pagamento: string | null; valor_pago: number | null;
+          forma_pagamento: string;
+          status: "pendente" | "pago" | "cancelado";
+          observacoes: string;
+          created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; conta_id: string; numero: number;
+          data_vencimento: string; valor: number;
+          data_pagamento?: string | null; valor_pago?: number | null;
+          forma_pagamento?: string;
+          status?: "pendente" | "pago" | "cancelado";
+          observacoes?: string;
+          created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; conta_id?: string; numero?: number;
+          data_vencimento?: string; valor?: number;
+          data_pagamento?: string | null; valor_pago?: number | null;
+          forma_pagamento?: string;
+          status?: "pendente" | "pago" | "cancelado";
+          observacoes?: string;
+          created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      conta_attachments: {
+        Row: {
+          id: string; conta_id: string;
+          filename: string; storage_path: string;
+          size: number; mime_type: string;
+          tipo: "nf" | "recibo" | "contrato" | "boleto" | "comprovante" | "outro";
+          uploaded_by: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; conta_id: string;
+          filename: string; storage_path: string;
+          size: number; mime_type: string;
+          tipo?: "nf" | "recibo" | "contrato" | "boleto" | "comprovante" | "outro";
+          uploaded_by?: string | null; created_at?: string;
+        };
+        Update: {
+          id?: string; conta_id?: string;
+          filename?: string; storage_path?: string;
+          size?: number; mime_type?: string;
+          tipo?: "nf" | "recibo" | "contrato" | "boleto" | "comprovante" | "outro";
+          uploaded_by?: string | null; created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      create_conta_with_parcelas: {
+        Args: { payload: Record<string, unknown> };
+        Returns: string;
+      };
+      update_conta_with_parcelas: {
+        Args: { conta_id_in: string; payload: Record<string, unknown> };
+        Returns: string;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

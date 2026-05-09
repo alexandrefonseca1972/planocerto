@@ -44,6 +44,22 @@ export interface TipoPA {
   updated_at: string;
 }
 
+export interface Fornecedor {
+  id: string;
+  tenant_id: string | null;
+  name: string;
+  cnpj: string;
+  categoria: string;
+  contato_nome: string;
+  contato_email: string;
+  contato_telefone: string;
+  observacoes: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CatalogFormState {
   message?: string;
   errors?: Record<string, string[]>;
