@@ -13,11 +13,11 @@ interface StatusBadgeProps {
 
 // Map status to badge colors
 const STATUS_BADGE_COLORS: Record<number, string> = {
-  1: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700",
-  2: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800",
-  3: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 border-red-200 dark:border-red-800",
-  4: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
-  5: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  1: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
+  2: "bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+  3: "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400 border-red-200 dark:border-red-800",
+  4: "bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  5: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
 };
 
 const STATUS_BG_HOVER: Record<number, string> = {
@@ -66,8 +66,8 @@ export function StatusBadge({ status, item, children, onClick }: StatusBadgeProp
       )}
       title={tooltipLines.join(" • ")}
     >
-      <span>{st.label}</span>
-      {percentage > 0 && <span className="font-semibold">({percentage}%)</span>}
+      <span className="opacity-70">{st.label}</span>
+      {percentage > 0 && <span className="font-semibold opacity-90">({percentage}%)</span>}
 
       {/* Tooltip on hover */}
       <div className={cn(
