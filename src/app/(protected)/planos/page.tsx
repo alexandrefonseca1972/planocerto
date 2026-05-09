@@ -29,7 +29,8 @@ import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
 import { CommentSection } from "@/components/planos/comment-section";
 import { StatusDot } from "@/components/planos/status-dot";
-import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, GanttChart as GanttIcon, Paperclip, MessageSquare, Receipt } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, GanttChart as GanttIcon, Paperclip, MessageSquare, Receipt, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
 
@@ -483,27 +484,39 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
       />
     </td>
     <td className="sticky right-0 z-10 bg-inherit px-1 sm:px-2 py-2.5 align-top" onClick={e => e.stopPropagation()}>
-      <div className="flex justify-end gap-0.5">
-        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md" onClick={() => onOpenTab(item, "anexos")} title="Anexos">
-          <Paperclip className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md" onClick={() => onOpenTab(item, "comentarios")} title="Comentários">
-          <MessageSquare className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-        </Button>
-        <Link
-          href={`/financeiro/contas-a-pagar?from_item=${item.id}`}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 sm:h-7 sm:w-7"
-          title="Gerar conta a pagar"
-        >
-          <Receipt className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-        </Link>
-        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md" onClick={() => setInlineEditId(item.id)} title="Editar">
-          <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md text-red-500 hover:text-red-700" onClick={() => onDelete(item)} title="Excluir">
-          <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-        </Button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md">
+            <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="sr-only">Abrir menu de ações</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => onOpenTab(item, "anexos")}>
+            <Paperclip className="h-4 w-4" />
+            <span>Anexos</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onOpenTab(item, "comentarios")}>
+            <MessageSquare className="h-4 w-4" />
+            <span>Comentários</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`/financeiro/contas-a-pagar?from_item=${item.id}`} onClick={(e) => e.stopPropagation()}>
+              <Receipt className="h-4 w-4" />
+              <span>Contas a pagar</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setInlineEditId(item.id)}>
+            <Pencil className="h-4 w-4" />
+            <span>Editar</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onDelete(item)} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30">
+            <Trash2 className="h-4 w-4" />
+            <span>Excluir</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </td>
   </>;
 }
