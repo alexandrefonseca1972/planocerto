@@ -28,7 +28,7 @@ import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
 import { CommentSection } from "@/components/planos/comment-section";
-import { StatusDot } from "@/components/planos/status-dot";
+import { StatusBadge } from "@/components/planos/status-dot";
 import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, GanttChart as GanttIcon, Paperclip, MessageSquare, Receipt, MoreVertical } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
@@ -477,9 +477,10 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
       </div>
     </td>
     <td className="px-1 sm:px-3 py-2.5 text-center align-top" onClick={e => e.stopPropagation()}>
-      <StatusDot
+      <StatusBadge
         status={item.status}
         item={item}
+        children={item.children}
         onClick={() => setInlineEditId(inlineEditId === item.id ? null : item.id)}
       />
     </td>
