@@ -1,22 +1,12 @@
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
-import { Slot } from "@radix-ui/react-slot"
 
 import { cn } from "@/lib/utils"
 
 const DropdownMenu = DropdownMenuPrimitive.Root
 
-const DropdownMenuTrigger = React.forwardRef<
-  React.ElementRef<typeof DropdownMenuPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger> & {
-    asChild?: boolean
-  }
->(({ asChild, ...props }, ref) => {
-  const Comp = asChild ? Slot : DropdownMenuPrimitive.Trigger
-  return <Comp ref={ref} {...props} />
-})
-DropdownMenuTrigger.displayName = DropdownMenuPrimitive.Trigger.displayName
+const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group
 

@@ -486,11 +486,9 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
     </td>
     <td className="sticky right-0 z-10 bg-inherit px-1 sm:px-2 py-2.5 align-top" onClick={e => e.stopPropagation()}>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="inline-flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 transition-colors">
-            <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="sr-only">Abrir menu de ações</span>
-          </button>
+        <DropdownMenuTrigger className="inline-flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 transition-colors">
+          <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="sr-only">Abrir menu de ações</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onClick={() => onOpenTab(item, "anexos")}>
