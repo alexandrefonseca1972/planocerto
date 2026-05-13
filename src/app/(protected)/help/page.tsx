@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { DocsViewer } from '@/components/ui/docs-viewer';
 import { DOCS_SECTIONS } from '@/lib/docs-sections';
 import { HelpCircle, BookOpen, ArrowRight } from 'lucide-react';

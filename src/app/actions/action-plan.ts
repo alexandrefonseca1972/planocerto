@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState } from "@/types/action-plan";
+import { logSupabaseError } from "@/lib/errors";
+import { isValidUuid } from "@/lib/validations/uuid";
+import { sanitizeText } from "@/app/actions/_catalog-utils";
+import { planSchema, itemSchema } from "@/lib/schemas/action-plan-schemas";
+import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState, ActionItemStatus } from "@/types/action-plan";
 import { notifyPlanAction } from "@/lib/teams";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -56,32 +60,6 @@ export async function getItems(planId: string): Promise<ActionItem[]> {
   } catch (error) { console.error("[getItems] Error:", error); return []; }
 }
 
-const planSchema = z.object({
-  title: z.string().trim().min(2).max(200),
-  unit: z.string().max(200).trim().optional(),
-  director: z.string().max(200).trim().optional(),
-  goal: z.string().max(1000).trim().optional(),
-});
-
-const itemSchema = z.object({
-  action: z.string().trim().min(1, "Ação obrigatória.").max(500),
-  number: z.string().trim().min(1).max(20),
-  parent_id: z.string().optional(),
-  sort_order: z.coerce.number().int().default(0),
-  why: z.string().max(1000).trim().optional(),
-  where: z.string().max(500).trim().optional(),
-  responsible: z.string().max(200).trim().optional(),
-  planned_start: z.string().optional(),
-  planned_end: z.string().optional(),
-  actual_start: z.string().optional(),
-  actual_end: z.string().optional(),
-  cost: z.string().max(100).trim().optional(),
-  expected_result: z.string().max(1000).trim().optional(),
-  actual_result: z.string().max(1000).trim().optional(),
-  status: z.coerce.number().int().min(1).max(5).default(1),
-  observations: z.string().max(2000).trim().optional(),
-});
-
 export async function createPlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
     const supabase = await createClient();
@@ -93,9 +71,11 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
     const raw = { title: formData.get("title"), unit: formData.get("unit"), director: formData.get("director"), goal: formData.get("goal") };
     const v = planSchema.safeParse(raw);
     if (!v.success) return { errors: v.error.flatten().fieldErrors, message: "Verifique os campos." };
-    const { data: plan, error } = await supabase.from("action_plans").insert({ tenant_id: tenantId, user_id: user.id, ...v.data }).select().single();
+    const [title, unit, director, goal] = await Promise.all([sanitizeText(v.data.title), sanitizeText(v.data.unit || ""), sanitizeText(v.data.director || ""), sanitizeText(v.data.goal || "")]);
+    const sanitized = { ...v.data, title, unit, director, goal };
+    const { data: plan, error } = await supabase.from("action_plans").insert({ tenant_id: tenantId, user_id: user.id, ...sanitized }).select().single();
     if (error) return { message: "Erro ao criar plano." };
-    if (plan) await logAudit(plan.id, "CREATE_PLAN", { ...v.data });
+    if (plan) await logAudit(plan.id, "CREATE_PLAN", { ...sanitized });
     revalidatePath("/planos");
     revalidatePath("/dashboard");
     revalidatePath("/calendario");
@@ -106,13 +86,16 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
 export async function updatePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
     const planId = formData.get("planId") as string;
+    if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     const raw = { title: formData.get("title"), unit: formData.get("unit"), director: formData.get("director"), goal: formData.get("goal") };
     const v = planSchema.safeParse(raw);
     if (!v.success) return { errors: v.error.flatten().fieldErrors, message: "Verifique os campos." };
+    const [title, unit, director, goal] = await Promise.all([sanitizeText(v.data.title), sanitizeText(v.data.unit || ""), sanitizeText(v.data.director || ""), sanitizeText(v.data.goal || "")]);
+    const sanitized = { ...v.data, title, unit, director, goal };
     const supabase = await createClient();
-    const { error } = await supabase.from("action_plans").update({ ...v.data, updated_at: new Date().toISOString() }).eq("id", planId);
+    const { error } = await supabase.from("action_plans").update({ ...sanitized, updated_at: new Date().toISOString() }).eq("id", planId);
     if (error) return { message: "Erro ao atualizar." };
-    await logAudit(planId, "UPDATE_PLAN", { ...v.data });
+    await logAudit(planId, "UPDATE_PLAN", { ...sanitized });
     revalidatePath("/planos");
     revalidatePath("/dashboard");
     revalidatePath("/calendario");
@@ -123,9 +106,14 @@ export async function updatePlan(_prev: ActionPlanFormState, formData: FormData)
 export async function deletePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
     const planId = formData.get("planId") as string;
+    if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     const supabase = await createClient();
     const { data: plan } = await supabase.from("action_plans").select("title").eq("id", planId).single();
-    await supabase.from("action_plans").delete().eq("id", planId);
+    const { error } = await supabase.from("action_plans").delete().eq("id", planId);
+    if (error) {
+      logSupabaseError("deletePlan", error);
+      return { message: "Erro ao excluir plano." };
+    }
     if (plan) await logAudit(planId, "DELETE_PLAN", { deleted: plan.title });
     revalidatePath("/planos");
     revalidatePath("/dashboard");
@@ -142,24 +130,46 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
     const itemId = formData.get("itemId") as string;
     const planId = formData.get("planId") as string;
     if (!planId) return { message: "Plano obrigatório." };
+    if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
+    if (itemId && !isValidUuid(itemId)) return { message: "ID do item inválido." };
     const raw: Record<string, unknown> = {};
-    const textFields = ["number", "action", "why", "where", "responsible", "cost", "expected_result", "actual_result", "observations"];
+    const textFields = ["number", "action", "why", "where", "responsible", "cost", "expected_result", "actual_result", "observations", "tipo_pa", "area", "prioridade", "subacao", "como"];
     for (const f of textFields) raw[f] = formData.get(f) || "";
     const dateFields = ["planned_start", "planned_end", "actual_start", "actual_end"];
     for (const f of dateFields) raw[f] = formData.get(f) || undefined;
     raw.status = formData.get("status") || "1";
     raw.sort_order = formData.get("sort_order") || "0";
     raw.parent_id = formData.get("parent_id") || null;
+    const numericFields = ["preco", "inscritos_esperado", "inscritos_real", "mat_fin_esperado", "mat_fin_real", "mat_acad_esperado", "mat_acad_real"];
+    for (const f of numericFields) { const v = formData.get(f); raw[f] = v !== null && v !== "" ? v : undefined; }
     const v = itemSchema.safeParse(raw);
     if (!v.success) return { errors: v.error.flatten().fieldErrors, message: "Verifique os campos." };
+    const [action, why, where, responsible, cost, expected_result, actual_result, observations, tipo_pa, area, prioridade, subacao, como] = await Promise.all([
+      sanitizeText(v.data.action),
+      sanitizeText(v.data.why || ""),
+      sanitizeText(v.data.where || ""),
+      sanitizeText(v.data.responsible || ""),
+      sanitizeText(v.data.cost || ""),
+      sanitizeText(v.data.expected_result || ""),
+      sanitizeText(v.data.actual_result || ""),
+      sanitizeText(v.data.observations || ""),
+      sanitizeText(v.data.tipo_pa || ""),
+      sanitizeText(v.data.area || ""),
+      sanitizeText(v.data.prioridade || ""),
+      sanitizeText(v.data.subacao || ""),
+      sanitizeText(v.data.como || ""),
+    ]);
+    const sanitized = { ...v.data, action, why, where, responsible, cost, expected_result, actual_result, observations, tipo_pa, area, prioridade, subacao, como };
     const supabase = await createClient();
-    const payload = { ...v.data, plan_id: planId };
+    const payload = { ...sanitized, plan_id: planId };
     if (itemId) {
-      const { error } = await supabase.from("action_items").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", itemId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await supabase.from("action_items").update({ ...(payload as any), updated_at: new Date().toISOString() }).eq("id", itemId);
       if (error) return { message: "Erro ao atualizar." };
       await logAudit(planId, "UPDATE_ITEM", { ...payload }, itemId);
     } else {
-      const { data: created, error } = await supabase.from("action_items").insert(payload).select().single();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: created, error } = await supabase.from("action_items").insert(payload as any).select().single();
       if (error) return { message: "Erro ao criar." };
       if (created) await logAudit(planId, "CREATE_ITEM", { ...payload }, created.id);
     }
@@ -209,9 +219,14 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
   try {
     const itemId = formData.get("itemId") as string;
     if (!itemId) return { message: "ID obrigatório." };
+    if (!isValidUuid(itemId)) return { message: "ID do item inválido." };
     const supabase = await createClient();
     const { data: item } = await supabase.from("action_items").select("plan_id,number,action").eq("id", itemId).single();
-    await supabase.from("action_items").delete().eq("id", itemId);
+    const { error } = await supabase.from("action_items").delete().eq("id", itemId);
+    if (error) {
+      logSupabaseError("deleteItem", error);
+      return { message: "Erro ao excluir item." };
+    }
     if (item) await logAudit(item.plan_id, "DELETE_ITEM", { number: item.number, action: item.action }, itemId);
     revalidatePath("/planos");
     revalidatePath("/dashboard");
@@ -220,10 +235,13 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
   } catch (error) { console.error("[deleteItem] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
-export async function updateItemStatus(itemId: string, status: number): Promise<ActionPlanFormState> {
+export async function updateItemStatus(itemId: string, status: ActionItemStatus): Promise<ActionPlanFormState> {
   try {
     if (!itemId) return { message: "ID obrigatório." };
-    if (status < 1 || status > 5) return { message: "Status inválido." };
+    if (!isValidUuid(itemId)) return { message: "ID do item inválido." };
+    const parsedStatus = z.coerce.number().int().min(1).max(5).safeParse(status);
+    if (!parsedStatus.success) return { message: "Status inválido." };
+    status = parsedStatus.data as ActionItemStatus;
 
     const supabase = await createClient();
     const { data: item } = await supabase.from("action_items").select("plan_id,number,action,responsible").eq("id", itemId).single();
@@ -258,11 +276,15 @@ export async function updateItemStatus(itemId: string, status: number): Promise<
   } catch (error) { console.error("[updateItemStatus] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
-export async function bulkUpdateStatus(planId: string, itemIds: string[], status: number): Promise<ActionPlanFormState> {
+export async function bulkUpdateStatus(planId: string, itemIds: string[], status: ActionItemStatus): Promise<ActionPlanFormState> {
   try {
     if (!planId) return { message: "Plano obrigatório." };
+    if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     if (!itemIds.length) return { message: "Selecione pelo menos um item." };
-    if (status < 1 || status > 5) return { message: "Status inválido." };
+    if (!itemIds.every(isValidUuid)) return { message: "Lista de itens contém ID inválido." };
+    const parsedStatus = z.coerce.number().int().min(1).max(5).safeParse(status);
+    if (!parsedStatus.success) return { message: "Status inválido." };
+    status = parsedStatus.data as ActionItemStatus;
 
     const supabase = await createClient();
     const { error } = await supabase.from("action_items").update({ status, updated_at: new Date().toISOString() }).in("id", itemIds);

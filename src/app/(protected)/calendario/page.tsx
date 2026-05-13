@@ -84,6 +84,7 @@ export default async function CalendarioPage({
             .not("planned_end", "is", null)
             .in("plan_id", planIds)
             .order("planned_end")
+            .order("id")
             .range(from, from + PAGE - 1);
           if (error) break;
           const rows = chunk || [];
@@ -104,7 +105,10 @@ export default async function CalendarioPage({
       const todayMs = today.getTime();
       const todayISO = today.toISOString().split("T")[0];
 
+      const seenIds = new Set<string>();
       for (const it of all) {
+        if (seenIds.has(it.id)) continue;
+        seenIds.add(it.id);
         if (it.status === 5) continue; // só não concluídas
 
         const ds = new Date(it.planned_end + "T00:00:00");

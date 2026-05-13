@@ -8,17 +8,16 @@ import { STATUS_FAROL } from "@/types/action-plan";
 interface StatusDotProps {
   status: number;
   item?: ActionItem;
-  children?: ActionItem[];
+  subItems?: ActionItem[];
   onClick?: () => void;
 }
 
-// Map status to dot colors
 const STATUS_DOT_COLORS: Record<number, string> = {
-  1: "bg-zinc-400", // Não Iniciada
-  2: "bg-amber-400", // Pendente
-  3: "bg-red-500", // Em andamento (atraso)
-  4: "bg-blue-500", // Em andamento
-  5: "bg-emerald-500", // Concluído
+  1: "bg-zinc-400",
+  2: "bg-amber-400",
+  3: "bg-red-500",
+  4: "bg-blue-500",
+  5: "bg-emerald-500",
 };
 
 const STATUS_DOT_RING: Record<number, string> = {
@@ -29,7 +28,7 @@ const STATUS_DOT_RING: Record<number, string> = {
   5: "group-hover:ring-emerald-300 dark:group-hover:ring-emerald-500",
 };
 
-export function StatusDot({ status, item, children, onClick }: StatusDotProps) {
+export function StatusDot({ status, item: _item, subItems, onClick }: StatusDotProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -37,23 +36,10 @@ export function StatusDot({ status, item, children, onClick }: StatusDotProps) {
   const dotColor = STATUS_DOT_COLORS[status] || STATUS_DOT_COLORS[1];
   const ringColor = STATUS_DOT_RING[status] || STATUS_DOT_RING[1];
 
-  // Calculate percentage completed (for groups with children)
   let percentage = 0;
-  if (children && children.length > 0) {
-    const completed = children.filter(c => c.status === 5).length;
-    percentage = Math.round((completed / children.length) * 100);
-  }
-
-  // Build tooltip text
-  const tooltipLines = [st.label];
-  if (item?.responsible) {
-    tooltipLines.push(`Responsável: ${item.responsible}`);
-  }
-  if (item?.planned_end) {
-    tooltipLines.push(`Prazo: ${item.planned_end}`);
-  }
-  if (percentage > 0) {
-    tooltipLines.push(`Conclusão: ${percentage}%`);
+  if (subItems && subItems.length > 0) {
+    const completed = subItems.filter(c => c.status === 5).length;
+    percentage = Math.round((completed / subItems.length) * 100);
   }
 
   const handleMouseEnter = () => {
@@ -83,12 +69,9 @@ export function StatusDot({ status, item, children, onClick }: StatusDotProps) {
         ringColor,
         "hover:ring-2 hover:ring-offset-2 dark:hover:ring-offset-zinc-900"
       )}
-      title={tooltipLines.join(" • ")}
     >
-      {/* Colored dot */}
       <div className={cn("h-3 w-3 rounded-full shadow-sm", dotColor)} />
 
-      {/* Tooltip on hover with delay */}
       {showTooltip && (
         <div className={cn(
           "absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50",
@@ -96,19 +79,12 @@ export function StatusDot({ status, item, children, onClick }: StatusDotProps) {
           "pointer-events-none shadow-lg animate-in fade-in duration-200"
         )}>
           <div className="font-semibold">{st.label}</div>
-          {item?.responsible && (
-            <div className="text-zinc-300 text-[11px] mt-1">👤 {item.responsible}</div>
-          )}
-          {item?.planned_end && (
-            <div className="text-zinc-300 text-[11px]">📅 {item.planned_end}</div>
-          )}
           {percentage > 0 && (
             <div className="text-zinc-300 text-[11px] mt-1 font-semibold">
               ✓ Conclusão: {percentage}%
             </div>
           )}
 
-          {/* Tooltip arrow */}
           <div className={cn(
             "absolute bottom-full left-1/2 -translate-x-1/2 z-50",
             "w-1.5 h-1.5 bg-zinc-900 dark:bg-zinc-950 rotate-45",

@@ -11,6 +11,7 @@ import {
   updatePasswordSchema,
 } from "@/lib/validations/auth";
 import type { FormState } from "@/types/auth";
+import type { Json } from "@/lib/supabase/database.types";
 
 export async function login(
   _prevState: FormState,
@@ -267,8 +268,7 @@ export async function updateProfile(
       .update({
         name: validated.data.name,
         phone: validated.data.phone,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        social_media: socialMedia as any,
+        social_media: socialMedia as Json,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);

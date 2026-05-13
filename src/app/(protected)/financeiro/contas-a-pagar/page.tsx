@@ -12,6 +12,15 @@ export default async function ContasPagarPage() {
     getFornecedores(),
   ]);
 
+  if (
+    process.env.NODE_ENV !== "production" &&
+    contas.length === 0 &&
+    categorias.length === 0 &&
+    fornecedores.length === 0
+  ) {
+    console.warn("[ContasPagarPage] All queries returned empty results - possible database or RLS issue");
+  }
+
   return (
     <ContasPagarClient
       initial={contas}

@@ -1,8 +1,7 @@
 import { Resend } from "resend";
-import { getOptionalEnvVar } from "@/lib/env";
+import { env } from "@/lib/env";
 
-const apiKey = getOptionalEnvVar("RESEND_API_KEY");
-const resend = apiKey ? new Resend(apiKey) : null;
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
 const FROM = `PlanoCerto <${process.env.NEXT_PUBLIC_SITE_URL ? `notifications@${new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname}` : "no-reply@planocerto.app"}>`;
 

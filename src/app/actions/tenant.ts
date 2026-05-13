@@ -331,6 +331,29 @@ export async function getUserTenantIds(userId: string): Promise<string[]> {
   } catch (error) { console.error("[getUserTenantIds] Error:", error); return []; }
 }
 
+export interface TenantMembership {
+  tenantId: string;
+  role: string;
+}
+
+function normalizeTenantRole(role: string | null): string {
+  if (!role || role === "member") return "user";
+  if (role === "owner") return "admin";
+  return role;
+}
+
+export async function getUserTenantMemberships(userId: string): Promise<TenantMembership[]> {
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from("tenant_members")
+      .select("tenant_id, role")
+      .eq("user_id", userId);
+    if (!data) return [];
+    return data.map((m) => ({ tenantId: m.tenant_id, role: normalizeTenantRole(m.role) }));
+  } catch (error) { console.error("[getUserTenantMemberships] Error:", error); return []; }
+}
+
 export async function getBulkUserTenantIds(userIds: string[]): Promise<Map<string, string[]>> {
   try {
     const adminClient = createAdminClient();

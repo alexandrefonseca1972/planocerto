@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useMemo } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -17,6 +17,7 @@ import type {
   ParcelaPagar,
 } from "@/types/financeiro";
 import { formatBRL, formatDateBR } from "@/lib/format-br";
+import { ContaAttachmentSection } from "./conta-attachment-section";
 
 const init: FinanceFormState = { message: undefined, errors: {} };
 
@@ -100,7 +101,7 @@ export function PagamentoDialog({
     fd.set("valor_pago", String(values.valor_pago));
     fd.set("forma_pagamento", values.forma_pagamento);
     fd.set("observacoes", values.observacoes);
-    action(fd);
+    startTransition(() => action(fd));
   }
 
   if (!open || !parcela) return null;
@@ -193,6 +194,10 @@ export function PagamentoDialog({
           placeholder="Anotações sobre este pagamento..."
         />
       </Field>
+
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50/40 p-3 dark:border-zinc-700 dark:bg-zinc-800/30">
+        <ContaAttachmentSection contaId={parcela.conta_id} />
+      </div>
     </FormDialog>
   );
 }

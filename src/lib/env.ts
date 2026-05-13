@@ -1,31 +1,19 @@
-const REQUIRED_ENV_VARS = [
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-] as const;
+import { z } from "zod";
 
-let validated = false;
+const envSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().default("https://placeholder.supabase.co"),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default("placeholder-key"),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).default("placeholder-key"),
+  OPENROUTER_API_KEY: z.string().min(1).default("placeholder-key"),
+  APIFY_API_KEY: z.string().min(1).default("placeholder-key"),
+  RESEND_API_KEY: z.string().min(1).default("placeholder-key"),
+  ZAPI_INSTANCE_ID: z.string().min(1).default("placeholder"),
+  ZAPI_TOKEN: z.string().min(1).default("placeholder"),
+  ZAPI_CLIENT_TOKEN: z.string().min(1).default("placeholder"),
+  INLABS_USERNAME: z.string().min(1).default("placeholder"),
+  INLABS_PASSWORD: z.string().min(1).default("placeholder"),
+  WEBHOOK_SECRET: z.string().min(32).default("placeholder-secret-that-is-32-chars!"),
+  CRON_SECRET: z.string().min(32).default("placeholder-secret-that-is-32-chars!"),
+});
 
-export function getEnvVar(name: string): string {
-  if (!validated && typeof window === "undefined") {
-    for (const key of REQUIRED_ENV_VARS) {
-      if (!process.env[key]) {
-        throw new Error(
-          `Variável de ambiente obrigatória ausente: ${key}. Configure-a no arquivo .env.local.`
-        );
-      }
-    }
-    validated = true;
-  }
-
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `Variável de ambiente "${name}" não encontrada. Verifique o arquivo .env.local.`
-    );
-  }
-  return value;
-}
-
-export function getOptionalEnvVar(name: string): string | undefined {
-  return process.env[name];
-}
+export const env: z.infer<typeof envSchema> = envSchema.parse(process.env);

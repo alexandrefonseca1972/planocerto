@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,23 @@ import { DistributionCard } from "@/components/dashboard/distribution-card";
 import { DetailTable } from "@/components/dashboard/detail-table";
 import { AreaUnitFilter } from "@/components/dashboard/area-unit-filter";
 import { useTenant } from "@/lib/contexts/tenant-context";
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -28,7 +45,10 @@ import {
   Pause,
   TrendingUp,
   Users,
+  GripVertical,
 } from "lucide-react";
+
+const DASHBOARD_STORAGE_VERSION = "v1";
 
 export interface UnitSummary {
   id: string;
@@ -93,6 +113,137 @@ export function DashboardClient({
 
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  const [unitOrder, setUnitOrder] = useState<string[]>([]);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [kpiOrder, setKpiOrder] = useState<string[]>(["price", "inscripts", "matfin", "matacad"]);
+  const [statusOrder, setStatusOrder] = useState<string[]>(["total", "completed", "progress", "pending", "overdue"]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const tenantId = currentTenant?.id;
+  const storageKeys = useMemo(() => {
+    if (!tenantId) return null;
+    const base = `dashboard-${DASHBOARD_STORAGE_VERSION}-${tenantId}`;
+    return {
+      unit: `${base}-unit-order`,
+      kpi: `${base}-kpi-order`,
+      status: `${base}-status-order`,
+    };
+  }, [tenantId]);
+
+  // Sincroniza orders com localStorage quando tenant ou unitSummaries mudam.
+  // Wrap em setTimeout para satisfazer react-hooks/set-state-in-effect.
+  useEffect(() => {
+    if (typeof window === "undefined" || !storageKeys) return;
+
+    let nextUnitOrder: string[] | null = null;
+    if (unitSummaries.length > 0) {
+      const stored = localStorage.getItem(storageKeys.unit);
+      const existingIds = new Set(unitSummaries.map((u) => u.id));
+      if (stored) {
+        try {
+          const parsed: unknown = JSON.parse(stored);
+          const order = Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+          const validOrder = order.filter((id) => existingIds.has(id));
+          const newIds = unitSummaries.map((u) => u.id).filter((id) => !validOrder.includes(id));
+          nextUnitOrder = [...validOrder, ...newIds];
+        } catch {
+          nextUnitOrder = unitSummaries.map((u) => u.id);
+        }
+      } else {
+        nextUnitOrder = unitSummaries.map((u) => u.id);
+      }
+    }
+
+    let nextKpiOrder: string[] | null = null;
+    const storedKpi = localStorage.getItem(storageKeys.kpi);
+    if (storedKpi) {
+      try {
+        const parsed: unknown = JSON.parse(storedKpi);
+        if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+          nextKpiOrder = parsed as string[];
+        }
+      } catch { /* ignore */ }
+    }
+
+    let nextStatusOrder: string[] | null = null;
+    const storedStatus = localStorage.getItem(storageKeys.status);
+    if (storedStatus) {
+      try {
+        const parsed: unknown = JSON.parse(storedStatus);
+        if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+          nextStatusOrder = parsed as string[];
+        }
+      } catch { /* ignore */ }
+    }
+
+    const t = setTimeout(() => {
+      if (nextUnitOrder) setUnitOrder(nextUnitOrder);
+      if (nextKpiOrder) setKpiOrder(nextKpiOrder);
+      if (nextStatusOrder) setStatusOrder(nextStatusOrder);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [unitSummaries, storageKeys]);
+
+  const handleDragStart = (id: string) => {
+    setDraggedId(id);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setDraggedId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = unitOrder.indexOf(active.id as string);
+    const newIndex = unitOrder.indexOf(over.id as string);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = arrayMove(unitOrder, oldIndex, newIndex);
+      setUnitOrder(newOrder);
+      if (storageKeys) {
+        localStorage.setItem(storageKeys.unit, JSON.stringify(newOrder));
+      }
+    }
+  };
+
+  const handleKpiDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = kpiOrder.indexOf(active.id as string);
+    const newIndex = kpiOrder.indexOf(over.id as string);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = arrayMove(kpiOrder, oldIndex, newIndex);
+      setKpiOrder(newOrder);
+      if (storageKeys) {
+        localStorage.setItem(storageKeys.kpi, JSON.stringify(newOrder));
+      }
+    }
+  };
+
+  const handleStatusDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = statusOrder.indexOf(active.id as string);
+    const newIndex = statusOrder.indexOf(over.id as string);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = arrayMove(statusOrder, oldIndex, newIndex);
+      setStatusOrder(newOrder);
+      if (storageKeys) {
+        localStorage.setItem(storageKeys.status, JSON.stringify(newOrder));
+      }
+    }
+  };
 
   function toggleArea(key: string) {
     setCollapsedAreas((prev) => {
@@ -162,6 +313,15 @@ export function DashboardClient({
 
   const pct = (n: number) =>
     totals.total > 0 ? Math.round((n / totals.total) * 100) : 0;
+
+  // Create position map for O(1) lookups (avoid indexOf)
+  const unitOrderMap = useMemo(() => {
+    const map = new Map<string, number>();
+    unitOrder.forEach((id, index) => {
+      map.set(id, index);
+    });
+    return map;
+  }, [unitOrder]);
 
   // Agrupa unidades filtradas por área
   const unitsByArea = useMemo(() => {
@@ -239,74 +399,127 @@ export function DashboardClient({
         {/* TAB 1 — Indicadores: KPI Row + Status Row */}
         <TabsContent value="indicadores" className="space-y-3">
           {/* KPI Row — métricas do plano */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiPriceCard preco={totals.preco} totalActions={totals.total} />
-            <KpiFunilCard
-              icon={Users}
-              label="Inscritos"
-              esperado={totals.insE}
-              real={totals.insR}
-              color="accent"
-            />
-            <KpiFunilCard
-              icon={CreditCard}
-              label="Mat. Financeira"
-              esperado={totals.fE}
-              real={totals.fR}
-              color="blue"
-            />
-            <KpiFunilCard
-              icon={GraduationCap}
-              label="Mat. Acadêmica"
-              esperado={totals.aE}
-              real={totals.aR}
-              color="emerald"
-            />
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleKpiDragEnd}>
+            <SortableContext items={kpiOrder} strategy={rectSortingStrategy}>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {kpiOrder.map((cardId) => {
+                  if (cardId === "price")
+                    return (
+                      <SortableKpiWrapper key={cardId} cardId={cardId}>
+                        <KpiPriceCard preco={totals.preco} totalActions={totals.total} />
+                      </SortableKpiWrapper>
+                    );
+                  if (cardId === "inscripts")
+                    return (
+                      <SortableKpiWrapper key={cardId} cardId={cardId}>
+                        <KpiFunilCard icon={Users} label="Inscritos" esperado={totals.insE} real={totals.insR} color="accent" />
+                      </SortableKpiWrapper>
+                    );
+                  if (cardId === "matfin")
+                    return (
+                      <SortableKpiWrapper key={cardId} cardId={cardId}>
+                        <KpiFunilCard
+                          icon={CreditCard}
+                          label="Mat. Financeira"
+                          esperado={totals.fE}
+                          real={totals.fR}
+                          color="blue"
+                        />
+                      </SortableKpiWrapper>
+                    );
+                  if (cardId === "matacad")
+                    return (
+                      <SortableKpiWrapper key={cardId} cardId={cardId}>
+                        <KpiFunilCard
+                          icon={GraduationCap}
+                          label="Mat. Acadêmica"
+                          esperado={totals.aE}
+                          real={totals.aR}
+                          color="emerald"
+                        />
+                      </SortableKpiWrapper>
+                    );
+                  return null;
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           {/* Status Row */}
-          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-            <StatusCard
-              icon={ListTodo}
-              label="Total"
-              value={totals.total}
-              subtitle={`${filteredUnits.length} unidades`}
-              color="text-zinc-700 dark:text-zinc-300"
-              accent="bg-zinc-500"
-            />
-            <StatusCard
-              icon={CheckCircle2}
-              label="Concluídas"
-              value={totals.completed}
-              percent={pct(totals.completed)}
-              color="text-emerald-600 dark:text-emerald-400"
-              accent="bg-emerald-500"
-            />
-            <StatusCard
-              icon={Clock}
-              label="Em andamento"
-              value={totals.progress}
-              percent={pct(totals.progress)}
-              color="text-amber-600 dark:text-amber-400"
-              accent="bg-amber-500"
-            />
-            <StatusCard
-              icon={CircleDashed}
-              label="Pendentes"
-              value={totals.pending}
-              percent={pct(totals.pending)}
-              color="text-blue-600 dark:text-blue-400"
-              accent="bg-blue-500"
-            />
-            <StatusCard
-              icon={AlertTriangle}
-              label="Atrasadas"
-              value={totals.overdue}
-              percent={pct(totals.overdue)}
-              color="text-red-600 dark:text-red-400"
-              accent="bg-red-500"
-            />
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStatusDragEnd}>
+            <SortableContext items={statusOrder} strategy={rectSortingStrategy}>
+              <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                {statusOrder.map((cardId) => {
+                  if (cardId === "total")
+                    return (
+                      <SortableStatusWrapper key={cardId} cardId={cardId}>
+                        <StatusCard
+                          icon={ListTodo}
+                          label="Total"
+                          value={totals.total}
+                          subtitle={`${filteredUnits.length} unidades`}
+                          color="text-zinc-700 dark:text-zinc-300"
+                          accent="bg-zinc-500"
+                        />
+                      </SortableStatusWrapper>
+                    );
+                  if (cardId === "completed")
+                    return (
+                      <SortableStatusWrapper key={cardId} cardId={cardId}>
+                        <StatusCard
+                          icon={CheckCircle2}
+                          label="Concluídas"
+                          value={totals.completed}
+                          percent={pct(totals.completed)}
+                          color="text-emerald-600 dark:text-emerald-400"
+                          accent="bg-emerald-500"
+                        />
+                      </SortableStatusWrapper>
+                    );
+                  if (cardId === "progress")
+                    return (
+                      <SortableStatusWrapper key={cardId} cardId={cardId}>
+                        <StatusCard
+                          icon={Clock}
+                          label="Em andamento"
+                          value={totals.progress}
+                          percent={pct(totals.progress)}
+                          color="text-amber-600 dark:text-amber-400"
+                          accent="bg-amber-500"
+                        />
+                      </SortableStatusWrapper>
+                    );
+                  if (cardId === "pending")
+                    return (
+                      <SortableStatusWrapper key={cardId} cardId={cardId}>
+                        <StatusCard
+                          icon={CircleDashed}
+                          label="Pendentes"
+                          value={totals.pending}
+                          percent={pct(totals.pending)}
+                          color="text-blue-600 dark:text-blue-400"
+                          accent="bg-blue-500"
+                        />
+                      </SortableStatusWrapper>
+                    );
+                  if (cardId === "overdue")
+                    return (
+                      <SortableStatusWrapper key={cardId} cardId={cardId}>
+                        <StatusCard
+                          icon={AlertTriangle}
+                          label="Atrasadas"
+                          value={totals.overdue}
+                          percent={pct(totals.overdue)}
+                          color="text-red-600 dark:text-red-400"
+                          accent="bg-red-500"
+                        />
+                      </SortableStatusWrapper>
+                    );
+                  return null;
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           {/* Distribuição + Prazos */}
           <div className="grid gap-3 lg:grid-cols-2">
@@ -357,48 +570,69 @@ export function DashboardClient({
                 </button>
               </div>
 
-              {Array.from(unitsByArea.entries()).map(([areaId, list]) => {
-                const areaName =
-                  areas.find((a) => a.id === areaId)?.name || "Sem área";
-                const key = areaId ?? "no-area";
-                const collapsed = collapsedAreas.has(key);
-                return (
-                  <Card key={key}>
-                    <CardHeader className="pb-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleArea(key)}
-                        className="group flex w-full items-center justify-between gap-2 rounded-md text-left"
-                        aria-expanded={!collapsed}
-                      >
-                        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                          <MapPin className="h-4 w-4 text-accent-600" />
-                          {areaName}
-                          <Badge variant="muted" className="ml-1">
-                            {list.length} {list.length === 1 ? "unidade" : "unidades"}
-                          </Badge>
-                        </CardTitle>
-                        <span className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors group-hover:bg-zinc-100 group-hover:text-zinc-700 dark:group-hover:bg-zinc-800 dark:group-hover:text-zinc-200">
-                          {collapsed ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronUp className="h-4 w-4" />
-                          )}
-                        </span>
-                      </button>
-                    </CardHeader>
-                    {!collapsed && (
-                      <CardContent>
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {list.map((u) => (
-                            <UnitMiniCard key={u.id} unit={u} />
-                          ))}
-                        </div>
-                      </CardContent>
-                    )}
-                  </Card>
-                );
-              })}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={filteredUnits.map((u) => u.id)} strategy={rectSortingStrategy}>
+                  {Array.from(unitsByArea.entries()).map(([areaId, list]) => {
+                    const areaName =
+                      areas.find((a) => a.id === areaId)?.name || "Sem área";
+                    const key = areaId ?? "no-area";
+                    const collapsed = collapsedAreas.has(key);
+
+                    // Sort units by stored order using O(1) lookup (cópia para não mutar o memo)
+                    const sortedList = [...list].sort((a, b) => {
+                      const posA = unitOrderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+                      const posB = unitOrderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+                      return posA - posB;
+                    });
+
+                    return (
+                      <Card key={key}>
+                        <CardHeader className="pb-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleArea(key)}
+                            className="group flex w-full items-center justify-between gap-2 rounded-md text-left"
+                            aria-expanded={!collapsed}
+                          >
+                            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                              <MapPin className="h-4 w-4 text-accent-600" />
+                              {areaName}
+                              <Badge variant="muted" className="ml-1">
+                                {list.length} {list.length === 1 ? "unidade" : "unidades"}
+                              </Badge>
+                            </CardTitle>
+                            <span className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors group-hover:bg-zinc-100 group-hover:text-zinc-700 dark:group-hover:bg-zinc-800 dark:group-hover:text-zinc-200">
+                              {collapsed ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronUp className="h-4 w-4" />
+                              )}
+                            </span>
+                          </button>
+                        </CardHeader>
+                        {!collapsed && (
+                          <CardContent>
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                              {sortedList.map((u) => (
+                                <SortableUnitCard
+                                  key={u.id}
+                                  unit={u}
+                                  isDragging={draggedId === u.id}
+                                  onDragStart={() => handleDragStart(u.id)}
+                                />
+                              ))}
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </SortableContext>
+              </DndContext>
             </>
           )}
         </TabsContent>
@@ -419,6 +653,60 @@ export function DashboardClient({
           />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function SortableUnitCard({
+  unit,
+  isDragging: isParentDragging,
+  onDragStart,
+}: {
+  unit: UnitSummary;
+  isDragging?: boolean;
+  onDragStart?: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging: isHookDragging } = useSortable({
+    id: unit.id,
+  });
+
+  const isDragging = isHookDragging || isParentDragging;
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative touch-none transition-opacity",
+        isDragging && "opacity-50",
+      )}
+    >
+      <div
+        className={cn(
+          "group relative",
+          isDragging && "ring-2 ring-accent-500 rounded-lg",
+        )}
+      >
+        <div className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            type="button"
+            className="p-1 rounded-md bg-zinc-100 dark:bg-zinc-800 cursor-grab active:cursor-grabbing hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+            {...attributes}
+            {...listeners}
+            title="Arraste para reordenar"
+            onMouseDown={() => onDragStart?.()}
+            onTouchStart={() => onDragStart?.()}
+          >
+            <GripVertical className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+          </button>
+        </div>
+        <UnitMiniCard unit={unit} />
+      </div>
     </div>
   );
 }
@@ -844,6 +1132,48 @@ function LegendRow({
       <span className="flex-1 text-zinc-600 dark:text-zinc-400">{label}</span>
       <span className={cn("tabular-nums font-semibold", color)}>{value}</span>
       <span className="w-10 text-right tabular-nums text-zinc-400">{pct}%</span>
+    </div>
+  );
+}
+
+function SortableKpiWrapper({
+  cardId,
+  children,
+}: {
+  cardId: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: cardId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+      {children}
+    </div>
+  );
+}
+
+function SortableStatusWrapper({
+  cardId,
+  children,
+}: {
+  cardId: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: cardId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+      {children}
     </div>
   );
 }

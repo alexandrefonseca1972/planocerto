@@ -32,3 +32,39 @@ export function isRetryable(error: unknown): boolean {
   }
   return false;
 }
+
+export function logSupabaseError(tag: string, error: unknown): void {
+  if (!error) return;
+
+  const e = error as Record<string, unknown>;
+  const errorInfo: Record<string, unknown> = {
+    type: Object.prototype.toString.call(error).slice(8, -1),
+  };
+
+  const knownProps = [
+    'code', 'message', 'details', 'hint', 'context', 'name',
+    'status', 'statusText', 'error', 'error_description'
+  ];
+
+  for (const prop of knownProps) {
+    if (prop in e && e[prop] !== undefined && e[prop] !== null) {
+      errorInfo[prop] = e[prop];
+    }
+  }
+
+  if (Object.keys(errorInfo).length === 1) {
+    try {
+      errorInfo['raw'] = JSON.stringify(e);
+    } catch {
+      errorInfo['raw'] = String(error);
+    }
+  }
+
+  console.error(`[${tag}] Error`, errorInfo);
+  if (errorInfo.message) {
+    console.error(`[${tag}] Message:`, errorInfo.message);
+  }
+  if (errorInfo.details) {
+    console.error(`[${tag}] Details:`, errorInfo.details);
+  }
+}

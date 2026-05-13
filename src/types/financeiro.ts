@@ -133,6 +133,34 @@ export interface ResumoFinanceiro {
     vencimento: string;
     valor: number;
   }[];
+  // Vencimentos do mês selecionado (todas as parcelas pendentes no range)
+  vencimentos_mes: {
+    parcela_id: string;
+    conta_id: string;
+    descricao: string;
+    vencimento: string;
+    valor: number;
+    atrasada: boolean;
+  }[];
+  // Por fornecedor (range de pagamento)
+  por_fornecedor: {
+    fornecedor_id: string | null;
+    fornecedor_nome: string;
+    total_pago: number;
+    total_aberto: number;
+  }[];
+  // Por status (contagem de contas)
+  por_status: {
+    status: string;
+    quantidade: number;
+    valor_total: number;
+  }[];
+  // Por mês — para visão anual (12 entradas)
+  por_mes: {
+    mes: string; // "YYYY-MM"
+    total_pago: number;
+    total_aberto: number;
+  }[];
 }
 
 export interface FinanceFormState {
@@ -151,4 +179,6 @@ export interface ContaListFilters {
   search?: string;
   vencimento_from?: string;
   vencimento_to?: string;
+  emissao_from?: string;
+  emissao_to?: string;
 }

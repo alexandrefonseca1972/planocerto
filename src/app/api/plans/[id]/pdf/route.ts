@@ -6,7 +6,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
+    // Acesso ao plano e items é restrito por RLS (action_plans / action_items)
+    // — usuário sem permissão recebe 404 abaixo.
     const { data: plan } = await supabase.from("action_plans").select("*").eq("id", id).single();
     if (!plan) return NextResponse.json({ error: "Plano não encontrado." }, { status: 404 });
 

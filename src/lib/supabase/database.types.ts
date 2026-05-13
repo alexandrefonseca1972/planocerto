@@ -83,21 +83,21 @@ export interface Database {
           id: string;
           tenant_id: string;
           user_id: string;
-          role: "owner" | "admin" | "member";
+          role: "owner" | "admin" | "member" | "manager" | "user" | "viewer";
           created_at: string;
         };
         Insert: {
           id?: string;
           tenant_id: string;
           user_id: string;
-          role?: "owner" | "admin" | "member";
+          role?: "owner" | "admin" | "member" | "manager" | "user" | "viewer";
           created_at?: string;
         };
         Update: {
           id?: string;
           tenant_id?: string;
           user_id?: string;
-          role?: "owner" | "admin" | "member";
+          role?: "owner" | "admin" | "member" | "manager" | "user" | "viewer";
           created_at?: string;
         };
         Relationships: [];
@@ -543,9 +543,120 @@ export interface Database {
         };
         Relationships: [];
       };
+      do_publications: {
+        Row: {
+          id: string; source: "DOU" | "DOE" | "DOM"; state: string | null; city: string | null;
+          edition_date: string; edition_num: string | null; section: string | null;
+          act_type: string | null; organ: string | null; title: string | null;
+          content: string; original_url: string | null; raw_file_path: string | null;
+          search_vector: unknown; extracted_at: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; source: "DOU" | "DOE" | "DOM"; state?: string | null; city?: string | null;
+          edition_date: string; edition_num?: string | null; section?: string | null;
+          act_type?: string | null; organ?: string | null; title?: string | null;
+          content: string; original_url?: string | null; raw_file_path?: string | null;
+          extracted_at?: string | null; created_at?: string;
+        };
+        Update: {
+          id?: string; source?: "DOU" | "DOE" | "DOM"; state?: string | null; city?: string | null;
+          edition_date?: string; edition_num?: string | null; section?: string | null;
+          act_type?: string | null; organ?: string | null; title?: string | null;
+          content?: string; original_url?: string | null; raw_file_path?: string | null;
+          extracted_at?: string | null; created_at?: string;
+        };
+        Relationships: [];
+      };
+      do_entities: {
+        Row: {
+          id: string; publication_id: string; entity_type: "person" | "company" | "process";
+          raw_name: string; normalized_name: string; document: string | null;
+          context_snippet: string | null; confidence: number | null; created_at: string;
+        };
+        Insert: {
+          id?: string; publication_id: string; entity_type: "person" | "company" | "process";
+          raw_name: string; normalized_name: string; document?: string | null;
+          context_snippet?: string | null; confidence?: number | null; created_at?: string;
+        };
+        Update: {
+          id?: string; publication_id?: string; entity_type?: "person" | "company" | "process";
+          raw_name?: string; normalized_name?: string; document?: string | null;
+          context_snippet?: string | null; confidence?: number | null; created_at?: string;
+        };
+        Relationships: [];
+      };
+      entity_correlations: {
+        Row: {
+          id: string; monitored_entity_id: string; do_entity_id: string; publication_id: string;
+          correlation_type: "social_peak_do_match" | "do_publication_found" | "narrative_contradiction";
+          social_signal: Json | null; insight_text: string | null;
+          severity: "low" | "medium" | "high" | "critical" | null;
+          alert_sent: boolean; alert_sent_at: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; monitored_entity_id: string; do_entity_id: string; publication_id: string;
+          correlation_type: "social_peak_do_match" | "do_publication_found" | "narrative_contradiction";
+          social_signal?: Json | null; insight_text?: string | null;
+          severity?: "low" | "medium" | "high" | "critical" | null;
+          alert_sent?: boolean; alert_sent_at?: string | null; created_at?: string;
+        };
+        Update: {
+          id?: string; monitored_entity_id?: string; do_entity_id?: string; publication_id?: string;
+          correlation_type?: "social_peak_do_match" | "do_publication_found" | "narrative_contradiction";
+          social_signal?: Json | null; insight_text?: string | null;
+          severity?: "low" | "medium" | "high" | "critical" | null;
+          alert_sent?: boolean; alert_sent_at?: string | null; created_at?: string;
+        };
+        Relationships: [];
+      };
+      ingest_runs: {
+        Row: {
+          id: string; source: string; edition_date: string;
+          status: "running" | "success" | "partial" | "failed";
+          publications_ok: number; publications_err: number;
+          error_detail: string | null; started_at: string; finished_at: string | null;
+        };
+        Insert: {
+          id?: string; source: string; edition_date: string;
+          status?: "running" | "success" | "partial" | "failed";
+          publications_ok?: number; publications_err?: number;
+          error_detail?: string | null; started_at?: string; finished_at?: string | null;
+        };
+        Update: {
+          id?: string; source?: string; edition_date?: string;
+          status?: "running" | "success" | "partial" | "failed";
+          publications_ok?: number; publications_err?: number;
+          error_detail?: string | null; started_at?: string; finished_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      search_publications: {
+        Args: {
+          query_text: string;
+          source_filter: string | null;
+          state_filter: string | null;
+          date_from: string | null;
+          date_to: string | null;
+          act_type_filter: string | null;
+          result_limit: number;
+          result_offset: number;
+        };
+        Returns: {
+          id: string;
+          title: string | null;
+          content: string | null;
+          source: string | null;
+          state: string | null;
+          edition_date: string;
+          organ: string | null;
+          act_type: string | null;
+          original_url: string | null;
+          rank: number;
+        }[];
+      };
       create_conta_with_parcelas: {
         Args: { payload: Record<string, unknown> };
         Returns: string;

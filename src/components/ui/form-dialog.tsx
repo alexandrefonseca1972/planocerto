@@ -99,7 +99,7 @@ export function FormDialog({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
         onClick={(e) => {
           if (e.target === e.currentTarget) tryClose();
         }}
@@ -110,7 +110,7 @@ export function FormDialog({
         <div
           ref={containerRef}
           className={cn(
-            "w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900",
+            "flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900",
             sizeClasses[size],
           )}
           onKeyDown={(e) => {
@@ -121,7 +121,7 @@ export function FormDialog({
           }}
         >
           {/* Header */}
-          <div className="flex items-start justify-between px-6 pt-5 pb-3">
+          <div className="flex shrink-0 items-start justify-between px-6 pt-5 pb-3">
             <div className="space-y-0.5">
               <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
               {subtitle && (
@@ -135,7 +135,7 @@ export function FormDialog({
 
           {/* Progress bar */}
           {progress && (
-            <div className="px-6 pb-3">
+            <div className="shrink-0 px-6 pb-3">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                   Progresso
@@ -157,7 +157,7 @@ export function FormDialog({
             </div>
           )}
 
-          {topSlot && <div className="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">{topSlot}</div>}
+          {topSlot && <div className="shrink-0 border-t border-zinc-100 px-6 py-3 dark:border-zinc-800">{topSlot}</div>}
 
           {/* Body */}
           <form
@@ -165,9 +165,9 @@ export function FormDialog({
               e.preventDefault();
               if (canSave && !isSaving) onSubmit();
             }}
-            className="border-t border-zinc-100 dark:border-zinc-800"
+            className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 dark:border-zinc-800"
           >
-            <div className="space-y-4 px-6 py-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
               {children}
 
               {serverError && (
@@ -181,7 +181,7 @@ export function FormDialog({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50/50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50/50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
               <p className="hidden text-[10px] text-zinc-400 sm:block">
                 <kbd className="rounded border border-zinc-300 bg-white px-1 dark:border-zinc-700 dark:bg-zinc-800">
                   Esc

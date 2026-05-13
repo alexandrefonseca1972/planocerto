@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { logSupabaseError } from "@/lib/errors";
+import { isValidUuid } from "@/lib/validations/uuid";
+import { sanitizeText } from "@/app/actions/_catalog-utils";
 import type { School, SchoolFormState } from "@/types/school";
 
 const schoolSchema = z.object({
@@ -96,6 +99,7 @@ export async function upsertSchool(
     const schoolId = formData.get("schoolId") as string | null;
     const tenantId = formData.get("tenantId") as string | null;
     if (!tenantId) return { message: "Empresa obrigatória." };
+    if (schoolId && !isValidUuid(schoolId)) return { message: "ID da escola inválido." };
 
     const v = schoolSchema.safeParse(readForm(formData));
     if (!v.success) {
@@ -105,16 +109,36 @@ export async function upsertSchool(
       };
     }
 
+    const [nome, tipo_escola, publico_alvo, endereco, diretor, coordenador_3ano, consultor] = await Promise.all([
+      sanitizeText(v.data.nome),
+      sanitizeText(v.data.tipo_escola || ""),
+      sanitizeText(v.data.publico_alvo || ""),
+      sanitizeText(v.data.endereco || ""),
+      sanitizeText(v.data.diretor || ""),
+      sanitizeText(v.data.coordenador_3ano || ""),
+      sanitizeText(v.data.consultor || ""),
+    ]);
+    const sanitized = {
+      ...v.data,
+      nome,
+      tipo_escola,
+      publico_alvo,
+      endereco,
+      diretor,
+      coordenador_3ano,
+      consultor,
+    };
+
     if (schoolId) {
       const { error } = await supabase
         .from("schools")
-        .update({ ...v.data, updated_at: new Date().toISOString() })
+        .update({ ...sanitized, updated_at: new Date().toISOString() })
         .eq("id", schoolId);
       if (error) return { message: "Erro ao atualizar." };
     } else {
       const { error } = await supabase
         .from("schools")
-        .insert({ ...v.data, tenant_id: tenantId, user_id: user.id });
+        .insert({ ...sanitized, tenant_id: tenantId, user_id: user.id });
       if (error) return { message: "Erro ao criar." };
     }
     revalidatePath("/escolas");
@@ -132,8 +156,13 @@ export async function deleteSchool(
   try {
     const schoolId = formData.get("schoolId") as string;
     if (!schoolId) return { message: "ID obrigatório." };
+    if (!isValidUuid(schoolId)) return { message: "ID da escola inválido." };
     const supabase = await createClient();
-    await supabase.from("schools").delete().eq("id", schoolId);
+    const { error } = await supabase.from("schools").delete().eq("id", schoolId);
+    if (error) {
+      logSupabaseError("deleteSchool", error);
+      return { message: "Erro ao excluir escola." };
+    }
     revalidatePath("/escolas");
     return { success: true, message: "Escola excluída!" };
   } catch (error) {
