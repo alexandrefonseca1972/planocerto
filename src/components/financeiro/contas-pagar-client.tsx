@@ -119,8 +119,6 @@ export function ContasPagarClient({
     search: "",
     item_id: searchParams.get("item_id") || null,
   }));
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<ContaComParcelas | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("proxima_vencimento");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
@@ -130,6 +128,29 @@ export function ContasPagarClient({
     item_id: string;
     valor_total: number;
   } | null>(null);
+
+  // Estado do form derivado da URL — imune ao cache do router
+  const formParam = searchParams.get("form");
+  const editId = searchParams.get("edit_id");
+  const showForm = formParam === "new" || formParam === "edit";
+  const editing = useMemo(
+    () => (formParam === "edit" && editId ? (items.find((c) => c.id === editId) ?? null) : null),
+    [formParam, editId, items],
+  );
+
+  function openCreate() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("form", "new");
+    params.delete("edit_id");
+    router.replace(`/financeiro/contas-a-pagar?${params.toString()}`);
+  }
+
+  function closeForm() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("form");
+    params.delete("edit_id");
+    router.replace(`/financeiro/contas-a-pagar?${params.toString()}`);
+  }
 
   useEffect(() => {
     const itemId = searchParams.get("item_id");
@@ -155,14 +176,17 @@ export function ContasPagarClient({
         item_id: info.id,
         valor_total: Number.isFinite(valorEstimado) ? valorEstimado : 0,
       });
-      setEditing(null);
-      setShowForm(true);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("form", "new");
+      params.delete("edit_id");
+      params.delete("from_item");
+      router.replace(`/financeiro/contas-a-pagar?${params.toString()}`);
     });
-     
+
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function refetch(next?: ContaListFilters) {
     setLoading(true);
@@ -240,11 +264,6 @@ export function ContasPagarClient({
     return { aberto, atrasado, pago };
   }, [items]);
 
-  function openCreate() {
-    setEditing(null);
-    setShowForm(true);
-  }
-
   function openEdit(conta: ContaComParcelas) {
     if (conta.status === "cancelado") {
       toast("Conta cancelada não pode ser editada.", "error");
@@ -257,8 +276,10 @@ export function ContasPagarClient({
       );
       return;
     }
-    setEditing(conta);
-    setShowForm(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("form", "edit");
+    params.set("edit_id", conta.id);
+    router.replace(`/financeiro/contas-a-pagar?${params.toString()}`);
   }
 
   return (
@@ -582,25 +603,23 @@ export function ContasPagarClient({
 
       {showForm && (
         <ContaForm
+          key={`${formParam}-${editId ?? "new"}`}
           open
           conta={editing}
           fornecedores={fornecedores}
           categorias={categorias}
           prefill={prefill ?? undefined}
           onClose={() => {
-            setShowForm(false);
-            setEditing(null);
             setPrefill(null);
-            if (searchParams.get("from_item")) {
-              router.replace("/financeiro/contas-a-pagar");
-            }
+            closeForm();
           }}
           onSuccess={(contaId) => {
-            router.refresh();
-            refetch();
             setPrefill(null);
+            refetch();
             if (contaId && !editing) {
-              router.push(`/financeiro/contas-a-pagar/${contaId}`);
+              router.replace(`/financeiro/contas-a-pagar/${contaId}`);
+            } else {
+              closeForm();
             }
           }}
         />

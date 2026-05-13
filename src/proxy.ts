@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
-import { getEnvVar } from "@/lib/env";
+import { env } from "@/lib/env";
 import type { Database } from "@/lib/supabase/database.types";
 
 export async function proxy(request: NextRequest) {
@@ -8,8 +8,8 @@ export async function proxy(request: NextRequest) {
     let supabaseResponse = NextResponse.next({ request });
 
     const supabase = createServerClient<Database>(
-      getEnvVar("NEXT_PUBLIC_SUPABASE_URL"),
-      getEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+      env.NEXT_PUBLIC_SUPABASE_URL,
+      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
           getAll() {

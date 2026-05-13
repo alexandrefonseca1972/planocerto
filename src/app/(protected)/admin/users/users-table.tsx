@@ -17,13 +17,17 @@ import {
   getAllUnits,
   getUserAreaIds,
   getUserUnitIds,
+  getUserAuditLog,
 } from "@/app/actions/admin";
 import type {
   AdminFormState,
   AreaOption,
   UnitOption,
+  AuditLogEntry,
 } from "@/app/actions/admin";
-import { getAllTenants, getUserTenantIds, getBulkUserTenantIds } from "@/app/actions/tenant";
+import { getAllTenants, getBulkUserTenantIds, getUserTenantMemberships } from "@/app/actions/tenant";
+import type { TenantMembership } from "@/app/actions/tenant";
+import { getPermissionsMap, PERMISSION_GROUPS, PERMISSION_LABELS, buildCustomRolesMap } from "@/lib/permissions";
 import type { RoleRow } from "@/app/actions/admin";
 import type { Tenant } from "@/types/tenant";
 import type { Profile } from "@/types/auth";
@@ -67,10 +71,27 @@ import {
   Download,
   Copy,
   CheckCheck,
+  History,
 } from "lucide-react";
 
 const createInitialState: AdminFormState = { message: undefined, errors: {} };
 const DEBOUNCE_MS = 300;
+
+const TENANT_ROLES = [
+  { value: "viewer", label: "Visualizador" },
+  { value: "user", label: "Usuário" },
+  { value: "manager", label: "Gerente" },
+  { value: "admin", label: "Admin" },
+];
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  create_user: "Criou usuário",
+  update_user: "Editou usuário",
+  delete_user: "Excluiu usuário",
+  deactivate_user: "Desativou usuário",
+  activate_user: "Reativou usuário",
+  bulk_delete_user: "Excluiu em lote",
+};
 
 function md5(message: string): string {
   const bytes: number[] = [];
@@ -221,14 +242,19 @@ export function UsersTable({
   const [allAreas, setAllAreas] = useState<AreaOption[]>([]);
   const [allUnits, setAllUnits] = useState<UnitOption[]>([]);
   const [editingUserTenantIds, setEditingUserTenantIds] = useState<string[]>([]);
+  const [editingUserTenantRoles, setEditingUserTenantRoles] = useState<Record<string, string>>({});
   const [editingUserAreaIds, setEditingUserAreaIds] = useState<string[]>([]);
   const [editingUserUnitIds, setEditingUserUnitIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [roleFilter, setRoleFilter] = useState<string>("");
   const [tenantFilter, setTenantFilter] = useState<string>("");
   const [userTenantMap, setUserTenantMap] = useState<Map<string, string[]>>(new Map());
   const [deleteImpact, setDeleteImpact] = useState<{ tenantMemberships: number; actionPlans: number } | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [auditingUser, setAuditingUser] = useState<Profile | null>(null);
+  const [userAuditLog, setUserAuditLog] = useState<AuditLogEntry[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [createState, createAction, isCreating] = useActionState(createUser, createInitialState);
@@ -290,15 +316,26 @@ export function UsersTable({
   }, [users]);
 
   const handleEditUser = useCallback(async (user: Profile) => {
-    const [tIds, aIds, uIds] = await Promise.all([
-      getUserTenantIds(user.id),
+    const [memberships, aIds, uIds] = await Promise.all([
+      getUserTenantMemberships(user.id),
       getUserAreaIds(user.id),
       getUserUnitIds(user.id),
     ]);
+    const tIds = memberships.map((m: TenantMembership) => m.tenantId);
+    const tRoles = Object.fromEntries(memberships.map((m: TenantMembership) => [m.tenantId, m.role]));
     setEditingUserTenantIds(tIds);
+    setEditingUserTenantRoles(tRoles);
     setEditingUserAreaIds(aIds);
     setEditingUserUnitIds(uIds);
     setEditingUser(user);
+  }, []);
+
+  const handleViewAudit = useCallback(async (user: Profile) => {
+    setAuditingUser(user);
+    setLoadingAudit(true);
+    const log = await getUserAuditLog(user.id);
+    setUserAuditLog(log);
+    setLoadingAudit(false);
   }, []);
 
   const handleDeleteClick = useCallback(async (user: Profile) => {
@@ -353,7 +390,8 @@ export function UsersTable({
       const matchesTenant =
         !tenantFilter ||
         (userTenantMap.get(u.id) || []).includes(tenantFilter);
-      return matchesTenant;
+      const matchesRole = !roleFilter || u.role === roleFilter;
+      return matchesTenant && matchesRole;
     });
 
     return [...filtered].sort((a, b) => {
@@ -461,6 +499,22 @@ export function UsersTable({
                 <option value="all">Todos status</option>
                 <option value="active">Ativos</option>
                 <option value="inactive">Inativos</option>
+              </select>
+              <select
+                value={roleFilter}
+                onChange={(e) => { setRoleFilter(e.target.value); setSelectedIds(new Set()); }}
+                className="h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                aria-label="Filtrar por papel"
+              >
+                <option value="">Todos papéis</option>
+                <option value="super_admin">Super Admin</option>
+                <option value="admin">Admin</option>
+                <option value="manager">Gerente</option>
+                <option value="user">Usuário</option>
+                <option value="viewer">Visualizador</option>
+                {customRoles.map((r) => (
+                  <option key={r.id} value={r.name}>{r.name}</option>
+                ))}
               </select>
               {allTenants.length > 0 && (
                 <select
@@ -684,6 +738,15 @@ export function UsersTable({
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => handleViewAudit(user)}
+                          aria-label={`Histórico de ${user.name || user.email}`}
+                          title="Histórico de alterações"
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setResendingUser(user)}
                           aria-label={`Reenviar confirmação para ${user.name || user.email}`}
                         >
@@ -791,11 +854,21 @@ export function UsersTable({
           onClose={() => setEditingUser(null)}
           tenants={allTenants}
           selectedTenantIds={editingUserTenantIds}
+          selectedTenantRoles={editingUserTenantRoles}
           areas={allAreas}
           units={allUnits}
           selectedAreaIds={editingUserAreaIds}
           selectedUnitIds={editingUserUnitIds}
           customRoles={customRoles}
+        />
+      )}
+
+      {auditingUser && (
+        <AuditLogDialog
+          user={auditingUser}
+          entries={userAuditLog}
+          loading={loadingAudit}
+          onClose={() => { setAuditingUser(null); setUserAuditLog([]); }}
         />
       )}
 
@@ -1008,6 +1081,12 @@ export function UsersTable({
   );
 }
 
+const TENANT_ROLE_VALUES = new Set(TENANT_ROLES.map((r) => r.value));
+
+function toTenantRole(globalRole: string): string {
+  return TENANT_ROLE_VALUES.has(globalRole) ? globalRole : "user";
+}
+
 function CreateUserDialog({
   state,
   action,
@@ -1025,6 +1104,7 @@ function CreateUserDialog({
 }) {
   const [passwordValue, setPasswordValue] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("user");
 
   const passwordStrength = useMemo(() => {
     const p = passwordValue;
@@ -1103,7 +1183,8 @@ function CreateUserDialog({
                 <select
                   id="create-role"
                   name="role"
-                  defaultValue="user"
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                 >
                   <option value="viewer">Visualizador</option>
@@ -1218,17 +1299,12 @@ function CreateUserDialog({
                   <Building2 className="h-3.5 w-3.5" />
                   Empresas
                 </Label>
-                <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
                   {tenants.map((tenant) => (
-                    <Checkbox
-                      key={tenant.id}
-                      id={`create-tenant-${tenant.id}`}
-                      name="tenantIds"
-                      value={tenant.id}
-                      label={tenant.name}
-                    />
+                    <TenantRoleRow key={tenant.id} tenant={tenant} formPrefix="create" />
                   ))}
                 </div>
+                <p className="text-[11px] text-zinc-400">Selecione uma empresa e defina o papel nela.</p>
               </div>
             )}
 
@@ -1267,6 +1343,7 @@ function EditUserDialog({
   onClose,
   tenants = [],
   selectedTenantIds = [],
+  selectedTenantRoles = {},
   areas = [],
   units = [],
   selectedAreaIds = [],
@@ -1280,6 +1357,7 @@ function EditUserDialog({
   onClose: () => void;
   tenants: Tenant[];
   selectedTenantIds: string[];
+  selectedTenantRoles?: Record<string, string>;
   areas?: AreaOption[];
   units?: UnitOption[];
   selectedAreaIds?: string[];
@@ -1397,6 +1475,8 @@ function EditUserDialog({
             <input type="hidden" name="permissions" value={permissionsJson} />
           </div>
 
+          <EffectivePermissions role={currentRole} overrides={permissions} customRoles={customRoles} />
+
           {tenants.length > 0 && (
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
@@ -1405,19 +1485,16 @@ function EditUserDialog({
               </Label>
               <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
                 {tenants.map((tenant) => (
-                  <Checkbox
+                  <TenantRoleRow
                     key={tenant.id}
-                    id={`edit-tenant-${tenant.id}`}
-                    name="tenantIds"
-                    value={tenant.id}
-                    label={tenant.name}
+                    tenant={tenant}
+                    formPrefix="edit"
                     defaultChecked={selectedTenantIds.includes(tenant.id)}
+                    defaultRole={selectedTenantRoles[tenant.id] || "user"}
                   />
                 ))}
-                {tenants.length === 0 && (
-                  <p className="text-xs text-zinc-400">Nenhuma empresa disponível.</p>
-                )}
               </div>
+              <p className="text-[11px] text-zinc-400">O papel define o acesso do usuário dentro de cada empresa.</p>
             </div>
           )}
 
@@ -1629,5 +1706,191 @@ function ScopePicker({
         <p className="text-[11px] text-zinc-400">{helperText}</p>
       )}
     </div>
+  );
+}
+
+function TenantRoleRow({
+  tenant,
+  formPrefix,
+  defaultChecked = false,
+  defaultRole = "user",
+}: {
+  tenant: Tenant;
+  formPrefix: string;
+  defaultChecked?: boolean;
+  defaultRole?: string;
+}) {
+  const [checked, setChecked] = useState(defaultChecked);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox
+        id={`${formPrefix}-tenant-${tenant.id}`}
+        name="tenantIds"
+        value={tenant.id}
+        checked={checked}
+        onChange={() => setChecked((v) => !v)}
+      />
+      <label
+        htmlFor={`${formPrefix}-tenant-${tenant.id}`}
+        className="flex-1 cursor-pointer select-none truncate text-sm text-zinc-700 dark:text-zinc-300"
+      >
+        {tenant.name}
+      </label>
+      {checked && (
+        <select
+          name={`tenantRole-${tenant.id}`}
+          defaultValue={defaultRole}
+          className="h-7 rounded border border-zinc-200 bg-white px-1.5 text-xs text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {TENANT_ROLES.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+function EffectivePermissions({
+  role,
+  overrides,
+  customRoles = [],
+}: {
+  role: string;
+  overrides: Record<string, boolean>;
+  customRoles?: RoleRow[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const customRolesMap = buildCustomRolesMap(
+    customRoles.map((r) => ({ name: r.name, permissions: r.permissions }))
+  );
+  const effective = getPermissionsMap(role, overrides, customRolesMap);
+  const activeCount = Object.values(effective).filter(Boolean).length;
+
+  return (
+    <div className="border-t border-zinc-200 pt-3 dark:border-zinc-700">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+      >
+        <span>Permissões efetivas</span>
+        <span className="flex items-center gap-1 normal-case font-normal">
+          <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+            {activeCount} ativas
+          </span>
+          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </span>
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          {PERMISSION_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{group.label}</p>
+              <div className="flex flex-wrap gap-1">
+                {group.permissions.map((perm) => (
+                  <span
+                    key={perm}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]",
+                      effective[perm]
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : "bg-zinc-100 text-zinc-400 line-through dark:bg-zinc-800 dark:text-zinc-500"
+                    )}
+                  >
+                    {effective[perm] && <Check className="h-2.5 w-2.5" />}
+                    {PERMISSION_LABELS[perm]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AuditLogDialog({
+  user,
+  entries,
+  loading,
+  onClose,
+}: {
+  user: Profile;
+  entries: AuditLogEntry[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <AlertDialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <AlertDialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+        <AlertDialogHeader className="shrink-0">
+          <AlertDialogTitle className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Histórico de alterações
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {user.name || user.email}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-sm text-zinc-400">
+              Carregando...
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="flex items-center justify-center py-8 text-sm text-zinc-400">
+              Nenhum registro encontrado.
+            </div>
+          ) : (
+            <ol className="relative ml-3 border-l border-zinc-200 dark:border-zinc-700">
+              {entries.map((entry) => (
+                <li key={entry.id} className="mb-4 ml-4">
+                  <div className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border border-white bg-zinc-300 dark:border-zinc-900 dark:bg-zinc-600" />
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                        {AUDIT_ACTION_LABELS[entry.action] ?? entry.action}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        por {entry.admin_name || entry.admin_email || entry.admin_id}
+                      </p>
+                      {entry.snapshot && Object.keys(entry.snapshot).length > 0 && (
+                        <dl className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                          {Object.entries(entry.snapshot).map(([k, v]) => (
+                            <div key={k} className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                              <span className="font-medium">{k}:</span>{" "}
+                              <span>{String(v)}</span>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                    </div>
+                    <time className="shrink-0 text-[11px] text-zinc-400">
+                      {new Date(entry.created_at).toLocaleString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+
+        <AlertDialogFooter className="shrink-0 pt-3">
+          <AlertDialogCancel onClick={onClose}>Fechar</AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

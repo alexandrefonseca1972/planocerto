@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { PlanocertoLogo } from "@/components/layout/planocerto-logo";
 
-interface ErrorPageProps {
+interface AuthErrorProps {
   error: Error & { digest?: string };
   reset: () => void;
   unstable_retry: () => void;
 }
 
-export default function ErrorPage({ error, unstable_retry }: ErrorPageProps) {
+export default function AuthError({ error, unstable_retry }: AuthErrorProps) {
   useEffect(() => {
-    console.error("[error.tsx] Erro capturado:", error);
+    console.error("[Auth] Erro na página:", error);
   }, [error]);
 
   return (
@@ -22,14 +22,14 @@ export default function ErrorPage({ error, unstable_retry }: ErrorPageProps) {
         <PlanocertoLogo className="mx-auto" />
 
         <div className="flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-            <AlertTriangle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+            <AlertTriangle className="h-7 w-7 text-amber-600 dark:text-amber-400" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Algo deu errado
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Ocorreu um erro inesperado. Tente recarregar a página.
+            Ocorreu um erro inesperado. Tente novamente.
           </p>
         </div>
 
@@ -48,10 +48,10 @@ export default function ErrorPage({ error, unstable_retry }: ErrorPageProps) {
             Tentar novamente
           </button>
           <Link
-            href="/"
+            href="/login"
             className="text-sm font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
           >
-            Voltar ao início
+            Ir para o login
           </Link>
         </div>
       </div>

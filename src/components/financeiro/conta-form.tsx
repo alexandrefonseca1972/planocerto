@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -160,26 +160,43 @@ export function ContaForm({
 
   const [parcelaCount, setParcelaCount] = useState(1);
   const [parcelaStart, setParcelaStart] = useState(addMonths(todayISO(), 1));
+  const [modoParcelado, setModoParcelado] = useState(
+    () => isEdit && (conta?.parcelas?.length ?? 1) > 1,
+  );
 
   useEffect(() => {
-    if (open) reset(initial);
+    if (open) {
+      reset(initial);
+      setModoParcelado(isEdit ? (conta?.parcelas?.length ?? 1) > 1 : false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, conta?.id]);
+
+  useEffect(() => {
+    if (!modoParcelado) {
+      setValue("parcelas", [
+        {
+          numero: 1,
+          data_vencimento: values.parcelas[0]?.data_vencimento || addMonths(todayISO(), 1),
+          valor: values.valor_total,
+        },
+      ]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.valor_total, modoParcelado]);
 
   const state = isEdit ? updateState : createState;
   const action = isEdit ? updateAction : createAction;
   const isSaving = isEdit ? isUpdating : isCreating;
 
   useEffect(() => {
-     
     if (state.success) {
       toast(state.message || "Salvo!");
+      // onSuccess é responsável por fechar/redirecionar — não chama onClose aqui
       onSuccess?.(state.contaId);
-      onClose();
     } else if (state.message && !state.success) {
       toast(state.message, "error");
     }
-     
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -269,7 +286,7 @@ export function ContaForm({
     fd.set("valor_total", String(values.valor_total));
     fd.set("observacoes", values.observacoes);
     fd.set("parcelas", JSON.stringify(values.parcelas));
-    action(fd);
+    startTransition(() => action(fd));
   }
 
   const camposObrigatoriosPreenchidos =
@@ -412,167 +429,180 @@ export function ContaForm({
         </div>
       )}
 
-      {/* Parcelas: quick-fill */}
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50/40 p-3 dark:border-zinc-700 dark:bg-zinc-800/30 space-y-2">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold">Parcelas</h4>
-          <span
-            className={`text-xs tabular-nums ${
-              somaBate
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-red-600 dark:text-red-400"
-            }`}
-          >
-            Soma: {formatBRL(somaParcelas)} de {formatBRL(values.valor_total)}
-            {!somaBate &&
-              ` (${diferenca > 0 ? "+" : ""}${formatBRL(diferenca)})`}
-          </span>
-        </div>
+      {/* Toggle À vista / Parcelado */}
+      <div className="flex items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-800/40 w-fit">
+        <button
+          type="button"
+          onClick={() => setModoParcelado(false)}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            !modoParcelado
+              ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50"
+              : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+          }`}
+        >
+          À vista
+        </button>
+        <button
+          type="button"
+          onClick={() => setModoParcelado(true)}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            modoParcelado
+              ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50"
+              : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+          }`}
+        >
+          Parcelado
+        </button>
+      </div>
 
-        {/* Presets rápidos */}
-        <div className="flex flex-wrap items-center gap-1.5 pb-1">
-          <span className="text-[11px] uppercase tracking-wide text-zinc-500 mr-1">
-            Presets:
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => aplicarPreset(1)}
-            className="h-7 text-xs"
-            disabled={values.valor_total <= 0}
-            title="Pagamento único na data inicial"
-          >
-            À vista
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => aplicarPreset(2)}
-            className="h-7 text-xs"
-            disabled={values.valor_total <= 0}
-            title="2x mensais a partir da data inicial"
-          >
-            2x
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => aplicarPreset(3)}
-            className="h-7 text-xs"
-            disabled={values.valor_total <= 0}
-            title="3x mensais a partir da data inicial"
-          >
-            3x
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => aplicarPreset(6)}
-            className="h-7 text-xs"
-            disabled={values.valor_total <= 0}
-          >
-            6x
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => aplicarPreset(12)}
-            className="h-7 text-xs"
-            disabled={values.valor_total <= 0}
-          >
-            12x
-          </Button>
-        </div>
+      {/* À vista: só vencimento */}
+      {!modoParcelado && (
+        <Field
+          id="conta-vencimento"
+          label="Vencimento"
+          required
+          error={errors.parcelas}
+        >
+          <Input
+            id="conta-vencimento"
+            type="date"
+            value={values.parcelas[0]?.data_vencimento || ""}
+            onChange={(e) =>
+              setValue("parcelas", [
+                {
+                  numero: 1,
+                  data_vencimento: e.target.value,
+                  valor: values.valor_total,
+                },
+              ])
+            }
+          />
+        </Field>
+      )}
 
-        <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-12">
-          <div className="sm:col-span-3">
-            <label className="text-xs text-zinc-500">Nº parcelas</label>
-            <Input
-              type="number"
-              min="1"
-              max="120"
-              value={String(parcelaCount)}
-              onChange={(e) =>
-                setParcelaCount(Math.max(1, Number(e.target.value) || 1))
-              }
-              className="h-9"
-            />
-          </div>
-          <div className="sm:col-span-4">
-            <label className="text-xs text-zinc-500">
-              Vencimento da 1ª parcela
-            </label>
-            <Input
-              type="date"
-              value={parcelaStart}
-              onChange={(e) => setParcelaStart(e.target.value)}
-              className="h-9"
-            />
-          </div>
-          <div className="sm:col-span-5 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={gerarParcelas}
+      {/* Parcelado: bloco completo */}
+      {modoParcelado && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50/40 p-3 dark:border-zinc-700 dark:bg-zinc-800/30 space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold">Parcelas</h4>
+            <span
+              className={`text-xs tabular-nums ${
+                somaBate
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              }`}
             >
-              <Wand2 className="h-3.5 w-3.5" /> Gerar parcelas
-            </Button>
-            {!somaBate && values.parcelas.length > 0 && (
+              Soma: {formatBRL(somaParcelas)} de {formatBRL(values.valor_total)}
+              {!somaBate &&
+                ` (${diferenca > 0 ? "+" : ""}${formatBRL(diferenca)})`}
+            </span>
+          </div>
+
+          {/* Presets rápidos */}
+          <div className="flex flex-wrap items-center gap-1.5 pb-1">
+            <span className="text-[11px] uppercase tracking-wide text-zinc-500 mr-1">
+              Presets:
+            </span>
+            {[2, 3, 6, 12].map((n) => (
+              <Button
+                key={n}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => aplicarPreset(n)}
+                className="h-7 text-xs"
+                disabled={values.valor_total <= 0}
+              >
+                {n}x
+              </Button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-12">
+            <div className="sm:col-span-3">
+              <label className="text-xs text-zinc-500">Nº parcelas</label>
+              <Input
+                type="number"
+                min="1"
+                max="120"
+                value={String(parcelaCount)}
+                onChange={(e) =>
+                  setParcelaCount(Math.max(1, Number(e.target.value) || 1))
+                }
+                className="h-9"
+              />
+            </div>
+            <div className="sm:col-span-4">
+              <label className="text-xs text-zinc-500">
+                Vencimento da 1ª parcela
+              </label>
+              <Input
+                type="date"
+                value={parcelaStart}
+                onChange={(e) => setParcelaStart(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="sm:col-span-5 flex flex-wrap gap-2">
               <Button
                 type="button"
-                variant="default"
+                variant="outline"
                 size="sm"
-                onClick={ajustarUltimaParaBaterTotal}
-                title="Ajusta a última parcela para que a soma bata com o total"
-                className="animate-pulse"
+                onClick={gerarParcelas}
               >
-                <AlertTriangle className="h-3.5 w-3.5" /> Ajustar última
+                <Wand2 className="h-3.5 w-3.5" /> Gerar parcelas
               </Button>
-            )}
+              {!somaBate && values.parcelas.length > 0 && (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={ajustarUltimaParaBaterTotal}
+                  title="Ajusta a última parcela para que a soma bata com o total"
+                  className="animate-pulse"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" /> Ajustar última
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Lista editável */}
-        <div className="space-y-1.5 pt-1">
-          <div className="grid grid-cols-12 gap-2 px-1 text-[11px] uppercase tracking-wide text-zinc-500">
-            <div className="col-span-1 text-center">Nº</div>
-            <div className="col-span-5">Vencimento</div>
-            <div className="col-span-5 text-right pr-2">Valor</div>
-            <div className="col-span-1"></div>
+          {/* Lista editável */}
+          <div className="space-y-1.5 pt-1">
+            <div className="grid grid-cols-12 gap-2 px-1 text-[11px] uppercase tracking-wide text-zinc-500">
+              <div className="col-span-1 text-center">Nº</div>
+              <div className="col-span-5">Vencimento</div>
+              <div className="col-span-5 text-right pr-2">Valor</div>
+              <div className="col-span-1"></div>
+            </div>
+            {values.parcelas.map((p, i) => (
+              <ParcelaRowEditable
+                key={i}
+                parcela={p}
+                index={i}
+                canRemove={values.parcelas.length > 1}
+                onChange={(next) => atualizarParcela(i, next)}
+                onRemove={() => removerParcela(i)}
+              />
+            ))}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={adicionarParcela}
+              className="h-8 text-xs"
+            >
+              <Plus className="h-3.5 w-3.5" /> Adicionar parcela
+            </Button>
           </div>
-          {values.parcelas.map((p, i) => (
-            <ParcelaRowEditable
-              key={i}
-              parcela={p}
-              index={i}
-              canRemove={values.parcelas.length > 1}
-              onChange={(next) => atualizarParcela(i, next)}
-              onRemove={() => removerParcela(i)}
-            />
-          ))}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={adicionarParcela}
-            className="h-8 text-xs"
-          >
-            <Plus className="h-3.5 w-3.5" /> Adicionar parcela
-          </Button>
-        </div>
 
-        {errors.parcelas && (
-          <p className="text-xs text-red-600 dark:text-red-400">
-            {errors.parcelas}
-          </p>
-        )}
-      </div>
+          {errors.parcelas && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {errors.parcelas}
+            </p>
+          )}
+        </div>
+      )}
 
       <Field
         id="conta-obs"

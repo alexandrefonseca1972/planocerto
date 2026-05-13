@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect, useMemo, useRef } from "react";
+import { startTransition, useActionState, useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { sanitize } from "@/lib/sanitize";
-import { flattenItems, fmt, trunc, FarolIcon } from "@/components/planos/plan-utils";
+import { flattenItems, fmt, trunc } from "@/components/planos/plan-utils";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { GanttChart } from "@/components/planos/plan-gantt";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
@@ -29,7 +29,7 @@ import { ShareLinkButton } from "@/components/planos/share-link-button";
 import { AttachmentSection } from "@/components/planos/attachment-section";
 import { CommentSection } from "@/components/planos/comment-section";
 import { StatusDot } from "@/components/planos/status-dot";
-import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, GanttChart as GanttIcon, Paperclip, MessageSquare, Receipt, MoreVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, X, Check, Save, History, UserCircle, Building2, Target, ChevronDown, EyeOff, Search, Columns3, Table2, GanttChart as GanttIcon, Paperclip, MessageSquare, Receipt, MoreVertical, Upload } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 const init: ActionPlanFormState = { message: undefined, errors: {} };
@@ -38,11 +38,14 @@ export default function PlanosPage() {
   const { currentTenant } = useTenant();
   const router = useRouter();
   const { toast } = useToast();
+  const [allPlans, setAllPlans] = useState<ActionPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [plan, setPlan] = useState<ActionPlan | null>(null);
   const [items, setItems] = useState<ActionItem[]>([]);
   const [contasSummary, setContasSummary] = useState<Record<string, ItemContasSummary>>({});
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
@@ -57,8 +60,10 @@ export default function PlanosPage() {
   const [deletingPlan, setDeletingPlan] = useState<ActionPlan | null>(null);
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<ActionItem | null>(null);
-  const [editingItemTab, setEditingItemTab] = useState<"principal" | "datas" | "resultados" | "anexos" | "comentarios">("principal");
+  const [editingItemTab, setEditingItemTab] = useState<"principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios">("principal");
   const [deletingItem, setDeletingItem] = useState<ActionItem | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [planCreateState, planCreateAction, isPlanCreating] = useActionState(createPlan, init);
   const [planUpdateState, planUpdateAction, isPlanUpdating] = useActionState(updatePlan, init);
@@ -67,47 +72,98 @@ export default function PlanosPage() {
   const [inlineState, inlineAction, isInlineSaving] = useActionState(upsertItem, init);
   const [, itemDeleteAction, isItemDeleting] = useActionState(deleteItem, init);
 
-  // Auto-load plan for current tenant
+  // Carrega lista de planos ao trocar tenant
   useEffect(() => {
     if (!currentTenant?.id) return;
-    let c = false;
+    let cancelled = false;
     (async () => {
       setLoading(true);
+      setItems([]);
+      setAuditLog([]);
+      setContasSummary({});
+      setPlan(null);
       const plans = await getPlans(currentTenant.id);
-      if (!c) {
-        setPlan(plans[0] || null);
-        setLoading(false);
-      }
+      if (cancelled) return;
+      setAllPlans(plans);
+      const first = plans[0] || null;
+      setSelectedPlanId(first?.id || null);
+      setLoading(false);
     })();
-    return () => { c = true; };
+    return () => { cancelled = true; };
   }, [currentTenant]);
 
-  // Load items when plan changes
+  // Carrega itens, auditoria e contas ao trocar o plano selecionado
   useEffect(() => {
-    if (!plan?.id) return;
-    let c = false;
+    if (!selectedPlanId) {
+      setPlan(null);
+      setItems([]);
+      setAuditLog([]);
+      setContasSummary({});
+      return;
+    }
+    let cancelled = false;
     (async () => {
-      setLoading(true);
-      const [i, a, cs] = await Promise.all([
-        getItems(plan.id),
-        getAuditLog(plan.id),
-        getContasSummaryByPlan(plan.id),
-      ]);
-      if (!c) { setItems(i); setAuditLog(a); setContasSummary(cs); setLoading(false); }
+      setLoadingItems(true);
+      const selectedPlan = allPlans.find((p) => p.id === selectedPlanId) || null;
+      setPlan(selectedPlan);
+      if (selectedPlan?.id) {
+        const [i, a, cs] = await Promise.all([
+          getItems(selectedPlan.id),
+          getAuditLog(selectedPlan.id),
+          getContasSummaryByPlan(selectedPlan.id),
+        ]);
+        if (cancelled) return;
+        setItems(i);
+        setAuditLog(a);
+        setContasSummary(cs);
+      }
+      setLoadingItems(false);
     })();
-    return () => { c = true; };
-  }, [plan?.id]);
+    return () => { cancelled = true; };
+  }, [selectedPlanId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close modals on success and refresh data
+  // Recarrega lista de planos e seleciona o recém-criado/atualizado
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
-    if (planCreateState.success) { toast(planCreateState.message || "Plano criado!"); setShowPlanForm(false); router.refresh(); }
-    if (planUpdateState.success) { toast(planUpdateState.message || "Plano atualizado!"); setShowPlanForm(false); router.refresh(); }
-    if (itemState.success) { toast(itemState.message || "Item salvo!"); setShowItemForm(false); setEditingItem(null); router.refresh(); }
-    if (inlineState.success) { toast(inlineState.message || "Item salvo!"); setInlineEditId(null); router.refresh(); }
-    /* eslint-enable react-hooks/set-state-in-effect */
+    if (!planCreateState.success || !currentTenant?.id) return;
+    toast(planCreateState.message || "Plano criado!");
+    setShowPlanForm(false);
+    getPlans(currentTenant.id).then((plans) => {
+      setAllPlans(plans);
+      if (plans[0]) setSelectedPlanId(plans[0].id);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planCreateState.success, planUpdateState.success, itemState.success, inlineState.success]);
+  }, [planCreateState.success]);
+
+  useEffect(() => {
+    if (!planUpdateState.success || !currentTenant?.id) return;
+    toast(planUpdateState.message || "Plano atualizado!");
+    setShowPlanForm(false);
+    getPlans(currentTenant.id).then((plans) => {
+      setAllPlans(plans);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planUpdateState.success]);
+
+  useEffect(() => {
+    if (!itemState.success) return;
+    toast(itemState.message || "Item salvo!");
+    setShowItemForm(false);
+    setEditingItem(null);
+    if (selectedPlanId) {
+      getItems(selectedPlanId).then(setItems);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemState.success]);
+
+  useEffect(() => {
+    if (!inlineState.success) return;
+    toast(inlineState.message || "Item salvo!");
+    setInlineEditId(null);
+    if (selectedPlanId) {
+      getItems(selectedPlanId).then(setItems);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inlineState.success]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -117,6 +173,29 @@ export default function PlanosPage() {
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [plan]);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !plan?.id) return;
+    setIsImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/plans/${plan.id}/import`, { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        toast(`Importado: ${data.created} itens criados${data.skipped ? `, ${data.skipped} ignorados` : ""}.`);
+        router.refresh();
+      } else {
+        toast(data.error || "Erro ao importar.");
+      }
+    } catch {
+      toast("Erro ao importar o arquivo.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
@@ -177,10 +256,29 @@ export default function PlanosPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          {allPlans.length > 1 ? (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="plan-selector" className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                Plano de ação
+              </label>
+              <select
+                id="plan-selector"
+                value={selectedPlanId ?? ""}
+                onChange={(e) => setSelectedPlanId(e.target.value)}
+                disabled={loadingItems}
+                className="h-10 w-full max-w-sm rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+              >
+                {allPlans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.unit ? `${p.unit} — ` : ""}{p.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">{plan.title}</h1>
-          </div>
+          )}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {plan.unit && <Badge variant="outline" className="text-xs"><Building2 className="mr-1 h-3 w-3" />{plan.unit}</Badge>}
             {plan.director && <Badge variant="outline" className="text-xs"><UserCircle className="mr-1 h-3 w-3" />{plan.director}</Badge>}
@@ -217,6 +315,11 @@ export default function PlanosPage() {
                 {showHistory ? <EyeOff className="h-4 w-4 mr-1" /> : <History className="h-4 w-4 mr-1" />}
                 Histórico
               </Button>
+              <input ref={importInputRef} type="file" accept=".xlsx,.xlsb,.xls" className="sr-only" onChange={handleImport} />
+              <Button variant="outline" size="sm" isLoading={isImporting} disabled={!plan?.id || isImporting}
+                onClick={() => importInputRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5 mr-1" /> Importar
+              </Button>
               <Button size="sm" onClick={() => { setEditingItem(null); setShowItemForm(true); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Nova ação
               </Button>
@@ -225,8 +328,17 @@ export default function PlanosPage() {
         </CardContent>
       </Card>
 
+      {/* Loading items overlay */}
+      {loadingItems && (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      )}
+
       {/* History */}
-      {showHistory && auditLog.length > 0 && (
+      {!loadingItems && showHistory && auditLog.length > 0 && (
         <Card className="animate-[slideDown_200ms_ease-out]">
           <CardContent className="max-h-40 space-y-1 overflow-y-auto p-3">
             {auditLog.slice(0, 20).map((entry) => (
@@ -245,7 +357,9 @@ export default function PlanosPage() {
         </Card>
       )}
 
-      {/* Filters row */}
+      {/* Filters row + views — ocultos enquanto carrega itens */}
+      {!loadingItems && <>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
@@ -277,7 +391,7 @@ export default function PlanosPage() {
       ) : viewMode === "kanban" ? (
         <KanbanBoard items={items} onEdit={setEditingItem} onShowForm={setShowItemForm}
           onStatusChange={async (itemId, newStatus) => {
-            await updateItemStatus(itemId, newStatus);
+            await updateItemStatus(itemId, newStatus as 1 | 2 | 3 | 4 | 5);
             router.refresh();
             toast("Status atualizado!");
           }} />
@@ -336,6 +450,8 @@ export default function PlanosPage() {
         </div>
       ))}
 
+      </>}{/* fim !loadingItems */}
+
       {/* Dialogs */}
       {showPlanForm && (
         <PlanFormDialog plan={plan} tenantId={currentTenant?.id || ""}
@@ -376,13 +492,12 @@ function renderItems(
   onEdit: (i: ActionItem) => void, onShowForm: (s: boolean) => void, onDelete: (i: ActionItem) => void,
   inlineEditId: string | null, setInlineEditId: (id: string | null) => void,
   inlineAction: (p: FormData) => void, inlinePending: boolean,
-  onOpenTab: (i: ActionItem, tab: "principal" | "datas" | "resultados" | "anexos" | "comentarios") => void,
+  onOpenTab: (i: ActionItem, tab: "principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios") => void,
   contasSummary: Record<string, ItemContasSummary>,
   rowIndex = { value: 0 },
 ): React.ReactNode[] {
   const rows: React.ReactNode[] = [];
   for (const item of items) {
-    const st = STATUS_FAROL[item.status] || STATUS_FAROL[1];
     const isGroup = !!(item.children && item.children.length > 0);
     const isExpanded = expandedRows.has(item.id);
     const isEditing = inlineEditId === item.id;
@@ -404,7 +519,7 @@ function renderItems(
         {isEditing ? (
           <EditRow item={item} planId={item.plan_id} inlineAction={inlineAction} inlinePending={inlinePending} onCancel={() => setInlineEditId(null)} />
         ) : (
-          <ViewRow item={item} depth={depth} isGroup={isGroup} isExpanded={isExpanded} st={st}
+          <ViewRow item={item} depth={depth} isGroup={isGroup} isExpanded={isExpanded}
             onEdit={onEdit} onShowForm={onShowForm} onDelete={onDelete} setInlineEditId={setInlineEditId} inlineEditId={inlineEditId} onOpenTab={onOpenTab}
             contasSummary={contasSummary[item.id]} />
         )}
@@ -421,10 +536,10 @@ function renderItems(
   return rows;
 }
 
-function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShowForm: _onShowForm, onDelete, setInlineEditId, inlineEditId, onOpenTab, contasSummary }: {
-  item: ActionItem; depth: number; isGroup: boolean; isExpanded: boolean; st: typeof STATUS_FAROL[number];
+function ViewRow({ item, depth, isGroup, isExpanded, onEdit: _onEdit, onShowForm: _onShowForm, onDelete, setInlineEditId, inlineEditId, onOpenTab, contasSummary }: {
+  item: ActionItem; depth: number; isGroup: boolean; isExpanded: boolean;
   onEdit: (i: ActionItem) => void; onShowForm: (s: boolean) => void; onDelete: (i: ActionItem) => void; setInlineEditId: (id: string | null) => void; inlineEditId: string | null;
-  onOpenTab: (i: ActionItem, tab: "principal" | "datas" | "resultados" | "anexos" | "comentarios") => void;
+  onOpenTab: (i: ActionItem, tab: "principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios") => void;
   contasSummary?: ItemContasSummary;
 }) {
   const showFull = isExpanded && isGroup;
@@ -480,17 +595,17 @@ function ViewRow({ item, depth, isGroup, isExpanded, st, onEdit: _onEdit, onShow
       <StatusDot
         status={item.status}
         item={item}
-        children={item.children}
+        subItems={item.children}
         onClick={() => setInlineEditId(inlineEditId === item.id ? null : item.id)}
       />
     </td>
-    <td className="sticky right-0 z-10 bg-inherit px-1 sm:px-2 py-2.5 align-top" onClick={e => e.stopPropagation()}>
+    <td className="sticky right-0 z-10 px-1 sm:px-2 py-2.5 align-top bg-white dark:bg-zinc-900/80 group-[&.bg-zinc-50\/30]:bg-zinc-50/30 dark:group-[&.bg-zinc-800\/30]:bg-zinc-800/30 group-[&.bg-amber-50]:bg-amber-50/90 dark:group-[&.bg-amber-950]:bg-amber-950/20" onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger className="inline-flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 transition-colors">
           <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           <span className="sr-only">Abrir menu de ações</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-48 z-50">
           <DropdownMenuItem onClick={() => onOpenTab(item, "anexos")}>
             <Paperclip className="h-4 w-4" />
             <span>Anexos</span>
@@ -636,7 +751,7 @@ function EditRow({ item, planId, inlineAction, inlinePending, onCancel }: {
       setTouched(true);
       return;
     }
-    inlineAction(fd);
+    startTransition(() => inlineAction(fd));
   }
 
   return (
@@ -986,10 +1101,10 @@ function FieldV({ label, name, value, onChange, multiline, required, placeholder
 
 function ItemFormDialog({ item, planId, items, state, action, isPending, onClose, initialTab = "principal" }: {
   item: ActionItem | null; planId: string; items: ActionItem[]; state: ActionPlanFormState; action: (p: FormData) => void; isPending: boolean; onClose: () => void;
-  initialTab?: "principal" | "datas" | "resultados" | "anexos" | "comentarios";
+  initialTab?: "principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios";
 }) {
   const [isGroup, setIsGroup] = useState(!item?.parent_id && !!(item?.children?.length));
-  const [tab, setTab] = useState<"principal" | "datas" | "resultados" | "anexos" | "comentarios">(initialTab);
+  const [tab, setTab] = useState<"principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios">(initialTab);
   const [actionText, setActionText] = useState(item?.action || "");
   const groups = flattenItems(items).filter(i => i.id !== item?.id && (i.children?.length || 0) > 0);
   const allItems = flattenItems(items);
@@ -1004,10 +1119,10 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
         {item && <input type="hidden" name="itemId" value={item.id} />}
         <input type="hidden" name="planId" value={planId} />
         <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
-          {(["principal", "datas", "resultados", "anexos", "comentarios"] as const).map(t => {
+          {(["principal", "detalhes", "datas", "resultados", "anexos", "comentarios"] as const).map(t => {
             const needsItem = t === "anexos" || t === "comentarios";
             const isDisabled = needsItem && !item?.id;
-            const labels: Record<typeof t, string> = { principal: "Principal", datas: "Datas", resultados: "Resultados", anexos: "Anexos", comentarios: "Comentários" };
+            const labels: Record<typeof t, string> = { principal: "Principal", detalhes: "Detalhes", datas: "Datas", resultados: "Resultados", anexos: "Anexos", comentarios: "Comentários" };
             return (
               <button key={t} type="button" onClick={() => setTab(t)} disabled={isDisabled}
                 className={cn("flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
@@ -1067,6 +1182,38 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
             </div>
           </div>
         )}
+        {tab === "detalhes" && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-zinc-500">Tipo PA</Label>
+                <select name="tipo_pa" defaultValue={item?.tipo_pa || ""}
+                  className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50">
+                  <option value="">—</option>
+                  {["Processo Seletivo", "Vestibular", "Concurso", "ENEM", "Transferência", "Pós-Graduação", "Extensão", "Outro"].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-zinc-500">Prioridade</Label>
+                <select name="prioridade" defaultValue={item?.prioridade || ""}
+                  className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50">
+                  <option value="">—</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Média">Média</option>
+                  <option value="Baixa">Baixa</option>
+                </select>
+              </div>
+            </div>
+            <Field label="Área" name="area" value={item?.area || ""} placeholder="Ex.: Marketing, Acadêmico" />
+            <Field label="Subação" name="subacao" value={item?.subacao || ""} placeholder="Detalhamento da ação" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-zinc-500">Como?</Label>
+              <textarea name="como" defaultValue={item?.como || ""} rows={3}
+                placeholder="Descreva como será executada"
+                className="flex w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 resize-none" />
+            </div>
+          </div>
+        )}
         {tab === "datas" && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-3"><p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Planejado</p>
@@ -1080,9 +1227,28 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
           </div>
         )}
         {tab === "resultados" && (
-          <div className="space-y-3">
-            <Field label="Resultado Esperado" name="expected_result" value={item?.expected_result || ""} multiline placeholder="O que se espera alcançar" />
-            <Field label="Resultado Real" name="actual_result" value={item?.actual_result || ""} multiline placeholder="Alcançado" />
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Inscritos</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Esperado" name="inscritos_esperado" value={String(item?.inscritos_esperado ?? "")} type="number" placeholder="0" />
+                <Field label="Real" name="inscritos_real" value={String(item?.inscritos_real ?? "")} type="number" placeholder="0" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Mat. Financeira</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Esperado" name="mat_fin_esperado" value={String(item?.mat_fin_esperado ?? "")} type="number" placeholder="0" />
+                <Field label="Real" name="mat_fin_real" value={String(item?.mat_fin_real ?? "")} type="number" placeholder="0" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Mat. Acadêmica</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Esperado" name="mat_acad_esperado" value={String(item?.mat_acad_esperado ?? "")} type="number" placeholder="0" />
+                <Field label="Real" name="mat_acad_real" value={String(item?.mat_acad_real ?? "")} type="number" placeholder="0" />
+              </div>
+            </div>
             <Field label="Observações" name="observations" value={item?.observations || ""} multiline placeholder="Acompanhamento" />
           </div>
         )}
@@ -1154,13 +1320,11 @@ function Msg({ state }: { state: ActionPlanFormState }) {
 function BulkStatusButton({ planId, filteredItems, toast, router }: {
   planId: string; filteredItems: ActionItem[]; toast: (msg: string) => void; router: ReturnType<typeof import("next/navigation").useRouter>;
 }) {
-  const [show, setShow] = useState(false);
   if (!planId || !filteredItems.length) return null;
 
   const handleBulk = async (status: number) => {
-    setShow(false);
     const ids = filteredItems.map(i => i.id);
-    const result = await bulkUpdateStatus(planId, ids, status);
+    const result = await bulkUpdateStatus(planId, ids, status as 1 | 2 | 3 | 4 | 5);
     if (result.success) {
       toast(result.message || "Atualizado!");
       router.refresh();
@@ -1177,23 +1341,24 @@ function BulkStatusButton({ planId, filteredItems, toast, router }: {
   ];
 
   return (
-    <div className="relative">
-      <Button variant="ghost" size="sm" onClick={() => setShow(!show)}>
-        <Save className="h-3.5 w-3.5 mr-1" />
-        Lote ({filteredItems.length})
-      </Button>
-      {show && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-          <div className="px-3 py-2 text-xs font-semibold text-zinc-500">Alterar status</div>
-          {statusOptions.map(opt => (
-            <button key={opt.status} onClick={() => handleBulk(opt.status)} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800">
-              <span className={cn("h-2 w-2 rounded-full", opt.status === 5 ? "bg-emerald-500" : opt.status === 4 ? "bg-blue-500" : opt.status === 2 ? "bg-amber-500" : "bg-zinc-400")} />
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm">
+          <Save className="h-3.5 w-3.5 mr-1" />
+          Lote ({filteredItems.length})
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <div className="px-2 py-1.5 text-xs font-semibold text-zinc-500">Alterar status</div>
+        <DropdownMenuSeparator />
+        {statusOptions.map(opt => (
+          <DropdownMenuItem key={opt.status} onClick={() => handleBulk(opt.status)}>
+            <span className={cn("h-2 w-2 rounded-full shrink-0", opt.status === 5 ? "bg-emerald-500" : opt.status === 4 ? "bg-blue-500" : opt.status === 2 ? "bg-amber-500" : "bg-zinc-400")} />
+            {opt.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import type { Tenant } from "@/types/tenant";
 import { switchTenant as switchTenantAction } from "@/app/actions/tenant";
+import { useToast } from "@/components/ui/toast";
 
 const STORAGE_KEY = "selected_tenants";
 
@@ -55,6 +56,7 @@ export function TenantProvider({
   );
   const [isSwitching, setIsSwitching] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -89,7 +91,11 @@ export function TenantProvider({
           if (success) {
             setActiveTenantId(ids[0]);
             router.refresh();
+          } else {
+            toast("Não foi possível trocar a empresa. Tente novamente.", "error");
           }
+        }).catch(() => {
+          toast("Não foi possível trocar a empresa. Tente novamente.", "error");
         });
       }
     },
@@ -123,7 +129,7 @@ export function TenantProvider({
           router.refresh();
         }
       } catch {
-        // ação falhou — mantém estado atual
+        toast("Não foi possível trocar a empresa. Tente novamente.", "error");
       } finally {
         setIsSwitching(false);
       }
