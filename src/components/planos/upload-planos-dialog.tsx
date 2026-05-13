@@ -155,10 +155,16 @@ async function validateFile(file: File): Promise<Omit<FileValidation, "file" | "
 export function UploadPlanosDialog({
   onClose,
   onSuccess,
+  planId,
+  planTitle,
 }: {
   onClose: () => void;
   onSuccess: () => void;
+  /** Se fornecido, importa os itens do arquivo para este plano em vez de criar novos planos. */
+  planId?: string;
+  planTitle?: string;
 }) {
+  const isImportMode = Boolean(planId);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("select");
@@ -232,18 +238,35 @@ export function UploadPlanosDialog({
 
     setStep("upload");
 
-    const fd = new FormData();
-    for (const fv of validFiles) fd.append("files", fv.file);
-
     try {
-      const res = await fetch("/api/plans/upload-batch", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        toast(data.error ?? "Erro no upload.", "error");
-        setStep("validate");
-        return;
+      if (isImportMode && planId) {
+        // Importa itens no plano atual — usa a rota existente (arquivo único)
+        const results: UploadResult[] = [];
+        for (const fv of validFiles) {
+          const fd = new FormData();
+          fd.append("file", fv.file);
+          const res = await fetch(`/api/plans/${planId}/import`, { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) {
+            results.push({ filename: fv.file.name, planTitle: planTitle ?? "", planUnit: "", created: 0, skipped: 0, errors: [data.error ?? "Erro ao importar"], status: "error", errorMessage: data.error });
+          } else {
+            results.push({ filename: fv.file.name, planTitle: planTitle ?? "", planUnit: "", created: data.created ?? 0, skipped: data.skipped ?? 0, errors: data.errors ?? [], status: "success" });
+          }
+        }
+        setUploadResults(results);
+      } else {
+        // Cria novos planos — usa o batch
+        const fd = new FormData();
+        for (const fv of validFiles) fd.append("files", fv.file);
+        const res = await fetch("/api/plans/upload-batch", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          toast(data.error ?? "Erro no upload.", "error");
+          setStep("validate");
+          return;
+        }
+        setUploadResults(data.results ?? []);
       }
-      setUploadResults(data.results ?? []);
       setStep("done");
     } catch {
       toast("Erro de conexão ao enviar os arquivos.", "error");
@@ -269,12 +292,16 @@ export function UploadPlanosDialog({
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
           <div>
-            <h2 className="text-base font-semibold">Upload de Planos</h2>
+            <h2 className="text-base font-semibold">
+              {isImportMode ? "Importar ações do Excel" : "Importar planos do Excel"}
+            </h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              {step === "select"   && "Selecione até 10 arquivos Excel com planos de ação."}
+              {step === "select"   && (isImportMode
+                ? `Selecione até ${MAX_FILES} arquivos para importar ações para "${planTitle ?? "este plano"}".`
+                : `Selecione até ${MAX_FILES} arquivos Excel — cada arquivo cria um novo plano.`)}
               {step === "validate" && "Validando estrutura e dados dos arquivos..."}
-              {step === "upload"   && "Importando planos para o sistema..."}
-              {step === "done"     && `${successResults.length} plano${successResults.length !== 1 ? "s" : ""} importado${successResults.length !== 1 ? "s" : ""} com sucesso.`}
+              {step === "upload"   && (isImportMode ? "Importando ações..." : "Criando planos...")}
+              {step === "done"     && `${successResults.length} arquivo${successResults.length !== 1 ? "s" : ""} importado${successResults.length !== 1 ? "s" : ""} com sucesso.`}
             </p>
           </div>
           {step !== "upload" && (

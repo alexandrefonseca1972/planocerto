@@ -65,8 +65,6 @@ export default function PlanosPage() {
   const [editingItem, setEditingItem] = useState<ActionItem | null>(null);
   const [editingItemTab, setEditingItemTab] = useState<"principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios">("principal");
   const [deletingItem, setDeletingItem] = useState<ActionItem | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [planCreateState, planCreateAction, isPlanCreating] = useActionState(createPlan, init);
   const [planUpdateState, planUpdateAction, isPlanUpdating] = useActionState(updatePlan, init);
@@ -185,29 +183,6 @@ export default function PlanosPage() {
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [plan]);
-
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !plan?.id) return;
-    setIsImporting(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/plans/${plan.id}/import`, { method: "POST", body: fd });
-      const data = await res.json();
-      if (res.ok) {
-        toast(`Importado: ${data.created} itens criados${data.skipped ? `, ${data.skipped} ignorados` : ""}.`);
-        router.refresh();
-      } else {
-        toast(data.error || "Erro ao importar.");
-      }
-    } catch {
-      toast("Erro ao importar o arquivo.");
-    } finally {
-      setIsImporting(false);
-    }
-  };
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
@@ -346,15 +321,9 @@ export default function PlanosPage() {
                 {showHistory ? <EyeOff className="h-4 w-4 mr-1" /> : <History className="h-4 w-4 mr-1" />}
                 Histórico
               </Button>
-              <input ref={importInputRef} type="file" accept=".xlsx,.xlsb,.xls" className="sr-only" onChange={handleImport} />
-              <Button variant="outline" size="sm" isLoading={isImporting} disabled={!plan?.id || isImporting}
-                onClick={() => importInputRef.current?.click()}>
-                <Upload className="h-3.5 w-3.5 mr-1" /> Importar
-              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
-                <Upload className="h-3.5 w-3.5 mr-1" /> Upload em lote
+                <Upload className="h-3.5 w-3.5 mr-1" /> Importar Excel
               </Button>
-              <ExportCsv items={items} filename={plan?.title ?? "plano"} planUnit={plan?.unit} />
               <Button size="sm" onClick={() => { setEditingItem(null); setShowItemForm(true); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Nova ação
               </Button>
@@ -513,13 +482,10 @@ export default function PlanosPage() {
       {showUploadDialog && (
         <UploadPlanosDialog
           onClose={() => setShowUploadDialog(false)}
+          planId={plan.id}
+          planTitle={plan.title}
           onSuccess={() => {
-            if (currentTenant?.id) {
-              getPlans(currentTenant.id).then((plans) => {
-                setAllPlans(plans);
-                if (!selectedPlanId && plans[0]) setSelectedPlanId(plans[0].id);
-              });
-            }
+            if (selectedPlanId) getItems(selectedPlanId).then(setItems);
           }}
         />
       )}
@@ -585,7 +551,7 @@ function renderItems(
   return rows;
 }
 
-function ViewRow({ item, depth, isGroup, isExpanded, onEdit: _onEdit, onShowForm: _onShowForm, onDelete, setInlineEditId, inlineEditId, onOpenTab, contasSummary }: {
+function ViewRow({ item, depth, isGroup, isExpanded, onEdit, onShowForm, onDelete, setInlineEditId, inlineEditId, onOpenTab, contasSummary }: {
   item: ActionItem; depth: number; isGroup: boolean; isExpanded: boolean;
   onEdit: (i: ActionItem) => void; onShowForm: (s: boolean) => void; onDelete: (i: ActionItem) => void; setInlineEditId: (id: string | null) => void; inlineEditId: string | null;
   onOpenTab: (i: ActionItem, tab: "principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios") => void;
@@ -670,10 +636,15 @@ function ViewRow({ item, depth, isGroup, isExpanded, onEdit: _onEdit, onShowForm
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setInlineEditId(item.id)}>
+          <DropdownMenuItem onClick={() => { onEdit(item); onShowForm(true); }}>
             <Pencil className="h-4 w-4" />
-            <span>Editar</span>
+            <span>Editar completo</span>
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setInlineEditId(item.id)} className="text-zinc-500 focus:text-zinc-700 dark:text-zinc-400">
+            <Check className="h-4 w-4" />
+            <span>Edição rápida</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => onDelete(item)} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30">
             <Trash2 className="h-4 w-4" />
             <span>Excluir</span>

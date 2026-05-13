@@ -17,11 +17,7 @@ const initialState: FormState = {
   errors: {},
 };
 
-interface LoginFormProps {
-  onSwitchToRegister?: () => void;
-}
-
-export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
+export function LoginForm() {
   const [state, formAction, isPending] = useActionState(login, initialState);
   const [email, setEmail] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -120,15 +116,8 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         Entrar
       </Button>
 
-      <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-        Não tem uma conta?{" "}
-        <button
-          type="button"
-          onClick={onSwitchToRegister}
-          className="font-medium text-zinc-900 underline underline-offset-2 transition-colors hover:text-zinc-700 dark:text-zinc-50 dark:hover:text-zinc-300"
-        >
-          Criar conta
-        </button>
+      <p className="text-center text-xs text-zinc-400 dark:text-zinc-500">
+        O acesso é concedido pelo administrador do sistema.
       </p>
     </form>
   );

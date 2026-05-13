@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   loginSchema,
-  registerSchema,
   profileSchema,
   resetSchema,
   updatePasswordSchema,
@@ -65,64 +64,17 @@ export async function login(
   redirect("/dashboard");
 }
 
+/**
+ * Auto-cadastro desabilitado.
+ * Usuários são criados exclusivamente pelo administrador em /admin/users.
+ */
 export async function signup(
   _prevState: FormState,
-  formData: FormData
+  _formData: FormData
 ): Promise<FormState> {
-  try {
-    const rawData = {
-      name: formData.get("name"),
-      email: formData.get("email"),
-      password: formData.get("password"),
-      confirmPassword: formData.get("confirmPassword"),
-    };
-
-    const validated = registerSchema.safeParse(rawData);
-
-    if (!validated.success) {
-      return {
-        errors: validated.error.flatten().fieldErrors,
-        message: "Verifique os campos e tente novamente.",
-      };
-    }
-
-    const supabase = await createClient();
-
-    const { error } = await supabase.auth.signUp({
-      email: validated.data.email,
-      password: validated.data.password,
-      options: {
-        data: { name: validated.data.name },
-        emailRedirectTo: undefined,
-      },
-    });
-
-    if (error) {
-      const messages: Record<string, string> = {
-        "User already registered": "Este email já está cadastrado.",
-      };
-
-      return {
-        message:
-          messages[error.message] ??
-          "Erro ao criar conta. Tente novamente.",
-      };
-    }
-
-    // User needs to confirm email via Supabase email
-    // Admin will approve by associating tenants after confirmation
-
-    return {
-      success: true,
-      message: "Conta criada! Verifique seu email para confirmar o cadastro.",
-    };
-  } catch (error) {
-    console.error("[signup] Erro:", error);
-    return {
-      message:
-        "Serviço indisponível no momento. Tente novamente em alguns instantes.",
-    };
-  }
+  return {
+    message: "O auto-cadastro está desabilitado. Entre em contato com o administrador.",
+  };
 }
 
 export async function logout(): Promise<void> {
