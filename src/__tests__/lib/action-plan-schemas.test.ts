@@ -68,9 +68,9 @@ describe("itemSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects empty action", () => {
+  it("rejects action with less than 3 chars", () => {
     const data = {
-      action: "",
+      action: "AB",
       number: "1",
       status: 1,
     };
@@ -157,7 +157,7 @@ describe("itemSchema", () => {
     };
     const result = itemSchema.safeParse(data);
     if (!result.success) {
-      expect(result.error.issues.some(i => i.message.includes("obrigatória"))).toBe(true);
+      expect(result.error.issues.some(i => i.message.includes("Mínimo 3"))).toBe(true);
     }
   });
 });

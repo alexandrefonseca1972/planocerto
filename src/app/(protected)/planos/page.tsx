@@ -3,15 +3,18 @@
 import { startTransition, useActionState, useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { getPlans, getItems, getAuditLog, createPlan, updatePlan, deletePlan, upsertItem, deleteItem, updateItemStatus, bulkUpdateStatus } from "@/app/actions/action-plan";
 import { getTemplates, createPlanFromTemplate } from "@/app/actions/shared";
+import { getTiposPA } from "@/app/actions/tipos-pa";
+import { getAreas, getMacroAcoes, getUnits } from "@/app/actions/catalog";
 import { getContasSummaryByPlan, type ItemContasSummary } from "@/app/actions/contas-pagar";
 import { formatBRL } from "@/lib/format-br";
 import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState } from "@/types/action-plan";
 import { STATUS_FAROL } from "@/types/action-plan";
+import type { Area, Unit } from "@/types/catalog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +25,8 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { cn } from "@/lib/utils";
 import { sanitize } from "@/lib/sanitize";
 import { flattenItems, fmt, trunc } from "@/components/planos/plan-utils";
+import { buildOfficialPlanHeader, getPlanFormProgress, normalizePlanFormValue, resolvePlanTitle, validatePlanFormDraft } from "@/components/planos/plan-form-helpers";
+import { isValidActionText, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { GanttChart } from "@/components/planos/plan-gantt";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
@@ -40,12 +45,17 @@ export default function PlanosPage() {
   const { currentTenant } = useTenant();
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [allPlans, setAllPlans] = useState<ActionPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [plan, setPlan] = useState<ActionPlan | null>(null);
   const [items, setItems] = useState<ActionItem[]>([]);
   const [contasSummary, setContasSummary] = useState<Record<string, ItemContasSummary>>({});
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [catalogTiposPa, setCatalogTiposPa] = useState<{ id: string; name: string }[]>([]);
+  const [catalogMacroAcoes, setCatalogMacroAcoes] = useState<{ id: string; name: string }[]>([]);
+  const [catalogUnits, setCatalogUnits] = useState<Unit[]>([]);
+  const [catalogAreas, setCatalogAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingItems, setLoadingItems] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -77,6 +87,7 @@ export default function PlanosPage() {
   useEffect(() => {
     if (!currentTenant?.id) return;
     const tenantId = currentTenant.id;
+    const requestedPlanId = searchParams.get("plan");
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -85,10 +96,20 @@ export default function PlanosPage() {
       setContasSummary({});
       setPlan(null);
       try {
-        const plans = await getPlans(tenantId);
+        const [plans, tiposPa, macroAcoes, units, areas] = await Promise.all([
+          getPlans(tenantId),
+          getTiposPA(),
+          getMacroAcoes(),
+          getUnits(),
+          getAreas(),
+        ]);
         if (cancelled) return;
         setAllPlans(plans);
-        setSelectedPlanId(plans[0]?.id || null);
+        setSelectedPlanId(resolveSelectedPlanId(plans, requestedPlanId));
+        setCatalogTiposPa(tiposPa.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
+        setCatalogMacroAcoes(macroAcoes.map((m: { id: string; name: string }) => ({ id: m.id, name: m.name })));
+        setCatalogUnits(units.filter((item) => item.active));
+        setCatalogAreas(areas.filter((item) => item.active));
       } catch {
         if (!cancelled) toast("Erro ao carregar planos. Tente novamente.", "error");
       } finally {
@@ -96,7 +117,7 @@ export default function PlanosPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [currentTenant?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentTenant?.id, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carrega itens, auditoria e contas ao trocar o plano selecionado
   useEffect(() => {
@@ -237,6 +258,7 @@ export default function PlanosPage() {
         </Card>
         {showPlanForm && (
           <PlanFormDialog plan={null} tenantId={currentTenant?.id || ""}
+            catalogUnits={catalogUnits} catalogAreas={catalogAreas}
             state={planCreateState} action={planCreateAction} isPending={isPlanCreating}
             onClose={() => setShowPlanForm(false)} />
         )}
@@ -459,6 +481,7 @@ export default function PlanosPage() {
       {/* Dialogs */}
       {showPlanForm && (
         <PlanFormDialog plan={plan} tenantId={currentTenant?.id || ""}
+          catalogUnits={catalogUnits} catalogAreas={catalogAreas}
           state={plan ? planUpdateState : planCreateState}
           action={plan ? planUpdateAction : planCreateAction}
           isPending={plan ? isPlanUpdating : isPlanCreating}
@@ -471,6 +494,7 @@ export default function PlanosPage() {
 
       {showItemForm && (
         <ItemFormDialog item={editingItem} planId={plan.id} items={items} initialTab={editingItemTab}
+          catalogTiposPa={catalogTiposPa} catalogMacroAcoes={catalogMacroAcoes}
           state={itemState} action={itemAction} isPending={isItemSaving}
           onClose={() => { setShowItemForm(false); setEditingItem(null); setEditingItemTab("principal"); }} />
       )}
@@ -689,7 +713,7 @@ function EditRow({ item, planId, inlineAction, inlinePending, onCancel }: {
     plannedEnd !== (item.planned_end || "") ||
     status !== String(item.status);
 
-  const isValid = action.trim().length >= 1;
+  const isValid = isValidActionText(action);
   const showActionError = touched && !isValid;
 
   // Diff legível para o diálogo de confirmação
@@ -830,7 +854,7 @@ function EditRow({ item, planId, inlineAction, inlinePending, onCancel }: {
               placeholder="Descreva a ação..."
             />
             {showActionError && (
-              <p className="mt-0.5 text-[10px] text-red-600">Ação obrigatória.</p>
+              <p className="mt-0.5 text-[10px] text-red-600">Mínimo 3 caracteres.</p>
             )}
           </div>
 
@@ -970,48 +994,79 @@ function EditRow({ item, planId, inlineAction, inlinePending, onCancel }: {
   );
 }
 
-function PlanFormDialog({ plan, tenantId, state, action, isPending, onClose }: {
-  plan: ActionPlan | null; tenantId: string; state: ActionPlanFormState; action: (p: FormData) => void; isPending: boolean; onClose: () => void;
+function PlanFormDialog({ plan, tenantId, catalogUnits, catalogAreas, state, action, isPending, onClose }: {
+  plan: ActionPlan | null; tenantId: string; catalogUnits: Unit[]; catalogAreas: Area[]; state: ActionPlanFormState; action: (p: FormData) => void; isPending: boolean; onClose: () => void;
 }) {
   const router = useRouter();
-  const [title, setTitle] = useState(plan?.title || "");
-  const [unit, setUnit] = useState(plan?.unit || "");
-  const [director, setDirector] = useState(plan?.director || "");
-  const [goal, setGoal] = useState(plan?.goal || "");
+  const [title, setTitle] = useState(normalizePlanFormValue(plan?.title));
+  const [unit, setUnit] = useState(normalizePlanFormValue(plan?.unit));
+  const [director, setDirector] = useState(normalizePlanFormValue(plan?.director));
+  const [goal, setGoal] = useState(normalizePlanFormValue(plan?.goal));
   const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
   const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [titleTouched, setTitleTouched] = useState(false);
 
   useEffect(() => {
-    if (!plan) { getTemplates().then(t => setTemplates(t.map(x => ({ id: x.id, name: x.name })))); }
+    setTitle(normalizePlanFormValue(plan?.title));
+    setUnit(normalizePlanFormValue(plan?.unit));
+    setDirector(normalizePlanFormValue(plan?.director));
+    setGoal(normalizePlanFormValue(plan?.goal));
+    setTemplateError(null);
+    setAttemptedSubmit(false);
+    setTitleTouched(Boolean(plan?.title && plan?.title !== plan?.unit));
+  }, [plan]);
+
+  useEffect(() => {
+    if (!plan) {
+      getTemplates().then(t => setTemplates(t.map(x => ({ id: x.id, name: x.name }))));
+    }
   }, [plan]);
 
   const applyTemplate = async (templateId: string) => {
     setTemplateLoading(true);
+    setTemplateError(null);
     const result = await createPlanFromTemplate(templateId, tenantId);
     if (result.success) {
       onClose();
       router.refresh();
     } else {
       setTemplateLoading(false);
+      setTemplateError(result.message);
     }
   };
 
-  const titleValid = title.length >= 2;
-  const titleError = title.length > 0 && title.length < 2 ? "Mínimo 2 caracteres" : "";
-  const unitValid = unit.length === 0 || unit.length >= 2;
-  const directorValid = director.length === 0 || director.length >= 2;
-  const goalValid = goal.length === 0 || goal.length >= 2;
+  const validation = validatePlanFormDraft({ title, unit, director, goal });
+  const { fieldsFilled, totalFields, formProgress } = getPlanFormProgress({ title, unit, director, goal });
+  const hasChanges = title !== normalizePlanFormValue(plan?.title)
+    || unit !== normalizePlanFormValue(plan?.unit)
+    || director !== normalizePlanFormValue(plan?.director)
+    || goal !== normalizePlanFormValue(plan?.goal);
+  const showServerError = attemptedSubmit && state.message && !state.success;
+  const unitOptions = catalogUnits.map((item) => item.name);
+  const matchedUnit = catalogUnits.find((item) => item.name.toLowerCase() === unit.trim().toLowerCase()) || null;
+  const matchedArea = matchedUnit ? catalogAreas.find((item) => item.id === matchedUnit.area_id) || null : null;
+  const resolvedTitle = resolvePlanTitle(title, unit);
 
-  const fieldsFilled = [title.length > 0, unit.length > 0, director.length > 0, goal.length > 0].filter(Boolean).length;
-  const totalFields = 4;
-  const formProgress = Math.round((fieldsFilled / totalFields) * 100);
+  const handleUnitChange = (value: string) => {
+    const sanitizedValue = sanitize(value);
+    const previousAutoTitle = resolvePlanTitle(titleTouched ? "" : title, unit);
+    setUnit(sanitizedValue);
+    if (!titleTouched || title.trim() === previousAutoTitle) {
+      setTitle(sanitizedValue);
+      setTitleTouched(false);
+    }
+  };
 
   return (
     <Modal onClose={onClose}>
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Novo plano</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">Preencha os dados do cabeçalho</p>
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{plan ? "Editar plano" : "Novo plano"}</h3>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {plan ? "Atualize os dados do cabeçalho do plano." : "Preencha os dados do cabeçalho."}
+          </p>
         </div>
         <button onClick={onClose} className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"><X className="h-5 w-5" /></button>
       </div>
@@ -1032,47 +1087,89 @@ function PlanFormDialog({ plan, tenantId, state, action, isPending, onClose }: {
       {/* Template selection (only for new plans) */}
       {!plan && templates.length > 0 && (
         <div className="mb-4">
-          <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Usar template</label>
+          <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Criar a partir de template</label>
+          <p className="mb-2 text-[11px] text-zinc-400">
+            Essa opção cria o plano imediatamente com a estrutura padrão do template.
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {templates.map(t => (
               <button key={t.id} type="button" disabled={templateLoading}
                 onClick={() => applyTemplate(t.id)}
                 className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 hover:bg-zinc-50 hover:border-zinc-300 transition-colors dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">
-                {t.name}
+                {templateLoading ? "Criando..." : t.name}
               </button>
             ))}
           </div>
+          {templateError && <p className="mt-2 text-[11px] text-red-500">{templateError}</p>}
         </div>
       )}
 
-      <form action={action} className="space-y-4">
+      <form action={action} onSubmit={() => setAttemptedSubmit(true)} className="space-y-4">
         {plan && <input type="hidden" name="planId" value={plan.id} />}
         <input type="hidden" name="tenantId" value={tenantId} />
+        <input type="hidden" name="title" value={resolvedTitle} />
 
-        <FieldV label="Título do plano" name="title" value={title} onChange={setTitle} required
-          placeholder="Ex: Plano de Ação — Rio Branco" max={200}
-          valid={titleValid} error={titleError}
-          hint="Dê um nome descritivo ao plano" />
-
-        <div className="grid grid-cols-2 gap-3">
-          <FieldV label="Unidade" name="unit" value={unit} onChange={setUnit}
-            placeholder="Ex: Rio Branco (Unimeta)" max={200} valid={unitValid}
-            hint="Nome da unidade ou filial" />
-          <FieldV label="Diretor(a)" name="director" value={director} onChange={setDirector}
-            placeholder="Nome do diretor" max={200} valid={directorValid}
-            hint="Responsável pelo plano" />
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Modelo oficial</p>
+              <h4 className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-50">{buildOfficialPlanHeader(unit)}</h4>
+            </div>
+            <Badge variant="outline" className="shrink-0 text-[10px]">Aba PLANO DE AÇÃO</Badge>
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+            O cabeçalho do modelo oficial é orientado por unidade. O nome interno do plano segue a unidade por padrão, mas pode ser personalizado abaixo.
+          </p>
         </div>
 
-        <FieldV label="Meta" name="goal" value={goal} onChange={setGoal}
-          placeholder="Ex: 7.908 INSC | 1.382 MF | 1.214 ACAD" max={1000} valid={goalValid}
-          hint="Meta quantificável com indicadores" />
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Nome da unidade<span className="text-red-500 ml-0.5">*</span>
+            </Label>
+            {matchedUnit?.uf && (
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+                {matchedUnit.uf}
+              </span>
+            )}
+          </div>
+          <Input name="unit" value={unit} onChange={(e) => handleUnitChange(e.target.value)} list="plan-unit-options"
+            placeholder="Selecione ou digite a unidade conforme o modelo oficial"
+            className={cn("transition-all rounded-lg",
+              validation.unitError ? "border-red-300 focus-visible:ring-red-500" : "focus:shadow-md"
+            )} />
+          <datalist id="plan-unit-options">
+            {unitOptions.map((option) => <option key={option} value={option} />)}
+          </datalist>
+          {validation.unitError ? (
+            <p className="text-[11px] text-red-500 animate-[slideDown_150ms_ease-out]">{validation.unitError}</p>
+          ) : matchedArea ? (
+            <p className="text-[11px] text-zinc-400">Área oficial vinculada: {matchedArea.name}</p>
+          ) : (
+            <p className="text-[11px] text-zinc-400">Use o nome da unidade conforme a aba de apoio do modelo.</p>
+          )}
+        </div>
 
-        {state.message && !state.success && <Msg state={state} />}
+        <FieldV label="Nome do plano no sistema" name="title_preview" value={title} onChange={(value) => { setTitle(value); setTitleTouched(true); }}
+          placeholder="Se vazio, o sistema usa o nome da unidade" max={200}
+          valid={validation.titleValid} error={validation.titleError}
+          hint="Opcional. Se não personalizar, o plano assume automaticamente o nome da unidade." />
+
+        <div className="grid grid-cols-2 gap-3">
+          <FieldV label="Diretor(a) / responsável executivo" name="director" value={director} onChange={setDirector}
+            placeholder="Nome do responsável" max={200} valid={validation.directorValid}
+            hint="Metadado complementar do sistema." />
+          <FieldV label="Objetivo / meta do plano" name="goal" value={goal} onChange={setGoal}
+            placeholder="Ex: 7.908 INSC | 1.382 MF | 1.214 ACAD" max={1000} valid={validation.goalValid}
+            hint="Metadado complementar para acompanhamento executivo." />
+        </div>
+
+        {showServerError && <Msg state={state} />}
 
         <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-700">
           <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" isLoading={isPending} disabled={!titleValid}>
-            <Save className="h-4 w-4 mr-1" />{plan ? "Salvar" : "Criar plano"}
+          <Button type="submit" isLoading={isPending} disabled={!validation.canSubmit || (plan ? !hasChanges : false)}>
+            <Save className="h-4 w-4 mr-1" />{plan ? "Salvar alterações" : "Criar plano"}
           </Button>
         </div>
       </form>
@@ -1119,15 +1216,19 @@ function FieldV({ label, name, value, onChange, multiline, required, placeholder
   );
 }
 
-function ItemFormDialog({ item, planId, items, state, action, isPending, onClose, initialTab = "principal" }: {
+function ItemFormDialog({ item, planId, items, state, action, isPending, onClose, initialTab = "principal", catalogTiposPa = [], catalogMacroAcoes = [] }: {
   item: ActionItem | null; planId: string; items: ActionItem[]; state: ActionPlanFormState; action: (p: FormData) => void; isPending: boolean; onClose: () => void;
   initialTab?: "principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios";
+  catalogTiposPa?: { id: string; name: string }[];
+  catalogMacroAcoes?: { id: string; name: string }[];
 }) {
   const [isGroup, setIsGroup] = useState(!item?.parent_id && !!(item?.children?.length));
   const [tab, setTab] = useState<"principal" | "detalhes" | "datas" | "resultados" | "anexos" | "comentarios">(initialTab);
   const [actionText, setActionText] = useState(item?.action || "");
+  const [parentId, setParentId] = useState(item?.parent_id || "");
   const groups = flattenItems(items).filter(i => i.id !== item?.id && (i.children?.length || 0) > 0);
   const allItems = flattenItems(items);
+  const currentMacroAcao = parentId ? allItems.find((currentItem) => currentItem.id === parentId)?.action || "" : "";
 
   return (
     <Modal onClose={onClose}>
@@ -1160,7 +1261,7 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
               <Field label="Ordem" name="sort_order" value={String(item?.sort_order || allItems.length + 1)} type="number" />
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-zinc-500">Grupo pai</Label>
-                <select name="parent_id" defaultValue={item?.parent_id || ""} disabled={isGroup}
+                <select name="parent_id" value={isGroup ? "" : parentId} onChange={(e) => setParentId(e.target.value)} disabled={isGroup}
                   className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50">
                   <option value="">{isGroup ? "(este é um grupo)" : "Nenhum — item raiz"}</option>
                   {groups.map(g => <option key={g.id} value={g.id}>{g.number} — {trunc(g.action, 35)}</option>)}
@@ -1210,9 +1311,22 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
                 <select name="tipo_pa" defaultValue={item?.tipo_pa || ""}
                   className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50">
                   <option value="">—</option>
-                  {["Processo Seletivo", "Vestibular", "Concurso", "ENEM", "Transferência", "Pós-Graduação", "Extensão", "Outro"].map(v => <option key={v} value={v}>{v}</option>)}
+                  {catalogTiposPa.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {catalogTiposPa.length === 0 && ["Processo Seletivo", "Vestibular", "Concurso", "ENEM", "Transferência", "Pós-Graduação", "Extensão", "Outro"].map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-zinc-500">Macro Ação</Label>
+                <Input value={currentMacroAcao} readOnly placeholder="Definida pelo grupo pai selecionado"
+                  className="bg-zinc-50 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" />
+                {catalogMacroAcoes.length > 0 && (
+                  <p className="text-[11px] text-zinc-400">
+                    Catálogo disponível para referência: {catalogMacroAcoes.map((item) => item.name).join(", ")}.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-zinc-500">Prioridade</Label>
                 <select name="prioridade" defaultValue={item?.prioridade || ""}
@@ -1294,7 +1408,7 @@ function ItemFormDialog({ item, planId, items, state, action, isPending, onClose
         <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
           <Button type="button" variant="outline" onClick={onClose}>{tab === "anexos" || tab === "comentarios" ? "Fechar" : "Cancelar"}</Button>
           {tab !== "anexos" && tab !== "comentarios" && (
-            <Button type="submit" isLoading={isPending} disabled={!actionText.trim()}><Check className="h-4 w-4 mr-1" />{item ? "Salvar" : "Criar"}</Button>
+            <Button type="submit" isLoading={isPending} disabled={!isValidActionText(actionText)}><Check className="h-4 w-4 mr-1" />{item ? "Salvar" : "Criar"}</Button>
           )}
         </div>
       </form>
@@ -1381,4 +1495,3 @@ function BulkStatusButton({ planId, filteredItems, toast, router }: {
     </DropdownMenu>
   );
 }
-

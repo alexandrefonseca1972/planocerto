@@ -62,6 +62,8 @@ export async function getItems(planId: string): Promise<ActionItem[]> {
 
 export async function createPlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
@@ -85,6 +87,8 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
 
 export async function updatePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const planId = formData.get("planId") as string;
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     const raw = { title: formData.get("title"), unit: formData.get("unit"), director: formData.get("director"), goal: formData.get("goal") };
@@ -105,16 +109,19 @@ export async function updatePlan(_prev: ActionPlanFormState, formData: FormData)
 
 export async function deletePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_DELETE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const planId = formData.get("planId") as string;
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     const supabase = await createClient();
-    const { data: plan } = await supabase.from("action_plans").select("title").eq("id", planId).single();
+    const { data: plan } = await supabase.from("action_plans").select("title,tenant_id").eq("id", planId).single();
+    if (!plan) return { message: "Plano não encontrado." };
     const { error } = await supabase.from("action_plans").delete().eq("id", planId);
     if (error) {
       logSupabaseError("deletePlan", error);
       return { message: "Erro ao excluir plano." };
     }
-    if (plan) await logAudit(planId, "DELETE_PLAN", { deleted: plan.title });
+    await logAudit(planId, "DELETE_PLAN", { deleted: plan.title });
     revalidatePath("/planos");
     revalidatePath("/dashboard");
     revalidatePath("/calendario");
@@ -124,10 +131,10 @@ export async function deletePlan(_prev: ActionPlanFormState, formData: FormData)
 
 export async function upsertItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
-
     const itemId = formData.get("itemId") as string;
+    const requiredPermission = itemId ? PERMISSIONS.PLANS_UPDATE : PERMISSIONS.PLANS_CREATE;
+    const hasPerm = await checkPermission(requiredPermission);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const planId = formData.get("planId") as string;
     if (!planId) return { message: "Plano obrigatório." };
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
@@ -217,17 +224,20 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
 
 export async function deleteItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_DELETE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const itemId = formData.get("itemId") as string;
     if (!itemId) return { message: "ID obrigatório." };
     if (!isValidUuid(itemId)) return { message: "ID do item inválido." };
     const supabase = await createClient();
     const { data: item } = await supabase.from("action_items").select("plan_id,number,action").eq("id", itemId).single();
+    if (!item) return { message: "Item não encontrado." };
     const { error } = await supabase.from("action_items").delete().eq("id", itemId);
     if (error) {
       logSupabaseError("deleteItem", error);
       return { message: "Erro ao excluir item." };
     }
-    if (item) await logAudit(item.plan_id, "DELETE_ITEM", { number: item.number, action: item.action }, itemId);
+    await logAudit(item.plan_id, "DELETE_ITEM", { number: item.number, action: item.action }, itemId);
     revalidatePath("/planos");
     revalidatePath("/dashboard");
     revalidatePath("/calendario");
@@ -237,6 +247,8 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
 
 export async function updateItemStatus(itemId: string, status: ActionItemStatus): Promise<ActionPlanFormState> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     if (!itemId) return { message: "ID obrigatório." };
     if (!isValidUuid(itemId)) return { message: "ID do item inválido." };
     const parsedStatus = z.coerce.number().int().min(1).max(5).safeParse(status);
@@ -278,6 +290,8 @@ export async function updateItemStatus(itemId: string, status: ActionItemStatus)
 
 export async function bulkUpdateStatus(planId: string, itemIds: string[], status: ActionItemStatus): Promise<ActionPlanFormState> {
   try {
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     if (!planId) return { message: "Plano obrigatório." };
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     if (!itemIds.length) return { message: "Selecione pelo menos um item." };

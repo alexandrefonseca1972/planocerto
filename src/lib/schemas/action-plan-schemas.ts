@@ -8,7 +8,7 @@ export const planSchema = z.object({
 });
 
 export const itemSchema = z.object({
-  action: z.string().trim().min(1, "Ação obrigatória.").max(500),
+  action: z.string().trim().min(3, "Mínimo 3 caracteres.").max(500),
   number: z.string().trim().min(1).max(20),
   parent_id: z.string().optional(),
   sort_order: z.coerce.number().int().default(0),
