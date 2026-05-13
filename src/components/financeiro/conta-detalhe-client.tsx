@@ -102,6 +102,8 @@ export function ContaDetalheClient({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [motivoCancel, setMotivoCancel] = useState("");
+  const [confirmEstorno, setConfirmEstorno] = useState<ParcelaPagar | null>(null);
+  const [isEstornando, setIsEstornando] = useState(false);
   const [showBatchPay, setShowBatchPay] = useState(false);
   const [batchData, setBatchData] = useState(
     new Date().toISOString().slice(0, 10),
@@ -115,16 +117,21 @@ export function ContaDetalheClient({
     router.refresh();
   }
 
-  function handleEstorno(parcelaId: string) {
-    startTransition(async () => {
-      const res = await estornarPagamento(parcelaId);
+  async function confirmarEstorno() {
+    if (!confirmEstorno) return;
+    setIsEstornando(true);
+    try {
+      const res = await estornarPagamento(confirmEstorno.id);
       if (res.success) {
-        toast(res.message || "Estornado.");
+        toast(res.message || "Pagamento estornado.");
+        setConfirmEstorno(null);
         refresh();
       } else {
         toast(res.message || "Erro ao estornar.", "error");
       }
-    });
+    } finally {
+      setIsEstornando(false);
+    }
   }
 
   function handleCancel() {
@@ -442,7 +449,7 @@ export function ContaDetalheClient({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleEstorno(p.id)}
+                      onClick={() => setConfirmEstorno(p)}
                     >
                       <RotateCcw className="h-4 w-4" /> Estornar
                     </Button>
@@ -587,6 +594,49 @@ export function ContaDetalheClient({
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de estorno */}
+      <AlertDialog
+        open={Boolean(confirmEstorno)}
+        onOpenChange={(open) => { if (!open) setConfirmEstorno(null); }}
+      >
+        {confirmEstorno && (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Estornar pagamento?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div>
+                  <span className="block">
+                    Confirma o estorno da parcela{" "}
+                    <strong className="text-zinc-900 dark:text-zinc-50">
+                      {confirmEstorno.numero}
+                    </strong>
+                    {confirmEstorno.valor_pago
+                      ? ` — ${formatBRL(Number(confirmEstorno.valor_pago))} pagos`
+                      : ""}
+                    ?
+                  </span>
+                  <span className="mt-2 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                    <strong>Atenção:</strong> O pagamento será revertido e a parcela voltará ao status <em>pendente</em>. Esta ação não pode ser desfeita.
+                  </span>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmEstorno(null)}>
+                Cancelar
+              </AlertDialogCancel>
+              <Button
+                variant="destructive"
+                onClick={confirmarEstorno}
+                isLoading={isEstornando}
+              >
+                <RotateCcw className="h-4 w-4" /> Confirmar estorno
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
       </AlertDialog>
     </div>
   );

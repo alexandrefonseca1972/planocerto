@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { UsersTable } from "@/app/(protected)/admin/users/users-table";
 import type { RoleRow } from "@/app/actions/admin";
 import Link from "next/link";
@@ -13,18 +14,15 @@ export const metadata: Metadata = {
 
 const PER_PAGE = 20;
 
-interface PageResult {
-  success: boolean;
-  users?: Profile[];
-  total?: number;
-  customRoles?: RoleRow[];
-  errorMessage?: string;
-}
+type PageResult =
+  | { success: true; users: Profile[]; total: number; customRoles: RoleRow[] }
+  | { success: false; errorMessage: string };
 
 async function fetchUsers(
   page: number,
   search: string,
-  status: "all" | "active" | "inactive"
+  status: "all" | "active" | "inactive",
+  role: string,
 ): Promise<PageResult> {
   try {
     const adminClient = createAdminClient();
@@ -39,7 +37,8 @@ async function fetchUsers(
       .range(from, to);
 
     if (search) {
-      const escaped = search.replace(/[%,]/g, " ").trim();
+      // Escapa wildcards LIKE e chars especiais do PostgREST: %, _, ,, ", (, ), \
+      const escaped = search.replace(/[%_,"()\\]/g, " ").trim();
       if (escaped) {
         const pattern = `%${escaped}%`;
         const orFilter = `name.ilike.${pattern},email.ilike.${pattern},role.ilike.${pattern}`;
@@ -54,6 +53,11 @@ async function fetchUsers(
     } else if (status === "inactive") {
       countQuery = countQuery.eq("is_active", false);
       listQuery = listQuery.eq("is_active", false);
+    }
+
+    if (role) {
+      countQuery = countQuery.eq("role", role);
+      listQuery = listQuery.eq("role", role);
     }
 
     const [countResult, profilesResult, rolesResult] = await Promise.all([
@@ -76,7 +80,8 @@ async function fetchUsers(
       total: countResult.count ?? 0,
       customRoles: (rolesResult.data || []) as RoleRow[],
     };
-  } catch {
+  } catch (e) {
+    console.error("[fetchUsers]", e);
     return {
       success: false,
       errorMessage: "Serviço indisponível. Tente novamente em alguns instantes.",
@@ -87,14 +92,21 @@ async function fetchUsers(
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string; status?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; status?: string; role?: string }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page || "1", 10) || 1);
   const search = (params.q || "").slice(0, 100);
+  const role = (params.role || "").slice(0, 50);
   const status: "all" | "active" | "inactive" =
     params.status === "active" || params.status === "inactive" ? params.status : "all";
-  const result = await fetchUsers(page, search, status);
+  const [result, supabase] = await Promise.all([
+    fetchUsers(page, search, status, role),
+    createClient(),
+  ]);
+
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  const currentUserEmail = currentUser?.email ?? "";
 
   if (!result.success) {
     return (
@@ -113,13 +125,15 @@ export default async function AdminUsersPage({
 
   return (
     <UsersTable
-      users={result.users!}
-      total={result.total!}
+      users={result.users}
+      total={result.total}
       currentPage={page}
       perPage={PER_PAGE}
-      customRoles={result.customRoles || []}
+      customRoles={result.customRoles}
       initialSearch={search}
+      currentUserEmail={currentUserEmail}
       initialStatus={status}
+      initialRole={role}
     />
   );
 }

@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logSupabaseError } from "@/lib/errors";
 import { checkPermission } from "@/app/actions/admin";
 import { mapPgError, sanitizeText } from "@/app/actions/_catalog-utils";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import {
   contaPagarSchema,
   pagamentoSchema,
@@ -25,47 +26,8 @@ import { ANEXO_TIPOS } from "@/types/financeiro";
 // Helpers
 // =========================================================================
 
-/**
- * Erros do PostgREST/Supabase têm propriedades não-enumeráveis — `console.error(error)`
- * imprime `{}`. Este helper extrai os campos relevantes para diagnóstico real
- * (especialmente útil quando uma tabela referenciada não existe ainda).
- */
-function logSupabaseError(tag: string, error: unknown): void {
-  if (!error) return;
-
-  const e = error as any;
-  const errorInfo: Record<string, unknown> = {
-    type: Object.prototype.toString.call(error).slice(8, -1),
-  };
-
-  // Tenta extrair propriedades conhecidas do erro Supabase/PostgREST
-  const knownProps = [
-    'code', 'message', 'details', 'hint', 'context', 'name',
-    'status', 'statusText', 'error', 'error_description'
-  ];
-
-  for (const prop of knownProps) {
-    if (prop in e && e[prop] !== undefined && e[prop] !== null) {
-      errorInfo[prop] = e[prop];
-    }
-  }
-
-  // Se nenhuma propriedade foi encontrada, tenta converter para string
-  if (Object.keys(errorInfo).length === 1) {
-    errorInfo['raw'] = String(error);
-  }
-
-  // Se ainda estiver vazio ou undefined, mostra o objeto inteiro
-  if (Object.keys(errorInfo).length <= 1) {
-    console.error(`[${tag}] Supabase error (empty):`, error);
-    return;
-  }
-
-  console.error(`[${tag}] Supabase error:`, errorInfo);
-}
-
-async function requirePerm(perm: string): Promise<string | null> {
-  const ok = await checkPermission(perm as never);
+async function requirePerm(perm: Permission): Promise<string | null> {
+  const ok = await checkPermission(perm);
   return ok ? null : "Acesso negado para esta operação financeira.";
 }
 
@@ -174,6 +136,9 @@ export async function getContasPagar(
     if (filters.categoria_id) query = query.eq("categoria_id", filters.categoria_id);
     if (filters.plan_id) query = query.eq("plan_id", filters.plan_id);
     if (filters.item_id) query = query.eq("item_id", filters.item_id);
+    // Emissão filtrada no servidor (coluna direta em contas_pagar)
+    if (filters.emissao_from) query = query.gte("emissao", filters.emissao_from);
+    if (filters.emissao_to)   query = query.lte("emissao", filters.emissao_to);
     if (filters.search) {
       // Sanitiza chars que poderiam quebrar a sintaxe do .or() do PostgREST:
       // %_ são wildcards de LIKE; ,()" são separadores/agrupadores do operador OR.
@@ -225,6 +190,7 @@ export async function getContasPagar(
         }),
       );
     }
+    // Emissão já filtrada no servidor — filtro JS removido
 
     return result;
   } catch (error) {
@@ -401,33 +367,55 @@ export async function getItemBasicsForConta(itemId: string): Promise<{
 }
 
 export async function getResumoContas(
-  range?: { from: string; to: string },
+  opts?: { range?: { from: string; to: string }; fornecedor_id?: string | null; ano?: number },
 ): Promise<ResumoFinanceiro> {
+  const range = opts?.range;
+  const fornecedor_id = opts?.fornecedor_id ?? null;
+  // Valida ano: deve ser finito e razoável (evita NaN/Infinity do cliente)
+  const anoRaw = opts?.ano;
+  const ano = (Number.isFinite(anoRaw) && anoRaw! > 1900 && anoRaw! < 2200)
+    ? anoRaw!
+    : new Date().getFullYear();
+
   const empty: ResumoFinanceiro = {
     total_em_aberto: 0,
     total_atrasado: 0,
     total_pago_periodo: 0,
     contas_quantidade: 0,
     proximas_7d: [],
+    vencimentos_mes: [],
+    por_fornecedor: [],
+    por_status: [],
+    por_mes: [],
   };
   try {
     const supabase = await createClient();
-    // Sempre o tenant ativo do usuário — não confiar em ID externo.
     const targetTenant = await getCurrentTenantId();
     if (!targetTenant) return empty;
 
-    const { data: contasData } = await supabase
+    let query = supabase
       .from("contas_pagar")
       .select(
-        `id, descricao, status,
+        `id, descricao, status, fornecedor_id,
+         fornecedor:fornecedores(id, name),
          parcelas:parcelas_pagar(id, numero, data_vencimento, valor, valor_pago, status, data_pagamento)`,
       )
       .eq("tenant_id", targetTenant);
+
+    if (fornecedor_id) query = query.eq("fornecedor_id", fornecedor_id);
+
+    const { data: contasData, error: contasError } = await query;
+    if (contasError) {
+      logSupabaseError("getResumoContas", contasError);
+      return empty;
+    }
 
     type Row = {
       id: string;
       descricao: string;
       status: string;
+      fornecedor_id: string | null;
+      fornecedor: { id: string; name: string } | null;
       parcelas: {
         id: string;
         numero: number;
@@ -449,35 +437,89 @@ export async function getResumoContas(
     let total_atrasado = 0;
     let total_pago_periodo = 0;
     const proximas_7d: ResumoFinanceiro["proximas_7d"] = [];
+    const vencimentos_mes: ResumoFinanceiro["vencimentos_mes"] = [];
+
+    // Acumuladores para views
+    const fornecedorMap = new Map<string, { nome: string; total_pago: number; total_aberto: number }>();
+    const statusMap = new Map<string, { quantidade: number; valor_total: number }>();
+    // por_mes: 12 meses do ano
+    const mesesMap = new Map<string, { total_pago: number; total_aberto: number }>();
+    for (let m = 1; m <= 12; m++) {
+      mesesMap.set(`${ano}-${String(m).padStart(2, "0")}`, { total_pago: 0, total_aberto: 0 });
+    }
 
     for (const r of rows) {
       const parcelas = r.parcelas ?? [];
+      const fId = r.fornecedor_id ?? "__sem_fornecedor__";
+      const fNome = r.fornecedor?.name ?? "Sem fornecedor";
+
+      if (!fornecedorMap.has(fId)) fornecedorMap.set(fId, { nome: fNome, total_pago: 0, total_aberto: 0 });
+
+      // por_status
+      if (r.status !== "cancelado") {
+        const st = statusMap.get(r.status) ?? { quantidade: 0, valor_total: 0 };
+        const totalConta = parcelas.reduce((s, p) => s + Number(p.valor), 0);
+        statusMap.set(r.status, { quantidade: st.quantidade + 1, valor_total: st.valor_total + totalConta });
+      }
+
       for (const p of parcelas) {
         if (p.status === "pendente" && r.status !== "cancelado") {
           total_em_aberto += Number(p.valor);
           if (p.data_vencimento < hoje) total_atrasado += Number(p.valor);
+
+          // próximas 7 dias
           if (p.data_vencimento >= hoje && p.data_vencimento <= limite7dStr) {
-            proximas_7d.push({
-              parcela_id: p.id,
-              conta_id: r.id,
-              descricao: r.descricao,
-              vencimento: p.data_vencimento,
-              valor: Number(p.valor),
-            });
+            proximas_7d.push({ parcela_id: p.id, conta_id: r.id, descricao: r.descricao, vencimento: p.data_vencimento, valor: Number(p.valor) });
           }
+
+          // vencimentos do mês (range)
+          if (range && p.data_vencimento >= range.from && p.data_vencimento <= range.to) {
+            vencimentos_mes.push({ parcela_id: p.id, conta_id: r.id, descricao: r.descricao, vencimento: p.data_vencimento, valor: Number(p.valor), atrasada: p.data_vencimento < hoje });
+          }
+
+          // por_mes (aberto — usa vencimento)
+          const mesVenc = p.data_vencimento.slice(0, 7);
+          if (mesesMap.has(mesVenc)) {
+            mesesMap.get(mesVenc)!.total_aberto += Number(p.valor);
+          }
+
+          // por_fornecedor aberto
+          fornecedorMap.get(fId)!.total_aberto += Number(p.valor);
         }
+
         if (p.status === "pago" && p.data_pagamento) {
-          if (
-            !range ||
-            (p.data_pagamento >= range.from && p.data_pagamento <= range.to)
-          ) {
-            total_pago_periodo += Number(p.valor_pago ?? p.valor);
+          const valorPago = Number(p.valor_pago ?? p.valor);
+
+          // pago no período (range)
+          if (!range || (p.data_pagamento >= range.from && p.data_pagamento <= range.to)) {
+            total_pago_periodo += valorPago;
           }
+
+          // por_mes (pago — usa data_pagamento)
+          const mesPag = p.data_pagamento.slice(0, 7);
+          if (mesesMap.has(mesPag)) {
+            mesesMap.get(mesPag)!.total_pago += valorPago;
+          }
+
+          // por_fornecedor pago
+          fornecedorMap.get(fId)!.total_pago += valorPago;
         }
       }
     }
 
     proximas_7d.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+    vencimentos_mes.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+
+    const por_fornecedor = Array.from(fornecedorMap.entries())
+      .map(([id, v]) => ({ fornecedor_id: id === "__sem_fornecedor__" ? null : id, fornecedor_nome: v.nome, total_pago: v.total_pago, total_aberto: v.total_aberto }))
+      .filter((f) => f.total_pago > 0 || f.total_aberto > 0)
+      .sort((a, b) => (b.total_pago + b.total_aberto) - (a.total_pago + a.total_aberto));
+
+    const por_status = Array.from(statusMap.entries())
+      .map(([status, v]) => ({ status, quantidade: v.quantidade, valor_total: v.valor_total }));
+
+    const por_mes = Array.from(mesesMap.entries())
+      .map(([mes, v]) => ({ mes, total_pago: v.total_pago, total_aberto: v.total_aberto }));
 
     return {
       total_em_aberto,
@@ -485,6 +527,10 @@ export async function getResumoContas(
       total_pago_periodo,
       contas_quantidade: rows.filter((r) => r.status !== "cancelado").length,
       proximas_7d: proximas_7d.slice(0, 20),
+      vencimentos_mes,
+      por_fornecedor,
+      por_status,
+      por_mes,
     };
   } catch (error) {
     console.error("[getResumoContas] Error:", error);

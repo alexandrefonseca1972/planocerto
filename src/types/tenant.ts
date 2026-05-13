@@ -15,11 +15,14 @@ export interface Tenant {
   updated_at: string;
 }
 
+// Valores aceitos no runtime (admin.ts VALID_TENANT_ROLES)
+export type TenantMemberRole = "owner" | "admin" | "member" | "manager" | "user" | "viewer";
+
 export interface TenantMember {
   id: string;
   tenant_id: string;
   user_id: string;
-  role: "owner" | "admin" | "member";
+  role: TenantMemberRole;
   created_at: string;
 }
 

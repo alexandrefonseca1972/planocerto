@@ -121,17 +121,16 @@ export function AlertDialogTitle({
 export function AlertDialogDescription({
   children,
   className,
+  asChild = false,
 }: {
   children: ReactNode;
   className?: string;
+  /** Renderiza como <div> em vez de <p> para evitar hydration errors com conteúdo composto. */
+  asChild?: boolean;
 }) {
-  return (
-    <p
-      className={cn("text-sm text-zinc-600 dark:text-zinc-400", className)}
-    >
-      {children}
-    </p>
-  );
+  const cls = cn("text-sm text-zinc-600 dark:text-zinc-400", className);
+  if (asChild) return <div className={cls}>{children}</div>;
+  return <p className={cls}>{children}</p>;
 }
 
 export function AlertDialogFooter({

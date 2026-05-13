@@ -56,7 +56,9 @@ export interface ContaFormProps {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Usa data local (não UTC) para evitar problema de fuso no Brasil (UTC-3)
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function addMonths(iso: string, months: number): string {
@@ -174,6 +176,7 @@ export function ContaForm({
 
   useEffect(() => {
     if (!modoParcelado) {
+      // Preserva a data de vencimento já preenchida — só atualiza o valor
       setValue("parcelas", [
         {
           numero: 1,
@@ -190,11 +193,13 @@ export function ContaForm({
   const isSaving = isEdit ? isUpdating : isCreating;
 
   useEffect(() => {
+    // Evita disparar no estado inicial (message undefined, success undefined)
+    if (!state.message && !state.success) return;
     if (state.success) {
       toast(state.message || "Salvo!");
       // onSuccess é responsável por fechar/redirecionar — não chama onClose aqui
       onSuccess?.(state.contaId);
-    } else if (state.message && !state.success) {
+    } else if (state.message) {
       toast(state.message, "error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

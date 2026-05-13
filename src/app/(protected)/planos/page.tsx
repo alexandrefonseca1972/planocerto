@@ -26,6 +26,8 @@ import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { GanttChart } from "@/components/planos/plan-gantt";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
+import { ExportCsv } from "@/components/layout/export-csv";
+import { UploadPlanosDialog } from "@/components/planos/upload-planos-dialog";
 import { AttachmentSection } from "@/components/planos/attachment-section";
 import { CommentSection } from "@/components/planos/comment-section";
 import { StatusDot } from "@/components/planos/status-dot";
@@ -57,6 +59,7 @@ export default function PlanosPage() {
   });
 
   const [showPlanForm, setShowPlanForm] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [deletingPlan, setDeletingPlan] = useState<ActionPlan | null>(null);
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<ActionItem | null>(null);
@@ -72,9 +75,10 @@ export default function PlanosPage() {
   const [inlineState, inlineAction, isInlineSaving] = useActionState(upsertItem, init);
   const [, itemDeleteAction, isItemDeleting] = useActionState(deleteItem, init);
 
-  // Carrega lista de planos ao trocar tenant
+  // Carrega lista de planos ao trocar tenant (usa só .id para evitar re-renders desnecessários)
   useEffect(() => {
     if (!currentTenant?.id) return;
+    const tenantId = currentTenant.id;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -82,15 +86,19 @@ export default function PlanosPage() {
       setAuditLog([]);
       setContasSummary({});
       setPlan(null);
-      const plans = await getPlans(currentTenant.id);
-      if (cancelled) return;
-      setAllPlans(plans);
-      const first = plans[0] || null;
-      setSelectedPlanId(first?.id || null);
-      setLoading(false);
+      try {
+        const plans = await getPlans(tenantId);
+        if (cancelled) return;
+        setAllPlans(plans);
+        setSelectedPlanId(plans[0]?.id || null);
+      } catch {
+        if (!cancelled) toast("Erro ao carregar planos. Tente novamente.", "error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
-  }, [currentTenant]);
+  }, [currentTenant?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carrega itens, auditoria e contas ao trocar o plano selecionado
   useEffect(() => {
@@ -107,17 +115,21 @@ export default function PlanosPage() {
       const selectedPlan = allPlans.find((p) => p.id === selectedPlanId) || null;
       setPlan(selectedPlan);
       if (selectedPlan?.id) {
-        const [i, a, cs] = await Promise.all([
-          getItems(selectedPlan.id),
-          getAuditLog(selectedPlan.id),
-          getContasSummaryByPlan(selectedPlan.id),
-        ]);
-        if (cancelled) return;
-        setItems(i);
-        setAuditLog(a);
-        setContasSummary(cs);
+        try {
+          const [i, a, cs] = await Promise.all([
+            getItems(selectedPlan.id),
+            getAuditLog(selectedPlan.id),
+            getContasSummaryByPlan(selectedPlan.id),
+          ]);
+          if (cancelled) return;
+          setItems(i);
+          setAuditLog(a);
+          setContasSummary(cs);
+        } catch {
+          if (!cancelled) toast("Erro ao carregar ações do plano.", "error");
+        }
       }
-      setLoadingItems(false);
+      if (!cancelled) setLoadingItems(false);
     })();
     return () => { cancelled = true; };
   }, [selectedPlanId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -238,15 +250,34 @@ export default function PlanosPage() {
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 max-w-sm">
               Crie um plano de ação 5W2H para a empresa <strong>{currentTenant?.name}</strong>.
             </p>
-            <Button className="mt-6" size="lg" onClick={() => setShowPlanForm(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Criar plano de ação
-            </Button>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Button size="lg" onClick={() => setShowPlanForm(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Criar plano de ação
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => setShowUploadDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" /> Importar do Excel
+              </Button>
+            </div>
           </CardContent>
         </Card>
         {showPlanForm && (
           <PlanFormDialog plan={null} tenantId={currentTenant?.id || ""}
             state={planCreateState} action={planCreateAction} isPending={isPlanCreating}
             onClose={() => setShowPlanForm(false)} />
+        )}
+        {showUploadDialog && (
+          <UploadPlanosDialog
+            onClose={() => setShowUploadDialog(false)}
+            onSuccess={() => {
+              setShowUploadDialog(false);
+              if (currentTenant?.id) {
+                getPlans(currentTenant.id).then((plans) => {
+                  setAllPlans(plans);
+                  if (plans[0]) setSelectedPlanId(plans[0].id);
+                });
+              }
+            }}
+          />
         )}
       </div>
     );
@@ -320,6 +351,10 @@ export default function PlanosPage() {
                 onClick={() => importInputRef.current?.click()}>
                 <Upload className="h-3.5 w-3.5 mr-1" /> Importar
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
+                <Upload className="h-3.5 w-3.5 mr-1" /> Upload em lote
+              </Button>
+              <ExportCsv items={items} filename={plan?.title ?? "plano"} planUnit={plan?.unit} />
               <Button size="sm" onClick={() => { setEditingItem(null); setShowItemForm(true); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Nova ação
               </Button>
@@ -474,6 +509,20 @@ export default function PlanosPage() {
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
         {deletingItem && <ConfirmDlg title="Excluir ação" msg={`Excluir "${deletingItem.action}"?`} name="itemId" value={deletingItem.id} action={itemDeleteAction} pending={isItemDeleting} />}
       </AlertDialog>
+
+      {showUploadDialog && (
+        <UploadPlanosDialog
+          onClose={() => setShowUploadDialog(false)}
+          onSuccess={() => {
+            if (currentTenant?.id) {
+              getPlans(currentTenant.id).then((plans) => {
+                setAllPlans(plans);
+                if (!selectedPlanId && plans[0]) setSelectedPlanId(plans[0].id);
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

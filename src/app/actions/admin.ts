@@ -10,6 +10,7 @@ import {
   sanitizePermissions,
 } from "@/lib/validations/admin";
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
+import { generateSecurePassword } from "@/lib/security/password";
 import type { FormState } from "@/types/auth";
 
 export interface AdminFormState extends FormState {
@@ -25,33 +26,6 @@ export interface AdminFormState extends FormState {
     login_end_time?: string[];
     permissions?: string[];
   };
-}
-
-function generateSecurePassword(length = 16): string {
-  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const lower = "abcdefghijklmnopqrstuvwxyz";
-  const digits = "0123456789";
-  const special = "!@#$%&*";
-  const all = upper + lower + digits + special;
-
-  let password = "";
-  password += upper[Math.floor(Math.random() * upper.length)];
-  password += lower[Math.floor(Math.random() * lower.length)];
-  password += digits[Math.floor(Math.random() * digits.length)];
-  password += special[Math.floor(Math.random() * special.length)];
-
-  const array = new Uint32Array(length - 4);
-  crypto.getRandomValues(array);
-  for (let i = 0; i < array.length; i++) {
-    password += all[array[i] % all.length];
-  }
-
-  const chars = password.split("");
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor((crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000) * (i + 1));
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join("");
 }
 
 const supabaseErrorMap: Record<string, string> = {
@@ -144,6 +118,9 @@ export async function checkPermission(requiredPermission: Permission): Promise<b
 
 const BUILTIN_ROLES = new Set(["super_admin", "admin", "manager", "user", "viewer"]);
 
+/** Único email autorizado a ter o papel super_admin. */
+const SUPER_ADMIN_EMAIL = "alexandre.fonseca@live.com";
+
 async function getValidRoleNames(): Promise<Set<string>> {
   try {
     const adminClient = createAdminClient();
@@ -191,6 +168,14 @@ async function requirePermission(
   return { authorized: true, currentUserId: user.id, profile };
 }
 
+type TenantRole = "owner" | "admin" | "member" | "manager" | "user" | "viewer";
+const VALID_TENANT_ROLES = new Set<string>(["owner", "admin", "member", "manager", "user", "viewer"]);
+
+function resolveTenantRole(raw: FormDataEntryValue | null): TenantRole {
+  const str = typeof raw === "string" ? raw : "";
+  return (VALID_TENANT_ROLES.has(str) ? str : "user") as TenantRole;
+}
+
 export async function createUser(
   _prevState: AdminFormState,
   formData: FormData
@@ -210,7 +195,8 @@ export async function createUser(
           : undefined,
     };
 
-    const tenantIds = formData.getAll("tenantIds") as string[];
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const tenantIds = (formData.getAll("tenantIds") as string[]).filter((id) => UUID_RE.test(id));
 
     const validated = createUserSchema.safeParse(rawData);
 
@@ -226,6 +212,17 @@ export async function createUser(
       return {
         errors: { role: ["Papel inválido."] },
         message: "Verifique o papel selecionado.",
+      };
+    }
+
+    // Super Admin é restrito a um único email autorizado
+    if (
+      validated.data.role === "super_admin" &&
+      validated.data.email.toLowerCase() !== SUPER_ADMIN_EMAIL.toLowerCase()
+    ) {
+      return {
+        errors: { role: ["O papel Super Admin é restrito a um usuário específico."] },
+        message: "Não é possível atribuir o papel Super Admin a este email.",
       };
     }
 
@@ -264,27 +261,31 @@ export async function createUser(
       }
 
       if (tenantIds.length > 0) {
-        await adminClient.from("tenant_members").insert(
+        const { error: membErr } = await adminClient.from("tenant_members").insert(
           tenantIds.map((tenantId) => ({
             user_id: data.user!.id,
             tenant_id: tenantId,
-            role: "member" as const,
+            role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
           }))
         );
+        if (membErr) console.error("[createUser] Erro ao associar empresas:", membErr.message);
       }
 
-      const newAreaIds = formData.getAll("areaIds") as string[];
+      const UUID_RE_INNER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const newAreaIds = (formData.getAll("areaIds") as string[]).filter((id) => UUID_RE_INNER.test(id));
       if (newAreaIds.length > 0) {
-        await adminClient.from("user_areas").insert(
+        const { error: areaErr } = await adminClient.from("user_areas").insert(
           newAreaIds.map((areaId) => ({ user_id: data.user!.id, area_id: areaId }))
         );
+        if (areaErr) console.error("[createUser] Erro ao associar áreas:", areaErr.message);
       }
 
-      const newUnitIds = formData.getAll("unitIds") as string[];
+      const newUnitIds = (formData.getAll("unitIds") as string[]).filter((id) => UUID_RE_INNER.test(id));
       if (newUnitIds.length > 0) {
-        await adminClient.from("user_units").insert(
+        const { error: unitErr } = await adminClient.from("user_units").insert(
           newUnitIds.map((unitId) => ({ user_id: data.user!.id, unit_id: unitId }))
         );
+        if (unitErr) console.error("[createUser] Erro ao associar unidades:", unitErr.message);
       }
 
       await auditLog(adminCheck.currentUserId!, data.user.id, "create_user", {
@@ -351,9 +352,23 @@ export async function updateUser(
       return { message: "Você não pode alterar seu próprio papel." };
     }
 
+    // Super Admin é restrito a um único email autorizado — verifica email do usuário alvo
+    if (validated.data.role === "super_admin") {
+      const adminClient = createAdminClient();
+      const { data: targetUser } = await adminClient.auth.admin.getUserById(userId);
+      const targetEmail = targetUser?.user?.email ?? "";
+      if (targetEmail.toLowerCase() !== SUPER_ADMIN_EMAIL.toLowerCase()) {
+        return {
+          errors: { role: ["O papel Super Admin é restrito a um usuário específico."] },
+          message: "Não é possível atribuir o papel Super Admin a este usuário.",
+        };
+      }
+    }
+
     const isActive = formData.get("is_active") === "true";
+    const UUID_RE_UPD = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const tenantIdsRaw = formData.getAll("tenantIds") as string[];
-    const tenantIds = Array.from(new Set(tenantIdsRaw.filter(Boolean)));
+    const tenantIds = Array.from(new Set(tenantIdsRaw.filter((id) => UUID_RE_UPD.test(id))));
     const tenantsTouched = formData.has("tenantIds") || formData.has("tenantsTouched");
 
     let parsedPermissions: Record<string, boolean> | null = null;
@@ -371,15 +386,17 @@ export async function updateUser(
       parsedPermissions = sanitizePermissions(permsResult.data, ALL_PERMISSIONS);
     }
 
-    if (validated.data.login_start_time && validated.data.login_end_time) {
-      if (validated.data.login_start_time >= validated.data.login_end_time) {
-        return {
-          errors: {
-            login_end_time: ["Horário de fim deve ser posterior ao horário de início."],
-          },
-          message: "Verifique os horários de acesso.",
-        };
-      }
+    // Validação cruzada: ambos ou nenhum
+    const hasStart = Boolean(validated.data.login_start_time);
+    const hasEnd   = Boolean(validated.data.login_end_time);
+    if (hasStart !== hasEnd) {
+      return { message: "Defina os dois horários de acesso ou deixe ambos em branco." };
+    }
+    if (hasStart && hasEnd && validated.data.login_start_time! >= validated.data.login_end_time!) {
+      return {
+        errors: { login_end_time: ["Horário de fim deve ser posterior ao horário de início."] },
+        message: "Verifique os horários de acesso.",
+      };
     }
 
     const adminClient = createAdminClient();
@@ -421,6 +438,7 @@ export async function updateUser(
 
       const toRemove = [...existingIds].filter((id) => !newIds.has(id));
       const toAdd = [...newIds].filter((id) => !existingIds.has(id));
+      const toKeep = [...existingIds].filter((id) => newIds.has(id));
 
       if (toRemove.length > 0) {
         await adminClient.from("tenant_members").delete()
@@ -428,12 +446,19 @@ export async function updateUser(
           .in("tenant_id", toRemove);
       }
 
+      for (const tenantId of toKeep) {
+        await adminClient.from("tenant_members")
+          .update({ role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)) })
+          .eq("user_id", userId)
+          .eq("tenant_id", tenantId);
+      }
+
       if (toAdd.length > 0) {
         await adminClient.from("tenant_members").insert(
           toAdd.map((tenantId) => ({
             user_id: userId,
             tenant_id: tenantId,
-            role: "member" as const,
+            role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
           }))
         );
       }
@@ -524,13 +549,14 @@ export async function deleteUser(
       };
     }
 
-    await auditLog(adminCheck.currentUserId!, userId, "delete_user", {});
-
     const { error } = await adminClient.auth.admin.deleteUser(userId);
 
     if (error) {
       return { message: mapError(error.message) };
     }
+
+    // Audit log escrito APÓS confirmação do delete
+    await auditLog(adminCheck.currentUserId!, userId, "delete_user", {});
 
     revalidatePath("/admin/users");
     revalidatePath("/", "layout");
@@ -637,16 +663,19 @@ export async function resendConfirmation(
     const email = formData.get("email") as string;
     if (!email) return { message: "Email é obrigatório." };
 
-    const supabase = await createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+    const adminClient = createAdminClient();
+    // Gera um link de convite/acesso (não de reset de senha) para o usuário definir sua senha
+    const { error } = await adminClient.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm` },
     });
 
     if (error) {
       return { message: mapError(error.message) };
     }
 
-    return { success: true, message: "Email de confirmação reenviado com sucesso." };
+    return { success: true, message: "Link de acesso enviado para o email do usuário." };
   } catch (error) {
     console.error("[resendConfirmation] Erro:", error);
     return { message: "Serviço indisponível no momento." };
@@ -683,35 +712,41 @@ export async function bulkDeleteUsers(
     const usersWithMemberships = new Set((memberships || []).map((m) => m.user_id));
     const usersWithPlans = new Set((plans || []).map((p) => p.user_id));
 
-    const blockedUsers = userIds.filter(
+    const blockedIds = userIds.filter(
       (id) => usersWithMemberships.has(id) || usersWithPlans.has(id)
     );
+    const deletableIds = userIds.filter((id) => !blockedIds.includes(id));
 
-    if (blockedUsers.length > 0) {
+    if (deletableIds.length === 0) {
       return {
-        message: `${blockedUsers.length} usuário(s) possuem vínculos ativos (empresas ou planos). Remova os vínculos antes de excluir.`,
+        message: `Nenhum usuário pode ser excluído: todos possuem vínculos ativos (empresas ou planos). Remova os vínculos antes de excluir.`,
       };
     }
 
     const errors: string[] = [];
 
-    for (const userId of userIds) {
-      const { error } = await adminClient.auth.admin.deleteUser(userId);
-      if (error) {
-        errors.push(userId);
-      } else {
-        await auditLog(adminCheck.currentUserId!, userId, "bulk_delete_user", {});
-      }
-    }
+    // Deleta em paralelo os usuários sem vínculos
+    await Promise.all(
+      deletableIds.map(async (userId) => {
+        const { error } = await adminClient.auth.admin.deleteUser(userId);
+        if (error) {
+          errors.push(userId);
+        } else {
+          await auditLog(adminCheck.currentUserId!, userId, "bulk_delete_user", {});
+        }
+      })
+    );
 
     revalidatePath("/admin/users");
     revalidatePath("/", "layout");
 
-    if (errors.length > 0) {
-      return { success: true, message: `${userIds.length - errors.length} usuários excluídos. ${errors.length} falhas.` };
-    }
+    const deleted = deletableIds.length - errors.length;
+    const parts: string[] = [];
+    if (deleted > 0) parts.push(`${deleted} usuário${deleted !== 1 ? "s" : ""} excluído${deleted !== 1 ? "s" : ""}`);
+    if (errors.length > 0) parts.push(`${errors.length} falha${errors.length !== 1 ? "s" : ""}`);
+    if (blockedIds.length > 0) parts.push(`${blockedIds.length} ignorado${blockedIds.length !== 1 ? "s" : ""} (com vínculos)`);
 
-    return { success: true, message: `${userIds.length} usuários excluídos com sucesso.` };
+    return { success: true, message: parts.join(" · ") + "." };
   } catch (error) {
     console.error("[bulkDeleteUsers] Erro:", error);
     return { message: "Serviço indisponível no momento." };
@@ -1001,4 +1036,49 @@ export async function deleteRole(
     revalidatePath("/admin/roles");
     return { success: true, message: `Papel "${role.name}" excluído!` };
   } catch (error) { console.error("[deleteRole] Error:", error); return { message: "Serviço indisponível." }; }
+}
+
+export interface AuditLogEntry {
+  id: string;
+  admin_id: string;
+  admin_name: string | undefined;
+  admin_email: string | undefined;
+  target_user_id: string;
+  action: string;
+  snapshot: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export async function getUserAuditLog(userId: string): Promise<AuditLogEntry[]> {
+  try {
+    const hasPerm = await checkPermission(PERMISSIONS.USERS_READ);
+    if (!hasPerm) return [];
+
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from("admin_audit_log")
+      .select("id, admin_id, target_user_id, action, snapshot, created_at")
+      .eq("target_user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (!data) return [];
+
+    const adminIds = [...new Set(data.map((e) => e.admin_id))];
+    const { data: profiles } = await adminClient
+      .from("profiles")
+      .select("id, name, email")
+      .in("id", adminIds);
+
+    const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+
+    return data.map((entry) => ({
+      ...entry,
+      snapshot: entry.snapshot as Record<string, unknown> | null,
+      admin_name: profileMap.get(entry.admin_id)?.name,
+      admin_email: profileMap.get(entry.admin_id)?.email,
+    })) as AuditLogEntry[];
+  } catch {
+    return [];
+  }
 }

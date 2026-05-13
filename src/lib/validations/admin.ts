@@ -83,9 +83,5 @@ export function sanitizePermissions(
   return out;
 }
 
-export const deactivateUserSchema = z.object({
-  userId: z.string().min(1, "ID do usuário é obrigatório."),
-});
-
 export type CreateUserValues = z.infer<typeof createUserSchema>;
 export type UpdateUserValues = z.infer<typeof updateUserSchema>;

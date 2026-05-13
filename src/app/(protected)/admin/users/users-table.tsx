@@ -2,7 +2,6 @@
 
 import { useActionState, useState, useCallback, useEffect, useRef, useMemo, useTransition } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import {
   createUser,
@@ -47,6 +46,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { sanitize } from "@/lib/sanitize";
 import { formatDate, cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import { PermissionManager } from "@/components/admin/permission-manager";
 import {
   Users,
@@ -93,64 +93,22 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   bulk_delete_user: "Excluiu em lote",
 };
 
-function md5(message: string): string {
-  const bytes: number[] = [];
-  for (let i = 0; i < message.length; i++) bytes.push(message.charCodeAt(i));
-  bytes.push(0x80);
-  while (bytes.length % 64 !== 56) bytes.push(0x00);
-  const ml = message.length * 8;
-  for (let i = 0; i < 8; i++) bytes.push((ml >>> (i * 8)) & 0xff);
-
-  const K = [
-    0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
-    0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
-    0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
-    0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
-    0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
-    0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
-    0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
-    0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
-  ];
-  const S = [
-    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
-    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
-  ];
-
-  let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
-
-  for (let k = 0; k < bytes.length; k += 64) {
-    const M = new Array(16) as number[];
-    for (let i = 0; i < 16; i++) {
-      M[i] = bytes[k + i * 4] | (bytes[k + i * 4 + 1] << 8) | (bytes[k + i * 4 + 2] << 16) | (bytes[k + i * 4 + 3] << 24);
-    }
-
-    let A = a0, B = b0, C = c0, D = d0;
-
-    for (let i = 0; i < 64; i++) {
-      let F: number, g: number;
-      if (i < 16) { F = (B & C) | (~B & D); g = i; }
-      else if (i < 32) { F = (D & B) | (~D & C); g = (5 * i + 1) % 16; }
-      else if (i < 48) { F = B ^ C ^ D; g = (3 * i + 5) % 16; }
-      else { F = C ^ (B | ~D); g = (7 * i) % 16; }
-      F = (F + A + K[i] + M[g]) | 0;
-      A = D; D = C; C = B;
-      B = (B + ((F << S[i]) | (F >>> (32 - S[i])))) | 0;
-    }
-
-    a0 = (a0 + A) | 0; b0 = (b0 + B) | 0;
-    c0 = (c0 + C) | 0; d0 = (d0 + D) | 0;
-  }
-
-  return [a0, b0, c0, d0]
-    .map((v) => (v >>> 0).toString(16).padStart(8, "0"))
-    .join("");
+/** Gera as iniciais de um nome (até 2 letras). */
+function userInitials(name: string, email: string): string {
+  const parts = (name || email || "?").trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return (parts[0]?.[0] ?? "?").toUpperCase();
 }
 
-function gravatarUrl(email: string, size = 40): string {
-  const hash = md5(email.trim().toLowerCase());
-  return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=mp&r=g`;
+/** Cor de fundo determinística baseada no email (consistente entre renders). */
+function avatarColor(email: string): string {
+  const colors = [
+    "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500",
+    "bg-rose-500", "bg-cyan-500", "bg-indigo-500", "bg-teal-500",
+  ];
+  let hash = 0;
+  for (let i = 0; i < email.length; i++) hash = email.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -207,6 +165,8 @@ function exportToCSV(
   URL.revokeObjectURL(url);
 }
 
+const SUPER_ADMIN_EMAIL = "alexandre.fonseca@live.com";
+
 export function UsersTable({
   users,
   total,
@@ -215,6 +175,8 @@ export function UsersTable({
   customRoles = [],
   initialSearch = "",
   initialStatus = "all",
+  initialRole = "",
+  currentUserEmail = "",
 }: {
   users: Profile[];
   total: number;
@@ -223,9 +185,12 @@ export function UsersTable({
   customRoles?: RoleRow[];
   initialSearch?: string;
   initialStatus?: "all" | "active" | "inactive";
+  initialRole?: string;
+  currentUserEmail?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
   const [, startTransition] = useTransition();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
@@ -246,7 +211,7 @@ export function UsersTable({
   const [editingUserAreaIds, setEditingUserAreaIds] = useState<string[]>([]);
   const [editingUserUnitIds, setEditingUserUnitIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [roleFilter, setRoleFilter] = useState<string>("");
+  const [roleFilter, setRoleFilter] = useState<string>(initialRole);
   const [tenantFilter, setTenantFilter] = useState<string>("");
   const [userTenantMap, setUserTenantMap] = useState<Map<string, string[]>>(new Map());
   const [deleteImpact, setDeleteImpact] = useState<{ tenantMemberships: number; actionPlans: number } | null>(null);
@@ -255,7 +220,7 @@ export function UsersTable({
   const [auditingUser, setAuditingUser] = useState<Profile | null>(null);
   const [userAuditLog, setUserAuditLog] = useState<AuditLogEntry[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [createState, createAction, isCreating] = useActionState(createUser, createInitialState);
   const [updateState, updateAction, isUpdating] = useActionState(updateUser, createInitialState);
@@ -305,42 +270,57 @@ export function UsersTable({
   }, [updateState]);
 
   useEffect(() => {
-    getAllTenants().then(setAllTenants);
-    getAllAreas().then(setAllAreas);
-    getAllUnits().then(setAllUnits);
+    Promise.all([getAllTenants(), getAllAreas(), getAllUnits()])
+      .then(([t, a, u]) => { setAllTenants(t); setAllAreas(a); setAllUnits(u); })
+      .catch(() => { /* dados de apoio indisponíveis — dialogs ficarão com listas vazias */ });
   }, []);
 
   useEffect(() => {
     if (users.length === 0) return;
-    getBulkUserTenantIds(users.map((u) => u.id)).then(setUserTenantMap);
+    getBulkUserTenantIds(users.map((u) => u.id))
+      .then(setUserTenantMap)
+      .catch(() => { /* filtro de tenant ficará inativo */ });
   }, [users]);
 
   const handleEditUser = useCallback(async (user: Profile) => {
-    const [memberships, aIds, uIds] = await Promise.all([
-      getUserTenantMemberships(user.id),
-      getUserAreaIds(user.id),
-      getUserUnitIds(user.id),
-    ]);
-    const tIds = memberships.map((m: TenantMembership) => m.tenantId);
-    const tRoles = Object.fromEntries(memberships.map((m: TenantMembership) => [m.tenantId, m.role]));
-    setEditingUserTenantIds(tIds);
-    setEditingUserTenantRoles(tRoles);
-    setEditingUserAreaIds(aIds);
-    setEditingUserUnitIds(uIds);
-    setEditingUser(user);
-  }, []);
+    try {
+      const [memberships, aIds, uIds] = await Promise.all([
+        getUserTenantMemberships(user.id),
+        getUserAreaIds(user.id),
+        getUserUnitIds(user.id),
+      ]);
+      const tIds = memberships.map((m: TenantMembership) => m.tenantId);
+      const tRoles = Object.fromEntries(memberships.map((m: TenantMembership) => [m.tenantId, m.role]));
+      setEditingUserTenantIds(tIds);
+      setEditingUserTenantRoles(tRoles);
+      setEditingUserAreaIds(aIds);
+      setEditingUserUnitIds(uIds);
+      setEditingUser(user);
+    } catch {
+      toast("Erro ao carregar dados do usuário. Tente novamente.", "error");
+    }
+  }, [toast]);
 
   const handleViewAudit = useCallback(async (user: Profile) => {
     setAuditingUser(user);
     setLoadingAudit(true);
-    const log = await getUserAuditLog(user.id);
-    setUserAuditLog(log);
-    setLoadingAudit(false);
+    try {
+      const log = await getUserAuditLog(user.id);
+      setUserAuditLog(log);
+    } catch {
+      setUserAuditLog([]);
+    } finally {
+      setLoadingAudit(false);
+    }
   }, []);
 
   const handleDeleteClick = useCallback(async (user: Profile) => {
-    const impact = await getUserImpact(user.id);
-    setDeleteImpact(impact);
+    try {
+      const impact = await getUserImpact(user.id);
+      setDeleteImpact(impact);
+    } catch {
+      setDeleteImpact(null); // mostra diálogo sem dados de impacto
+    }
     setDeletingUser(user);
   }, []);
 
@@ -357,20 +337,22 @@ export function UsersTable({
   );
 
   const pushQuery = useCallback(
-    (next: { q?: string; status?: "all" | "active" | "inactive"; page?: number }) => {
+    (next: { q?: string; status?: "all" | "active" | "inactive"; role?: string; page?: number }) => {
       const sp = new URLSearchParams();
       const q = next.q ?? search;
       const st = next.status ?? statusFilter;
+      const rl = next.role !== undefined ? next.role : roleFilter;
       const page = next.page ?? 1;
       if (q.trim()) sp.set("q", q.trim());
       if (st !== "all") sp.set("status", st);
+      if (rl) sp.set("role", rl);
       if (page > 1) sp.set("page", String(page));
       const qs = sp.toString();
       startTransition(() => {
         router.replace(qs ? `${pathname}?${qs}` : pathname);
       });
     },
-    [router, pathname, search, statusFilter]
+    [router, pathname, search, statusFilter, roleFilter]
   );
 
   useEffect(() => {
@@ -386,12 +368,9 @@ export function UsersTable({
   }, [search, initialSearch, pushQuery]);
 
   const filteredSorted = useMemo(() => {
+    // roleFilter é aplicado no servidor — aqui só filtramos por tenant (client-side via mapa)
     const filtered = users.filter((u) => {
-      const matchesTenant =
-        !tenantFilter ||
-        (userTenantMap.get(u.id) || []).includes(tenantFilter);
-      const matchesRole = !roleFilter || u.role === roleFilter;
-      return matchesTenant && matchesRole;
+      return !tenantFilter || (userTenantMap.get(u.id) || []).includes(tenantFilter);
     });
 
     return [...filtered].sort((a, b) => {
@@ -461,6 +440,7 @@ export function UsersTable({
     const sp = new URLSearchParams();
     if (search.trim()) sp.set("q", search.trim());
     if (statusFilter !== "all") sp.set("status", statusFilter);
+    if (roleFilter) sp.set("role", roleFilter);
     if (page > 1) sp.set("page", String(page));
     const qs = sp.toString();
     return qs ? `/admin/users?${qs}` : "/admin/users";
@@ -502,7 +482,12 @@ export function UsersTable({
               </select>
               <select
                 value={roleFilter}
-                onChange={(e) => { setRoleFilter(e.target.value); setSelectedIds(new Set()); }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRoleFilter(val);
+                  setSelectedIds(new Set());
+                  pushQuery({ role: val, page: 1 });
+                }}
                 className="h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                 aria-label="Filtrar por papel"
               >
@@ -668,15 +653,9 @@ export function UsersTable({
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2">
-                        <Image
-                          src={gravatarUrl(user.email, 40)}
-                          alt=""
-                          width={32}
-                          height={32}
-                          className="h-8 w-8 rounded-full"
-                          loading="lazy"
-                          unoptimized
-                        />
+                        <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", avatarColor(user.email))}>
+                          {userInitials(user.name, user.email)}
+                        </span>
                         <span className="font-medium text-zinc-900 dark:text-zinc-50">
                           {user.name || "Sem nome"}
                         </span>
@@ -842,6 +821,7 @@ export function UsersTable({
           onClose={handleCreateClose}
           tenants={allTenants}
           customRoles={customRoles}
+          isSuperAdmin={currentUserEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()}
         />
       )}
 
@@ -860,6 +840,8 @@ export function UsersTable({
           selectedAreaIds={editingUserAreaIds}
           selectedUnitIds={editingUserUnitIds}
           customRoles={customRoles}
+          targetUserEmail={editingUser.email}
+          isSuperAdmin={currentUserEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()}
         />
       )}
 
@@ -923,29 +905,31 @@ export function UsersTable({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir usuário</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja excluir permanentemente{" "}
-                <strong className="text-zinc-900 dark:text-zinc-50">
-                  {deletingUser.name || deletingUser.email}
-                </strong>
-                ?
-                {deleteImpact &&
-                  (deleteImpact.tenantMemberships > 0 || deleteImpact.actionPlans > 0) && (
-                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                      <p>Este usuário possui vínculos ativos:</p>
-                      {deleteImpact.tenantMemberships > 0 && (
-                        <p>- {deleteImpact.tenantMemberships} empresa(s)</p>
-                      )}
-                      {deleteImpact.actionPlans > 0 && (
-                        <p>- {deleteImpact.actionPlans} plano(s) de ação</p>
-                      )}
-                      <p className="mt-1 font-medium">
-                        Remova os vínculos antes de excluir, ou apenas
-                        desative o usuário.
-                      </p>
-                    </div>
-                  )}
-                Esta ação não pode ser desfeita.
+              <AlertDialogDescription asChild>
+                <div>
+                  <span className="block">
+                    Tem certeza que deseja excluir permanentemente{" "}
+                    <strong className="text-zinc-900 dark:text-zinc-50">
+                      {deletingUser.name || deletingUser.email}
+                    </strong>
+                    ? Esta ação não pode ser desfeita.
+                  </span>
+                  {deleteImpact &&
+                    (deleteImpact.tenantMemberships > 0 || deleteImpact.actionPlans > 0) && (
+                      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                        <span className="block font-medium">Este usuário possui vínculos ativos:</span>
+                        {deleteImpact.tenantMemberships > 0 && (
+                          <span className="block">· {deleteImpact.tenantMemberships} empresa(s)</span>
+                        )}
+                        {deleteImpact.actionPlans > 0 && (
+                          <span className="block">· {deleteImpact.actionPlans} plano(s) de ação</span>
+                        )}
+                        <span className="mt-2 block font-medium">
+                          Remova os vínculos antes de excluir, ou apenas desative o usuário.
+                        </span>
+                      </div>
+                    )}
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -1094,6 +1078,7 @@ function CreateUserDialog({
   onClose,
   tenants = [],
   customRoles = [],
+  isSuperAdmin = false,
 }: {
   state: AdminFormState;
   action: (payload: FormData) => void;
@@ -1101,6 +1086,7 @@ function CreateUserDialog({
   onClose: () => void;
   tenants: Tenant[];
   customRoles?: RoleRow[];
+  isSuperAdmin?: boolean;
 }) {
   const [passwordValue, setPasswordValue] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -1191,7 +1177,9 @@ function CreateUserDialog({
                   <option value="user">Usuário</option>
                   <option value="manager">Gerente</option>
                   <option value="admin">Admin</option>
-                  <option value="super_admin">Super Admin</option>
+                  {isSuperAdmin && (
+                    <option value="super_admin">Super Admin</option>
+                  )}
                   {customRoles.map((role) => (
                     <option key={role.id} value={role.name}>{role.name}</option>
                   ))}
@@ -1235,7 +1223,7 @@ function CreateUserDialog({
                   type={showPassword ? "text" : "password"}
                   placeholder="Mínimo 8 caracteres ou gere automaticamente"
                   value={passwordValue}
-                  onChange={(e) => { setPasswordValue(sanitize(e.target.value)); setShowPassword(true); }}
+                  onChange={(e) => { setPasswordValue(e.target.value); setShowPassword(true); }}
                 />
                 {passwordValue && (
                   <button
@@ -1301,10 +1289,16 @@ function CreateUserDialog({
                 </Label>
                 <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
                   {tenants.map((tenant) => (
-                    <TenantRoleRow key={tenant.id} tenant={tenant} formPrefix="create" />
+                    <TenantRoleRow
+                      key={tenant.id}
+                      tenant={tenant}
+                      formPrefix="create"
+                      defaultChecked={true}
+                      defaultRole={toTenantRole(selectedRole)}
+                    />
                   ))}
                 </div>
-                <p className="text-[11px] text-zinc-400">Selecione uma empresa e defina o papel nela.</p>
+                <p className="text-[11px] text-zinc-400">Todas as empresas são pré-selecionadas com o papel do usuário. Desmarque as que não se aplicam.</p>
               </div>
             )}
 
@@ -1349,6 +1343,8 @@ function EditUserDialog({
   selectedAreaIds = [],
   selectedUnitIds = [],
   customRoles = [],
+  targetUserEmail = "",
+  isSuperAdmin = false,
 }: {
   user: Profile;
   state: AdminFormState;
@@ -1363,6 +1359,8 @@ function EditUserDialog({
   selectedAreaIds?: string[];
   selectedUnitIds?: string[];
   customRoles?: RoleRow[];
+  targetUserEmail?: string;
+  isSuperAdmin?: boolean;
 }) {
   const [permissions, setPermissions] = useState<Record<string, boolean>>(
     user.permissions || {}
@@ -1450,7 +1448,10 @@ function EditUserDialog({
               <option value="user">Usuário</option>
               <option value="manager">Gerente</option>
               <option value="admin">Admin</option>
-              <option value="super_admin">Super Admin</option>
+              {/* Super Admin visível apenas para o próprio super admin ou se o usuário editado já tem esse papel */}
+              {(isSuperAdmin || targetUserEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) && (
+                <option value="super_admin">Super Admin</option>
+              )}
               <option value="viewer">Visualizador</option>
               {customRoles.map((role) => (
                 <option key={role.id} value={role.name}>{role.name}</option>

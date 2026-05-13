@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
@@ -28,6 +28,9 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  Filter,
+  X,
+  ChevronDown,
 } from "lucide-react";
 import { ContaForm } from "./conta-form";
 import { getContasPagar, getItemBasicsForConta } from "@/app/actions/contas-pagar";
@@ -122,6 +125,9 @@ export function ContasPagarClient({
   const [sortKey, setSortKey] = useState<SortKey>("proxima_vencimento");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const [prefill, setPrefill] = useState<{
     descricao: string;
     plan_id: string;
@@ -154,11 +160,13 @@ export function ContasPagarClient({
 
   useEffect(() => {
     const itemId = searchParams.get("item_id");
-    if (itemId) {
-      refetch({ status: "todos", search: "", item_id: itemId });
-    }
+    if (!itemId) return;
+    // Atualiza o estado de filtros antes de refetch para manter consistência
+    const next: ContaListFilters = { status: "todos", search: "", item_id: itemId };
+    setFilters(next);
+    refetch(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams.get("item_id")]);
 
   useEffect(() => {
     const fromItem = searchParams.get("from_item");
@@ -167,9 +175,13 @@ export function ContasPagarClient({
 
     getItemBasicsForConta(fromItem).then((info) => {
       if (cancelled || !info) return;
-      const valorEstimado = parseFloat(
-        (info.cost || "").replace(/[^0-9.,-]/g, "").replace(",", "."),
-      );
+      // Parsing robusto de valor BRL: remove símbolo/espaço, substitui separador de milhar ponto
+      // e converte vírgula decimal → ponto antes de parsear
+      const costStr = (info.cost || "")
+        .replace(/[^0-9.,-]/g, "")   // remove tudo exceto dígitos, ponto, vírgula, hífen
+        .replace(/\.(?=\d{3}(,|$))/g, "")  // remove pontos usados como separador de milhar
+        .replace(",", ".");           // converte vírgula decimal → ponto
+      const valorEstimado = parseFloat(costStr);
       setPrefill({
         descricao: info.action.slice(0, 200),
         plan_id: info.plan_id,
@@ -193,6 +205,8 @@ export function ContasPagarClient({
     try {
       const data = await getContasPagar(next ?? filters);
       setItems(data);
+    } catch {
+      toast("Erro ao carregar contas. Tente novamente.", "error");
     } finally {
       setLoading(false);
     }
@@ -210,6 +224,11 @@ export function ContasPagarClient({
   const sortedItems = useMemo(() => {
     const arr = [...items];
     arr.sort((a, b) => {
+      // Conta destacada sempre no topo
+      if (highlightId) {
+        if (a.id === highlightId) return -1;
+        if (b.id === highlightId) return 1;
+      }
       let cmp = 0;
       if (sortKey === "descricao") {
         cmp = a.descricao.localeCompare(b.descricao, "pt-BR");
@@ -263,6 +282,27 @@ export function ContasPagarClient({
     }
     return { aberto, atrasado, pago };
   }, [items]);
+
+  function clearFilters() {
+    const next: ContaListFilters = {
+      status: "todos",
+      search: "",
+      item_id: searchParams.get("item_id") || null,
+    };
+    setFilters(next);
+    refetch(next);
+  }
+
+  const activeFilterCount = [
+    filters.status && filters.status !== "todos",
+    filters.fornecedor_id,
+    filters.categoria_id,
+    filters.search,
+    filters.vencimento_from,
+    filters.vencimento_to,
+    filters.emissao_from,
+    filters.emissao_to,
+  ].filter(Boolean).length;
 
   function openEdit(conta: ContaComParcelas) {
     if (conta.status === "cancelado") {
@@ -342,71 +382,173 @@ export function ContasPagarClient({
         </Card>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={filters.status ?? "todos"}
-          onChange={(e) =>
-            applyFilter("status", e.target.value as StatusFiltro)
-          }
-          className="h-9 w-44"
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+      {/* Barra de filtros */}
+      <div className="space-y-2">
+        {/* Linha principal: busca + toggle filtros */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input
+              value={filters.search ?? ""}
+              onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === "Enter") refetch(); }}
+              onBlur={(e) => {
+                // Só busca no blur se o valor mudou desde o último fetch
+                const current = e.target.value.trim();
+                const last = (filters.search ?? "").trim();
+                if (current !== last) refetch();
+              }}
+              placeholder="Buscar descrição ou nº documento..."
+              className="h-9 pl-8"
+            />
+          </div>
 
-        <Select
-          value={filters.fornecedor_id ?? ""}
-          onChange={(e) =>
-            applyFilter("fornecedor_id", e.target.value || null)
-          }
-          className="h-9 w-56"
-        >
-          <option value="">Todos fornecedores</option>
-          {fornecedores
-            .filter((f) => f.active)
-            .map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-        </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters((v) => !v)}
+            className="gap-1.5"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-[10px] font-bold text-white">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+          </Button>
 
-        <Select
-          value={filters.categoria_id ?? ""}
-          onChange={(e) =>
-            applyFilter("categoria_id", e.target.value || null)
-          }
-          className="h-9 w-56"
-        >
-          <option value="">Todas categorias</option>
-          {categorias
-            .filter((c) => c.active)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-        </Select>
-
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <Input
-            value={filters.search ?? ""}
-            onChange={(e) =>
-              setFilters((p) => ({ ...p, search: e.target.value }))
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter") refetch();
-            }}
-            onBlur={() => refetch()}
-            placeholder="Buscar descrição ou nº documento..."
-            className="h-9 pl-8"
-          />
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-zinc-500 hover:text-zinc-900">
+              <X className="h-3.5 w-3.5" /> Limpar filtros
+            </Button>
+          )}
         </div>
+
+        {/* Painel expandido */}
+        {showFilters && (
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-700 dark:bg-zinc-800/30">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+              {/* Status */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Status</label>
+                <Select
+                  value={filters.status ?? "todos"}
+                  onChange={(e) => applyFilter("status", e.target.value as StatusFiltro)}
+                  className="h-9 w-full"
+                >
+                  {STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </Select>
+              </div>
+
+              {/* Fornecedor */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Fornecedor</label>
+                <Select
+                  value={filters.fornecedor_id ?? ""}
+                  onChange={(e) => applyFilter("fornecedor_id", e.target.value || null)}
+                  className="h-9 w-full"
+                >
+                  <option value="">Todos</option>
+                  {fornecedores.filter((f) => f.active).map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </Select>
+              </div>
+
+              {/* Categoria */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Categoria</label>
+                <Select
+                  value={filters.categoria_id ?? ""}
+                  onChange={(e) => applyFilter("categoria_id", e.target.value || null)}
+                  className="h-9 w-full"
+                >
+                  <option value="">Todas</option>
+                  {categorias.filter((c) => c.active).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </Select>
+              </div>
+
+              {/* Vencimento de */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Vencimento — de</label>
+                <Input
+                  type="date"
+                  value={filters.vencimento_from ?? ""}
+                  onChange={(e) => applyFilter("vencimento_from", e.target.value || undefined)}
+                  className="h-9"
+                />
+              </div>
+
+              {/* Vencimento até */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Vencimento — até</label>
+                <Input
+                  type="date"
+                  value={filters.vencimento_to ?? ""}
+                  onChange={(e) => applyFilter("vencimento_to", e.target.value || undefined)}
+                  className="h-9"
+                />
+              </div>
+
+              {/* Emissão de */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Emissão — de</label>
+                <Input
+                  type="date"
+                  value={filters.emissao_from ?? ""}
+                  onChange={(e) => applyFilter("emissao_from", e.target.value || undefined)}
+                  className="h-9"
+                />
+              </div>
+
+              {/* Emissão até */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Emissão — até</label>
+                <Input
+                  type="date"
+                  value={filters.emissao_to ?? ""}
+                  onChange={(e) => applyFilter("emissao_to", e.target.value || undefined)}
+                  className="h-9"
+                />
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Tags de filtros ativos (visíveis mesmo com painel fechado) */}
+        {!showFilters && activeFilterCount > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {filters.status && filters.status !== "todos" && (
+              <FilterTag label={STATUS_OPTIONS.find((o) => o.value === filters.status)?.label ?? filters.status} onRemove={() => applyFilter("status", "todos")} />
+            )}
+            {filters.fornecedor_id && (
+              <FilterTag label={fornecedores.find((f) => f.id === filters.fornecedor_id)?.name ?? "Fornecedor"} onRemove={() => applyFilter("fornecedor_id", null)} />
+            )}
+            {filters.categoria_id && (
+              <FilterTag label={categorias.find((c) => c.id === filters.categoria_id)?.name ?? "Categoria"} onRemove={() => applyFilter("categoria_id", null)} />
+            )}
+            {filters.vencimento_from && (
+              <FilterTag label={`Vence ≥ ${formatDateBR(filters.vencimento_from)}`} onRemove={() => applyFilter("vencimento_from", undefined)} />
+            )}
+            {filters.vencimento_to && (
+              <FilterTag label={`Vence ≤ ${formatDateBR(filters.vencimento_to)}`} onRemove={() => applyFilter("vencimento_to", undefined)} />
+            )}
+            {filters.emissao_from && (
+              <FilterTag label={`Emissão ≥ ${formatDateBR(filters.emissao_from)}`} onRemove={() => applyFilter("emissao_from", undefined)} />
+            )}
+            {filters.emissao_to && (
+              <FilterTag label={`Emissão ≤ ${formatDateBR(filters.emissao_to)}`} onRemove={() => applyFilter("emissao_to", undefined)} />
+            )}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -481,11 +623,14 @@ export function ContasPagarClient({
                 {pageItems.map((c) => {
                   const atrasada =
                     c.tem_atrasada && c.status !== "cancelado";
+                  const isHighlighted = c.id === highlightId;
                   return (
                     <tr
                       key={c.id}
-                      className={`transition-colors ${
-                        atrasada
+                      className={`transition-colors duration-700 ${
+                        isHighlighted
+                          ? "bg-accent-50 dark:bg-accent-950/20 outline outline-2 outline-accent-400 dark:outline-accent-600 outline-offset-[-2px]"
+                          : atrasada
                           ? "bg-red-50/50 hover:bg-red-50 dark:bg-red-950/15 dark:hover:bg-red-950/25"
                           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
                       } ${c.status === "cancelado" ? "opacity-60" : ""}`}
@@ -616,15 +761,27 @@ export function ContasPagarClient({
           onSuccess={(contaId) => {
             setPrefill(null);
             refetch();
-            if (contaId && !editing) {
-              router.replace(`/financeiro/contas-a-pagar/${contaId}`);
-            } else {
-              closeForm();
+            closeForm();
+            if (contaId) {
+              setHighlightId(contaId);
+              if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+              highlightTimerRef.current = setTimeout(() => setHighlightId(null), 4000);
             }
           }}
         />
       )}
     </div>
+  );
+}
+
+function FilterTag({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+      {label}
+      <button type="button" onClick={onRemove} className="ml-0.5 rounded-full text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200">
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   );
 }
 
