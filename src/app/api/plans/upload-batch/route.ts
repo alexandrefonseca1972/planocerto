@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
 import { sanitizeText } from "@/app/actions/_catalog-utils";
+import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 import {
-  FAROL_MAP, COL, REQUIRED_HEADERS,
+  COL, REQUIRED_HEADERS,
   parseStatus, parseDate, parseNum, trimStr,
   detectHeaderRow, normHeader,
 } from "@/lib/planos-import";
@@ -116,12 +117,18 @@ export async function POST(req: NextRequest) {
         // Deriva título a partir da coluna UNIDADE se necessário
         const firstUnit = trimStr(rowsWithAcao[0]?.[COL.UNIDADE]);
         const finalTitle = (await sanitizeText(rawTitle.length >= 2 ? rawTitle : (firstUnit || filename.replace(/\.[^.]+$/, "")))).slice(0, 200) || "Plano importado";
-        const finalUnit  = (await sanitizeText(rawUnit || firstUnit)).slice(0, 200);
+        const requestedUnitName = (await sanitizeText(rawUnit || firstUnit)).slice(0, 200);
+        const resolvedUnit = await resolvePlanUnitReference(supabase, {
+          tenantId,
+          unitName: requestedUnitName,
+          requireMatch: false,
+        });
+        const finalUnit = resolvedUnit.unitName;
 
         // Cria o plano
         const { data: plan, error: planErr } = await supabase
           .from("action_plans")
-          .insert({ tenant_id: tenantId, user_id: user.id, title: finalTitle, unit: finalUnit, director: "", goal: "" })
+          .insert({ tenant_id: tenantId, user_id: user.id, title: finalTitle, unit_id: resolvedUnit.unitId, unit: finalUnit, director: "", goal: "" })
           .select("id")
           .single();
 

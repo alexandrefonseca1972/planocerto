@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { buildAuthEmail } from "@/lib/auth-email";
+import { sendEmail } from "@/lib/email";
+import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -664,15 +667,23 @@ export async function resendConfirmation(
     if (!email) return { message: "Email é obrigatório." };
 
     const adminClient = createAdminClient();
-    // Gera um link de convite/acesso (não de reset de senha) para o usuário definir sua senha
-    const { error } = await adminClient.auth.admin.generateLink({
+    const { data, error } = await adminClient.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm` },
+      options: {
+        redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+      },
     });
 
-    if (error) {
-      return { message: mapError(error.message) };
+    if (error || !data.properties?.action_link) {
+      return { message: mapError(error?.message ?? "Falha ao gerar link de acesso.") };
+    }
+
+    const emailContent = buildAuthEmail("magic_link", data.properties.action_link, email);
+    const sent = await sendEmail(email, emailContent.subject, emailContent.html);
+
+    if (!sent) {
+      return { message: "Erro ao enviar email de acesso. Tente novamente." };
     }
 
     return { success: true, message: "Link de acesso enviado para o email do usuário." };

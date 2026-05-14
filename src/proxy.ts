@@ -44,7 +44,8 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith("/admin") ||
       pathname.startsWith("/planos") ||
       pathname.startsWith("/calendario") ||
-      pathname.startsWith("/pendente");
+      pathname.startsWith("/pendente") ||
+      pathname.startsWith("/financeiro");
 
     if (userError && isProtectedPath) {
       console.error("[proxy] Erro ao obter usuário:", userError.message);

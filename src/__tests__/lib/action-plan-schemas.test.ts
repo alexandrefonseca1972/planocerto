@@ -26,12 +26,24 @@ describe("planSchema", () => {
   it("accepts all optional fields with valid values", () => {
     const data = {
       title: "Full Plan",
+      unit_id: "550e8400-e29b-41d4-a716-446655440111",
       unit: "Unit A",
       director: "John Doe",
       goal: "Increase efficiency by 20%",
+      status: "archived",
+      exercicio: "2026",
+      budget_limit: "5000.75",
+      visibility: "restricted",
     };
     const result = planSchema.safeParse(data);
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.unit_id).toBe("550e8400-e29b-41d4-a716-446655440111");
+      expect(result.data.status).toBe("archived");
+      expect(result.data.exercicio).toBe(2026);
+      expect(result.data.budget_limit).toBe(5000.75);
+      expect(result.data.visibility).toBe("restricted");
+    }
   });
 
   it("trims whitespace from title", () => {
@@ -39,6 +51,14 @@ describe("planSchema", () => {
     const result = planSchema.safeParse(data);
     if (result.success) {
       expect(result.data.title).toBe("Plan Title");
+    }
+  });
+
+  it("accepts empty unit_id for compatibility with hidden form field", () => {
+    const result = planSchema.safeParse({ title: "Plano", unit_id: "" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.unit_id).toBeUndefined();
     }
   });
 });

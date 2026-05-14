@@ -150,9 +150,11 @@ export function AlertDialogFooter({
 export function AlertDialogCancel({
   children = "Cancelar",
   onClick,
+  disabled = false,
 }: {
   children?: ReactNode;
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   const { onOpenChange } = useAlertDialog();
 
@@ -160,7 +162,9 @@ export function AlertDialogCancel({
     <Button
       type="button"
       variant="outline"
+      disabled={disabled}
       onClick={() => {
+        if (disabled) return;
         onClick?.();
         onOpenChange(false);
       }}

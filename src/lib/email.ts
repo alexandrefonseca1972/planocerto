@@ -3,14 +3,24 @@ import { env } from "@/lib/env";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
-const FROM = `PlanoCerto <${process.env.NEXT_PUBLIC_SITE_URL ? `notifications@${new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname}` : "no-reply@planocerto.app"}>`;
+const DEFAULT_FROM = env.AUTH_EMAIL_FROM;
+const siteUrl = env.NEXT_PUBLIC_SITE_URL || "https://planocerto.app";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://planocerto.app";
-
-export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+export async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  options?: { from?: string; replyTo?: string }
+): Promise<boolean> {
   if (!to || !resend) return false;
   try {
-    const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+    const { error } = await resend.emails.send({
+      from: options?.from || DEFAULT_FROM,
+      to,
+      subject,
+      html,
+      replyTo: options?.replyTo || env.AUTH_EMAIL_REPLY_TO,
+    });
     if (error) {
       console.error("[email] Send error:", error.message);
       return false;

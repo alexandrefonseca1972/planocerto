@@ -2,6 +2,12 @@ export interface Area {
   id: string;
   tenant_id: string | null;
   name: string;
+  regional_context?: {
+    perfil_persona?: string;
+    regionalidade?: string;
+    eventos_locais?: string;
+    concorrentes?: string;
+  };
   sort_order: number;
   active: boolean;
   created_at: string;
@@ -14,6 +20,12 @@ export interface Unit {
   area_id: string | null;
   name: string;
   uf: string;
+  regional_context?: {
+    perfil_persona?: string;
+    regionalidade?: string;
+    eventos_locais?: string;
+    concorrentes?: string;
+  };
   sort_order: number;
   active: boolean;
   created_at: string;

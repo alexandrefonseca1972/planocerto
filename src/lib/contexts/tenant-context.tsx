@@ -15,6 +15,7 @@ import { switchTenant as switchTenantAction } from "@/app/actions/tenant";
 import { useToast } from "@/components/ui/toast";
 
 const STORAGE_KEY = "selected_tenants";
+const UNIT_FILTER_KEY = "selected_unit_ids";
 
 interface TenantContextType {
   currentTenant: Tenant | null;
@@ -23,6 +24,8 @@ interface TenantContextType {
   setSelectedTenantIds: (ids: string[]) => void;
   switchTenant: (tenantId: string) => Promise<void>;
   isSwitching: boolean;
+  selectedUnitIds: string[];
+  setSelectedUnitIds: (ids: string[]) => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -55,6 +58,7 @@ export function TenantProvider({
     initialTenant ? [initialTenant.id] : [],
   );
   const [isSwitching, setIsSwitching] = useState(false);
+  const [selectedUnitIds, setSelectedUnitIdsState] = useState<string[]>([]);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -62,24 +66,33 @@ export function TenantProvider({
     /* eslint-disable react-hooks/set-state-in-effect */
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as string[];
-      const validIds = parsed.filter((id) =>
-        initialTenants.some((t) => t.id === id),
-      );
-      if (validIds.length > 0) {
-        setSelectedTenantIdsState(validIds);
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[];
+        const validIds = parsed.filter((id) =>
+          initialTenants.some((t) => t.id === id),
+        );
+        if (validIds.length > 0) setSelectedTenantIdsState(validIds);
       }
     } catch {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {
-        // localStorage indisponível
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* localStorage indisponível */ }
+    }
+    try {
+      const storedUnits = localStorage.getItem(UNIT_FILTER_KEY);
+      if (storedUnits) {
+        const parsed = JSON.parse(storedUnits) as string[];
+        if (Array.isArray(parsed)) setSelectedUnitIdsState(parsed);
       }
+    } catch {
+      try { localStorage.removeItem(UNIT_FILTER_KEY); } catch { /* localStorage indisponível */ }
     }
     /* eslint-enable react-hooks/set-state-in-effect */
-    // initialTenants é estável (vem do server component) — não dispara loop
   }, [initialTenants]);
+
+  const setSelectedUnitIds = useCallback((ids: string[]) => {
+    setSelectedUnitIdsState(ids);
+    localStorage.setItem(UNIT_FILTER_KEY, JSON.stringify(ids));
+    // When the tenant changes, clear the unit filter
+  }, []);
 
   const setSelectedTenantIds = useCallback(
     (ids: string[]) => {
@@ -126,6 +139,9 @@ export function TenantProvider({
           setActiveTenantId(tenantId);
           setSelectedTenantIdsState([tenantId]);
           localStorage.setItem(STORAGE_KEY, JSON.stringify([tenantId]));
+          // Clear unit filter when switching tenant
+          setSelectedUnitIdsState([]);
+          localStorage.removeItem(UNIT_FILTER_KEY);
           router.refresh();
         }
       } catch {
@@ -146,6 +162,8 @@ export function TenantProvider({
         setSelectedTenantIds,
         switchTenant,
         isSwitching,
+        selectedUnitIds,
+        setSelectedUnitIds,
       }}
     >
       {children}

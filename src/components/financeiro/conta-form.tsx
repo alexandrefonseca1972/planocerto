@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import {
   createConta,
   updateConta,
 } from "@/app/actions/contas-pagar";
+import { createFornecedorRapido } from "@/app/actions/fornecedores";
 import { contaPagarSchema } from "@/lib/schemas/financeiro-schemas";
 import type {
   ContaComParcelas,
@@ -22,7 +23,7 @@ import type { Fornecedor } from "@/types/catalog";
 import type { CategoriaDespesa } from "@/types/financeiro";
 import { ParcelaRowEditable } from "./parcela-row";
 import { formatBRL } from "@/lib/format-br";
-import { Plus, Wand2, AlertTriangle } from "lucide-react";
+import { Plus, Wand2, AlertTriangle, UserPlus, X } from "lucide-react";
 
 const init: FinanceFormState = { message: undefined, errors: {} };
 
@@ -166,10 +167,52 @@ export function ContaForm({
     () => isEdit && (conta?.parcelas?.length ?? 1) > 1,
   );
 
+  // Cadastro rápido de fornecedor
+  const [localFornecedores, setLocalFornecedores] = useState<Fornecedor[]>(fornecedores);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddName, setQuickAddName] = useState("");
+  const [quickAddCnpj, setQuickAddCnpj] = useState("");
+  const [quickAddEmail, setQuickAddEmail] = useState("");
+  const [quickAddTelefone, setQuickAddTelefone] = useState("");
+  const [quickAddError, setQuickAddError] = useState("");
+  const [quickAdding, startQuickAdd] = useTransition();
+
+  function submitQuickAdd() {
+    if (quickAddName.trim().length < 2) {
+      setQuickAddError("Nome obrigatório (mínimo 2 caracteres).");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("name", quickAddName.trim());
+    if (quickAddCnpj) fd.set("cnpj", quickAddCnpj);
+    if (quickAddEmail) fd.set("contato_email", quickAddEmail);
+    if (quickAddTelefone) fd.set("contato_telefone", quickAddTelefone);
+    startQuickAdd(async () => {
+      const result = await createFornecedorRapido(fd);
+      if (result.success && result.fornecedor) {
+        const novo = result.fornecedor;
+        setLocalFornecedores((prev) =>
+          [...prev, novo].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+        );
+        setValue("fornecedor_id", novo.id);
+        setShowQuickAdd(false);
+        setQuickAddName(""); setQuickAddCnpj(""); setQuickAddEmail(""); setQuickAddTelefone("");
+        setQuickAddError("");
+        toast(`Fornecedor "${novo.name}" criado e selecionado!`);
+      } else {
+        setQuickAddError(result.message || "Erro ao criar fornecedor.");
+      }
+    });
+  }
+
   useEffect(() => {
     if (open) {
       reset(initial);
       setModoParcelado(isEdit ? (conta?.parcelas?.length ?? 1) > 1 : false);
+      setLocalFornecedores(fornecedores);
+      setShowQuickAdd(false);
+      setQuickAddName(""); setQuickAddCnpj(""); setQuickAddEmail(""); setQuickAddTelefone("");
+      setQuickAddError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, conta?.id]);
@@ -389,22 +432,30 @@ export function ContaForm({
       {/* Vínculos */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field id="conta-fornecedor" label="Fornecedor">
-          <Select
-            id="conta-fornecedor"
-            value={values.fornecedor_id ?? ""}
-            onChange={(e) =>
-              setValue("fornecedor_id", e.target.value || null)
-            }
-          >
-            <option value="">— Sem fornecedor —</option>
-            {fornecedores
-              .filter((f) => f.active)
-              .map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-          </Select>
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1">
+              <Select
+                id="conta-fornecedor"
+                value={values.fornecedor_id ?? ""}
+                onChange={(e) => setValue("fornecedor_id", e.target.value || null)}
+              >
+                <option value="">— Sem fornecedor —</option>
+                {localFornecedores
+                  .filter((f) => f.active)
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+              </Select>
+            </div>
+            <button
+              type="button"
+              title={showQuickAdd ? "Cancelar novo fornecedor" : "Cadastrar novo fornecedor"}
+              onClick={() => { setShowQuickAdd((v) => !v); setQuickAddError(""); }}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-accent-400 hover:text-accent-600 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:text-accent-400"
+            >
+              {showQuickAdd ? <X className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+            </button>
+          </div>
         </Field>
 
         <Field id="conta-categoria" label="Categoria de despesa">
@@ -426,6 +477,77 @@ export function ContaForm({
           </Select>
         </Field>
       </div>
+
+      {/* Cadastro rápido de fornecedor */}
+      {showQuickAdd && (
+        <div className="rounded-lg border border-accent-200 bg-accent-50/50 p-3 dark:border-accent-800/40 dark:bg-accent-950/20 space-y-2.5">
+          <p className="text-xs font-semibold text-accent-700 dark:text-accent-400">
+            Novo fornecedor
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-500">Nome *</label>
+              <Input
+                value={quickAddName}
+                onChange={(e) => { setQuickAddName(e.target.value); setQuickAddError(""); }}
+                placeholder="Nome do fornecedor"
+                maxLength={120}
+                aria-invalid={Boolean(quickAddError)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-500">CNPJ</label>
+              <Input
+                value={quickAddCnpj}
+                onChange={(e) => setQuickAddCnpj(e.target.value)}
+                placeholder="00.000.000/0000-00"
+                maxLength={20}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-500">E-mail</label>
+              <Input
+                value={quickAddEmail}
+                onChange={(e) => setQuickAddEmail(e.target.value)}
+                placeholder="contato@empresa.com"
+                maxLength={160}
+                type="email"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-500">Telefone</label>
+              <Input
+                value={quickAddTelefone}
+                onChange={(e) => setQuickAddTelefone(e.target.value)}
+                placeholder="(11) 99999-9999"
+                maxLength={40}
+              />
+            </div>
+          </div>
+          {quickAddError && (
+            <p className="text-xs text-red-600 dark:text-red-400">{quickAddError}</p>
+          )}
+          <div className="flex items-center gap-2 pt-0.5">
+            <Button
+              type="button"
+              size="sm"
+              onClick={submitQuickAdd}
+              isLoading={quickAdding}
+              disabled={quickAdding}
+            >
+              <UserPlus className="h-3.5 w-3.5" /> Criar e selecionar
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowQuickAdd(false); setQuickAddError(""); }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {(values.plan_id || values.item_id) && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">

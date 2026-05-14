@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirme seu email</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4f4f5;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="padding:32px 32px 16px;background:linear-gradient(135deg,#18181b,#3f3f46);color:#ffffff;">
+                <div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;opacity:0.8;">PlanoCerto</div>
+                <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;">Confirme seu email</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 16px;font-size:16px;line-height:1.7;">Olá,</p>
+                <p style="margin:0 0 24px;font-size:16px;line-height:1.7;">
+                  Recebemos uma solicitação para confirmar o acesso da conta
+                  <strong>{{ .Email }}</strong> no PlanoCerto.
+                </p>
+                <p style="margin:0 0 28px;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;background-color:#18181b;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:999px;font-weight:700;">
+                    Confirmar email
+                  </a>
+                </p>
+                <p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:#52525b;">
+                  Se o botão não funcionar, use este link:
+                </p>
+                <p style="margin:0 0 24px;font-size:14px;line-height:1.7;word-break:break-all;color:#18181b;">
+                  <a href="{{ .ConfirmationURL }}" style="color:#18181b;">{{ .ConfirmationURL }}</a>
+                </p>
+                <p style="margin:0;font-size:14px;line-height:1.7;color:#52525b;">
+                  Se você não solicitou esta ação, ignore este email.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -11,6 +11,11 @@ export const metadata: Metadata = {
 };
 
 /** Resumo de uma Unidade (catalog). */
+export interface SubTotals {
+  total: number; completed: number; inProgress: number; pending: number; overdue: number;
+  preco: number; insE: number; insR: number; fE: number; fR: number; aE: number; aR: number;
+}
+
 export interface UnitSummary {
   id: string;
   name: string;
@@ -32,6 +37,12 @@ export interface UnitSummary {
   matFinReal: number;
   matAcadEsperado: number;
   matAcadReal: number;
+  // Classificação para filtros
+  tiposPa: string[];
+  macroAcoes: string[];
+  // Aggregates por filtro (para totais precisos ao filtrar)
+  tiposPaBreakdown: Record<string, SubTotals>;
+  macroAcoesBreakdown: Record<string, SubTotals>;
 }
 
 export interface AreaInfo {
@@ -63,6 +74,31 @@ const norm = (s: string) =>
     .toLowerCase()
     .trim();
 
+function accBreakdown(
+  map: Record<string, SubTotals>,
+  key: string,
+  status: number,
+  isOv: boolean,
+  preco: number,
+  iE: number, iR: number,
+  mfE: number, mfR: number,
+  maE: number, maR: number,
+) {
+  if (!map[key]) {
+    map[key] = { total: 0, completed: 0, inProgress: 0, pending: 0, overdue: 0, preco: 0, insE: 0, insR: 0, fE: 0, fR: 0, aE: 0, aR: 0 };
+  }
+  const b = map[key];
+  b.total++;
+  if (status === 5) b.completed++;
+  else if (isOv) b.overdue++;
+  else if (status === 3 || status === 4) b.inProgress++;
+  else b.pending++;
+  b.preco += preco;
+  b.insE += iE; b.insR += iR;
+  b.fE += mfE; b.fR += mfR;
+  b.aE += maE; b.aR += maR;
+}
+
 export default async function DashboardPage() {
   let userName = "Usuário";
   let userPermissions: Record<string, boolean> = {};
@@ -70,7 +106,15 @@ export default async function DashboardPage() {
   const unitSummaries: UnitSummary[] = [];
   const areas: AreaInfo[] = [];
   const deadlines: DeadlineItem[] = [];
+  const myTasks: {
+    id: string; planId: string; title: string; number: string;
+    planned_end: string | null; status: number; unitName: string;
+    planTitle: string; daysLeft: number | null;
+    kind: "overdue" | "near" | "future" | "completed";
+  }[] = [];
   const sparklineData: number[] = [];
+  let catalogTiposPa: { id: string; name: string }[] = [];
+  let catalogMacroAcoes: { id: string; name: string }[] = [];
 
   try {
     const supabase = await createClient();
@@ -106,13 +150,23 @@ export default async function DashboardPage() {
     const tenantIds = tenants.map((t) => t.id);
 
     // Áreas e Unidades dos tenants do usuário (catálogo)
-    const [{ data: areaRows }, { data: unitRows }] = await Promise.all([
+    const [
+      { data: areaRows },
+      { data: unitRows },
+      { data: tiposPaRows },
+      { data: macroAcoesRows },
+    ] = await Promise.all([
       supabase.from("areas").select("id,name,tenant_id").in("tenant_id", tenantIds),
       supabase
         .from("units")
         .select("id,name,uf,area_id,tenant_id,active")
         .in("tenant_id", tenantIds),
+      supabase.from("tipos_pa").select("id,name,active").eq("active", true).order("sort_order"),
+      supabase.from("macro_acoes").select("id,name,active").eq("active", true).order("sort_order"),
     ]);
+
+    catalogTiposPa = (tiposPaRows || []) as { id: string; name: string }[];
+    catalogMacroAcoes = (macroAcoesRows || []) as { id: string; name: string }[];
 
     for (const a of (areaRows || []) as AreaInfo[]) {
       areas.push({ id: a.id, name: a.name, tenant_id: a.tenant_id });
@@ -132,13 +186,14 @@ export default async function DashboardPage() {
     // Plans + Items
     const { data: allPlans } = await supabase
       .from("action_plans")
-      .select("id,tenant_id,title,unit");
+      .select("id,tenant_id,title,unit,unit_id");
 
     const planIds = (allPlans || []).map((p) => p.id);
 
     interface ItemRow {
       id: string;
       plan_id: string;
+      parent_id: string | null;
       status: number;
       action: string;
       number: string;
@@ -152,6 +207,8 @@ export default async function DashboardPage() {
       mat_fin_real: number;
       mat_acad_esperado: number;
       mat_acad_real: number;
+      tipo_pa: string | null;
+      responsible: string | null;
     }
 
     interface PlanRow {
@@ -159,6 +216,7 @@ export default async function DashboardPage() {
       tenant_id: string;
       title: string;
       unit: string;
+      unit_id?: string | null;
     }
 
     // Paginação manual: Supabase tem max-rows ~1000 por requisição.
@@ -170,10 +228,11 @@ export default async function DashboardPage() {
       let from = 0;
       // Loop até a página retornar < PAGE registros
       for (;;) {
-        const { data: chunk, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: chunk, error } = await (supabase as any)
           .from("action_items")
           .select(
-            "id,plan_id,status,action,number,planned_end,created_at,updated_at,preco,inscritos_esperado,inscritos_real,mat_fin_esperado,mat_fin_real,mat_acad_esperado,mat_acad_real",
+            "id,plan_id,parent_id,status,action,number,planned_end,created_at,updated_at,preco,inscritos_esperado,inscritos_real,mat_fin_esperado,mat_fin_real,mat_acad_esperado,mat_acad_real,tipo_pa,responsible",
           )
           .in("plan_id", planIds)
           .order("id", { ascending: true })
@@ -196,19 +255,21 @@ export default async function DashboardPage() {
       itemsByPlan.get(item.plan_id)!.push(item);
     }
 
-    // Match: action_plans.unit (texto) → units.name (catalog).
-    // Também associa plans dentro do mesmo tenant para garantir que matching só
-    // ocorre dentro do tenant correto.
+    // Match principal: action_plans.unit_id → units.id.
+    // Fallback temporário: action_plans.unit (texto) → units.name.
     const unitsByTenantAndName = new Map<string, UnitRow>();
+    const unitsById = new Map<string, UnitRow>();
     for (const u of allUnits) {
+      unitsById.set(u.id, u);
       unitsByTenantAndName.set(`${u.tenant_id}|${norm(u.name)}`, u);
     }
 
     const itemsByUnit = new Map<string, ItemRow[]>();
     const plansWithoutUnit: PlanRow[] = [];
     for (const plan of (allPlans || []) as PlanRow[]) {
-      const key = `${plan.tenant_id}|${norm(plan.unit || "")}`;
-      const matchedUnit = unitsByTenantAndName.get(key);
+      const matchedUnit =
+        (plan.unit_id ? unitsById.get(plan.unit_id) : null) ||
+        unitsByTenantAndName.get(`${plan.tenant_id}|${norm(plan.unit || "")}`);
       if (matchedUnit) {
         if (!itemsByUnit.has(matchedUnit.id)) itemsByUnit.set(matchedUnit.id, []);
         itemsByUnit.get(matchedUnit.id)!.push(...(itemsByPlan.get(plan.id) || []));
@@ -244,6 +305,15 @@ export default async function DashboardPage() {
     const today = new Date().toISOString().split("T")[0];
     const allDeadlines: DeadlineItem[] = [];
 
+    // Mapa de item pai (parent_id = null) por plan para obter macro_acoes
+    // Cada item pai representa uma macro_acao
+    const parentItemsById = new Map<string, ItemRow>();
+    for (const item of allItems) {
+      if (item.parent_id === null) {
+        parentItemsById.set(item.id, item);
+      }
+    }
+
     // Sumário por Unidade
     for (const u of allUnits) {
       const items = itemsByUnit.get(u.id) || [];
@@ -261,17 +331,38 @@ export default async function DashboardPage() {
       ).length;
       const total = items.length;
 
-      // Soma das métricas
+      // Soma das métricas e breakdowns por Tipo PA / Macro Ação
+      const tiposPaBreakdown: Record<string, SubTotals> = {};
+      const macroAcoesBreakdown: Record<string, SubTotals> = {};
       let preco = 0;
       let insE = 0, insR = 0, fE = 0, fR = 0, aE = 0, aR = 0;
+      const tiposPaSet = new Set<string>();
+      const macroAcoesSet = new Set<string>();
       for (const it of items) {
-        preco += Number(it.preco) || 0;
+        const isOv = Boolean(it.planned_end && it.planned_end < today && it.status !== 5);
+        const p = Number(it.preco) || 0;
+        preco += p;
         insE += it.inscritos_esperado;
         insR += it.inscritos_real;
         fE += it.mat_fin_esperado;
         fR += it.mat_fin_real;
         aE += it.mat_acad_esperado;
         aR += it.mat_acad_real;
+        if (it.tipo_pa) {
+          tiposPaSet.add(it.tipo_pa);
+          accBreakdown(tiposPaBreakdown, it.tipo_pa, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
+        }
+        // macro_acao: se o item tem parent, o pai é a macro_acao
+        if (it.parent_id) {
+          const parent = parentItemsById.get(it.parent_id);
+          if (parent?.action) {
+            macroAcoesSet.add(parent.action);
+            accBreakdown(macroAcoesBreakdown, parent.action, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
+          }
+        } else if (items.some((child) => child.parent_id === it.id)) {
+          macroAcoesSet.add(it.action);
+          accBreakdown(macroAcoesBreakdown, it.action, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
+        }
       }
 
       unitSummaries.push({
@@ -297,6 +388,10 @@ export default async function DashboardPage() {
         matFinReal: fR,
         matAcadEsperado: aE,
         matAcadReal: aR,
+        tiposPa: Array.from(tiposPaSet).sort(),
+        macroAcoes: Array.from(macroAcoesSet).sort(),
+        tiposPaBreakdown,
+        macroAcoesBreakdown,
       });
 
       // Coletor de deadlines (todos os pendentes/atrasados/próximos/futuros)
@@ -349,6 +444,47 @@ export default async function DashboardPage() {
       ...nearAll.slice(0, PER_KIND),
       ...futureAll.slice(0, PER_KIND),
     );
+
+    // ─── My Tasks ───────────────────────────────────────────────────────────────
+    const planMap = new Map((allPlans || []).map(p => [p.id, p as PlanRow]));
+    const todayStr = now.toISOString().split("T")[0];
+
+    for (const item of allItems) {
+      if (!item.responsible) continue;
+      if (item.responsible.trim().toLowerCase() !== userName.toLowerCase()) continue;
+
+      const plan = planMap.get(item.plan_id);
+      let daysLeft: number | null = null;
+      let kind: "overdue" | "near" | "future" | "completed" = "future";
+
+      if (item.status === 5) {
+        kind = "completed";
+      } else if (item.planned_end) {
+        const ds = new Date(item.planned_end + "T00:00:00");
+        daysLeft = Math.ceil((ds.getTime() - nowMs) / 86400000);
+        kind = item.planned_end < todayStr ? "overdue" : daysLeft <= 7 ? "near" : "future";
+      }
+
+      myTasks.push({
+        id: item.id,
+        planId: item.plan_id,
+        title: item.action,
+        number: item.number,
+        planned_end: item.planned_end,
+        status: item.status,
+        unitName: plan?.unit || "—",
+        planTitle: plan?.title || "—",
+        daysLeft,
+        kind,
+      });
+    }
+
+    myTasks.sort((a, b) => {
+      const order = { overdue: 0, near: 1, future: 2, completed: 3 };
+      const ka = order[a.kind]; const kb = order[b.kind];
+      if (ka !== kb) return ka - kb;
+      return (a.planned_end || "").localeCompare(b.planned_end || "");
+    });
   } catch {
     /* fallback */
   }
@@ -361,6 +497,9 @@ export default async function DashboardPage() {
       areas={areas}
       deadlines={deadlines}
       sparklineData={sparklineData}
+      catalogTiposPa={catalogTiposPa}
+      catalogMacroAcoes={catalogMacroAcoes}
+      myTasks={myTasks}
     />
   );
 }

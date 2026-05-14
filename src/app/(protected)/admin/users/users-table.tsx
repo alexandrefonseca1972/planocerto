@@ -1034,11 +1034,11 @@ export function UsersTable({
         }}
       >
         {resendingUser && (
-          <AlertDialogContent>
+            <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Reenviar confirmação</AlertDialogTitle>
+              <AlertDialogTitle>Reenviar acesso</AlertDialogTitle>
               <AlertDialogDescription>
-                Deseja reenviar o email de confirmação para{" "}
+                Deseja reenviar o email de acesso para{" "}
                 <strong className="text-zinc-900 dark:text-zinc-50">
                   {resendingUser.email}
                 </strong>

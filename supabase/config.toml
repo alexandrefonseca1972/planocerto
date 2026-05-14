@@ -1,0 +1,84 @@
+project_id = "planocerto"
+
+[db]
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed-templates.sql"]
+
+[auth]
+enabled = true
+site_url = "https://planocerto.app"
+additional_redirect_urls = [
+  "https://planocerto.app/auth/confirm",
+  "https://planocerto.app/auth/update-password",
+  "http://127.0.0.1:3000/auth/confirm",
+  "http://127.0.0.1:3000/auth/update-password",
+  "http://localhost:3000/auth/confirm",
+  "http://localhost:3000/auth/update-password",
+]
+enable_signup = true
+minimum_password_length = 6
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+max_frequency = "1m"
+otp_length = 8
+otp_expiry = 3600
+
+# Configure o SMTP real antes de publicar com `supabase config push`.
+# [auth.email.smtp]
+# enabled = true
+# host = "smtp.resend.com"
+# port = 587
+# user = "resend"
+# pass = "env(RESEND_SMTP_PASSWORD)"
+# admin_email = "no-reply@planocerto.app"
+# sender_name = "PlanoCerto"
+
+[auth.email.template.confirmation]
+subject = "Confirme seu email no PlanoCerto"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.invite]
+subject = "Seu acesso ao PlanoCerto foi liberado"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Seu link de acesso ao PlanoCerto"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.recovery]
+subject = "Redefina sua senha do PlanoCerto"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirme a alteração do seu email"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "Código de verificação do PlanoCerto"
+content_path = "./supabase/templates/reauthentication.html"
+
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Sua senha do PlanoCerto foi alterada"
+content_path = "./templates/password_changed_notification.html"
+
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+otp_length = 6
+template = "Your code is {{ .Code }}"
+max_frequency = "5s"

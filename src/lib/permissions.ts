@@ -25,6 +25,8 @@ export const PERMISSIONS = {
   FINANCE_CREATE: "finance.create",
   FINANCE_UPDATE: "finance.update",
   FINANCE_DELETE: "finance.delete",
+  COMPETITOR_READ: "competitor.read",
+  COMPETITOR_WRITE: "competitor.write",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -79,6 +81,8 @@ export const ROLES: Record<string, RoleDefinition> = {
       PERMISSIONS.FINANCE_CREATE,
       PERMISSIONS.FINANCE_UPDATE,
       PERMISSIONS.FINANCE_DELETE,
+      PERMISSIONS.COMPETITOR_READ,
+      PERMISSIONS.COMPETITOR_WRITE,
     ],
   },
   user: {
@@ -90,6 +94,7 @@ export const ROLES: Record<string, RoleDefinition> = {
       PERMISSIONS.PLANS_READ,
       PERMISSIONS.PLANS_UPDATE,
       PERMISSIONS.FINANCE_READ,
+      PERMISSIONS.COMPETITOR_READ,
     ],
   },
   viewer: {
@@ -100,6 +105,7 @@ export const ROLES: Record<string, RoleDefinition> = {
       PERMISSIONS.PLANS_READ,
       PERMISSIONS.REPORTS_VIEW,
       PERMISSIONS.FINANCE_READ,
+      PERMISSIONS.COMPETITOR_READ,
     ],
   },
 };
@@ -240,6 +246,10 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
     ],
   },
   {
+    label: "Benchmarking",
+    permissions: [PERMISSIONS.COMPETITOR_READ, PERMISSIONS.COMPETITOR_WRITE],
+  },
+  {
     label: "Outros",
     permissions: [PERMISSIONS.TEMPLATES_MANAGE, PERMISSIONS.REPORTS_VIEW],
   },
@@ -272,4 +282,6 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [PERMISSIONS.FINANCE_CREATE]: "Criar contas a pagar",
   [PERMISSIONS.FINANCE_UPDATE]: "Editar contas a pagar",
   [PERMISSIONS.FINANCE_DELETE]: "Excluir contas a pagar",
+  [PERMISSIONS.COMPETITOR_READ]: "Ver benchmarking",
+  [PERMISSIONS.COMPETITOR_WRITE]: "Gerenciar benchmarking",
 };

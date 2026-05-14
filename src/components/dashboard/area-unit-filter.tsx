@@ -218,7 +218,7 @@ export function AreaUnitFilter({
         aria-expanded={open}
         aria-haspopup="listbox"
         className={cn(
-          "inline-flex h-10 w-full items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900 sm:max-w-md",
+          "inline-flex h-10 w-full items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
           open && "ring-2 ring-accent-500",
         )}
       >
@@ -233,6 +233,18 @@ export function AreaUnitFilter({
         >
           {triggerText}
         </span>
+        {selectedCount > 0 && (
+          <span
+            onClick={(e) => { e.stopPropagation(); clearAll(); }}
+            className="shrink-0 cursor-pointer rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            title="Limpar seleção"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clearAll(); } }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </span>
+        )}
         {selectedCount > 0 && (
           <span className="shrink-0 rounded-full bg-accent-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
             {selectedCount}
@@ -249,7 +261,7 @@ export function AreaUnitFilter({
       {open && (
         <div
           ref={popupRef}
-          className="absolute left-0 z-50 mt-1 w-full overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900 sm:max-w-md"
+          className="absolute left-0 z-50 mt-1 w-full min-w-64 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
           role="listbox"
         >
           {/* Busca */}

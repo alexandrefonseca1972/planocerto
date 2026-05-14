@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
 import {
   sanitizeText,
   mapPgError,
@@ -59,6 +60,7 @@ export async function upsertArea(
       if (error) return { message: await mapPgError(error, "Área") };
     }
     revalidatePath("/admin/catalogos/areas");
+    revalidateTag("catalog-areas", "max");
     return { success: true, message: id ? "Área atualizada!" : "Área criada!" };
   } catch (error) {
     console.error("[upsertArea] Error:", error);
@@ -80,10 +82,36 @@ export async function deleteArea(
     const { error } = await supabase.from("areas").delete().eq("id", id);
     if (error) return { message: await mapPgError(error, "Área") };
     revalidatePath("/admin/catalogos/areas");
+    revalidateTag("catalog-areas", "max");
     return { success: true, message: "Área excluída!" };
   } catch (error) {
     console.error("[deleteArea] Error:", error);
     return { message: "Serviço indisponível. Tente novamente em instantes." };
+  }
+}
+
+export async function updateAreaRegionalContext(
+  areaId: string,
+  context: NonNullable<Area["regional_context"]>,
+): Promise<CatalogFormState> {
+  try {
+    const guard = await requireAdmin();
+    if (guard) return { message: guard };
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("areas")
+      .update({ regional_context: context as Json, updated_at: new Date().toISOString() })
+      .eq("id", areaId);
+
+    if (error) return { message: await mapPgError(error, "Área") };
+
+    revalidatePath("/admin/catalogos/areas");
+    revalidateTag("catalog-areas", "max");
+    return { success: true, message: "Contexto regional da área atualizado!" };
+  } catch (error) {
+    console.error("[updateAreaRegionalContext] Error:", error);
+    return { message: "Serviço indisponível." };
   }
 }
 
@@ -102,6 +130,7 @@ export async function toggleAreaActive(
       .eq("id", id);
     if (error) return { message: await mapPgError(error, "Área") };
     revalidatePath("/admin/catalogos/areas");
+    revalidateTag("catalog-areas", "max");
     return {
       success: true,
       message: active ? "Área ativada." : "Área desativada.",

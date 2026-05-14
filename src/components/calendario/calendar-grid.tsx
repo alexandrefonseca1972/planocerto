@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useTenant } from "@/lib/contexts/tenant-context";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export type DeadlineKind = "overdue" | "near" | "future";
 
 export interface CalendarDeadlineItem {
   id: string;
+  planId: string;
   title: string;
   number: string;
   planned_end: string;
@@ -28,6 +30,7 @@ export interface CalendarDeadlineItem {
   responsible: string;
   tenant: string;
   planTitle: string;
+  unit_id: string | null;
   daysLeft: number;
   kind: DeadlineKind;
 }
@@ -46,11 +49,20 @@ interface Props {
 }
 
 export function CalendarGrid({
-  items,
+  items: rawItems,
   initialMonth,
   filterKinds,
   defaultView = "calendar",
 }: Props) {
+  const { selectedUnitIds } = useTenant();
+
+  // Apply unit filter from dashboard
+  const items = useMemo(() => {
+    if (selectedUnitIds.length === 0) return rawItems;
+    const unitSet = new Set(selectedUnitIds);
+    return rawItems.filter((i) => i.unit_id && unitSet.has(i.unit_id));
+  }, [rawItems, selectedUnitIds]);
+
   const todayDate = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -158,6 +170,12 @@ export function CalendarGrid({
 
   return (
     <div className="space-y-4">
+      {selectedUnitIds.length > 0 && (
+        <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-400">
+          <Building2 className="h-3.5 w-3.5 shrink-0" />
+          Filtro de {selectedUnitIds.length === 1 ? "1 unidade" : `${selectedUnitIds.length} unidades`} ativo — configurado no Dashboard.
+        </div>
+      )}
       {/* Toolbar */}
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
@@ -470,7 +488,7 @@ function ItemRow({ item }: { item: CalendarDeadlineItem }) {
   return (
     <li>
       <Link
-        href="/planos"
+        href={`/planos?plan=${item.planId}`}
         className={cn(
           "flex items-start gap-1.5 rounded border px-2 py-1 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800",
           tone,
@@ -480,7 +498,7 @@ function ItemRow({ item }: { item: CalendarDeadlineItem }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-medium">{item.title}</p>
           <p className="truncate text-[10px] text-zinc-500">
-            {item.tenant}
+            {item.planTitle || item.tenant}
             {item.responsible && ` · ${item.responsible}`}
           </p>
         </div>
@@ -598,7 +616,7 @@ function CalendarListView({
               {list.map((it) => (
                 <li key={it.id}>
                   <Link
-                    href="/planos"
+                    href={`/planos?plan=${it.planId}`}
                     className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                   >
                     <span
@@ -617,7 +635,7 @@ function CalendarListView({
                       <p className="truncate text-[13px] font-medium">{it.title}</p>
                       <p className="truncate text-[11px] text-zinc-500">
                         <Building2 className="-mt-0.5 mr-1 inline h-3 w-3" />
-                        {it.tenant}
+                        {it.planTitle || it.tenant}
                         {it.responsible && ` · ${it.responsible}`}
                       </p>
                     </div>

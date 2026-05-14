@@ -34,6 +34,7 @@ import {
   Building,
   Power,
   PowerOff,
+  Sparkles,
 } from "lucide-react";
 import {
   Breadcrumb,
@@ -43,6 +44,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { RegionalContextForm } from "./regional-context-form";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const init: CatalogFormState = { message: undefined, errors: {} };
 
@@ -68,6 +71,7 @@ export function UnidadesClient({
   const [showInactive, setShowInactive] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Unit | null>(null);
+  const [contextUnit, setContextUnit] = useState<Unit | null>(null);
   const [deleting, setDeleting] = useState<Unit | null>(null);
   const [, startTransition] = useTransition();
 
@@ -256,7 +260,16 @@ export function UnidadesClient({
                   <td className="px-3 py-2 text-zinc-500 tabular-nums">
                     {item.sort_order}
                   </td>
-                  <td className="px-3 py-2 font-medium">{item.name}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <div className="flex items-center gap-2">
+                      {item.name}
+                      {item.regional_context && Object.values(item.regional_context).some(v => v) && (
+                        <Tooltip content="Possui contexto regional para IA">
+                          <Sparkles className="h-3 w-3 text-accent-500" />
+                        </Tooltip>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-zinc-500">
                     {item.area_id ? areaMap.get(item.area_id) || "—" : "—"}
                   </td>
@@ -287,6 +300,15 @@ export function UnidadesClient({
                         ) : (
                           <Power className="h-3.5 w-3.5" />
                         )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setContextUnit(item)}
+                        className="text-accent-600 hover:bg-accent-50 dark:hover:bg-accent-950/30"
+                        title="Inteligência Regional"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -324,6 +346,18 @@ export function UnidadesClient({
           onClose={() => {
             setShowForm(false);
             setEditing(null);
+          }}
+        />
+      )}
+
+      {contextUnit && (
+        <RegionalContextForm
+          unit={contextUnit}
+          onClose={() => setContextUnit(null)}
+          onSuccess={(updated) => {
+            setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+            setContextUnit(null);
+            toast("Contexto regional atualizado!");
           }}
         />
       )}

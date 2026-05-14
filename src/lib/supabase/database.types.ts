@@ -105,24 +105,28 @@ export interface Database {
       action_plans: {
         Row: {
           id: string; tenant_id: string; title: string;
+          unit_id: string | null;
           unit: string; director: string; goal: string;
-          status: string; user_id: string | null; created_at: string; updated_at: string;
+          status: string; exercicio: number | null; budget_limit: number | null; visibility: string | null; user_id: string | null; created_at: string; updated_at: string;
         };
         Insert: {
           id?: string; tenant_id: string; title: string;
+          unit_id?: string | null;
           unit?: string; director?: string; goal?: string;
-          status?: string; user_id?: string; created_at?: string; updated_at?: string;
+          status?: string; exercicio?: number | null; budget_limit?: number | null; visibility?: string | null; user_id?: string; created_at?: string; updated_at?: string;
         };
         Update: {
           id?: string; tenant_id?: string; title?: string;
+          unit_id?: string | null;
           unit?: string; director?: string; goal?: string;
-          status?: string; user_id?: string; created_at?: string; updated_at?: string;
+          status?: string; exercicio?: number | null; budget_limit?: number | null; visibility?: string | null; user_id?: string; created_at?: string; updated_at?: string;
         };
         Relationships: [];
       };
       action_items: {
         Row: {
           id: string; plan_id: string; parent_id: string | null; number: string; sort_order: number;
+          tipo_pa: string; area: string; prioridade: string; subacao: string; como: string;
           action: string; why: string; where: string; responsible: string;
           planned_start: string | null; planned_end: string | null; actual_start: string | null; actual_end: string | null;
           cost: string; expected_result: string; actual_result: string; status: number; observations: string;
@@ -134,6 +138,7 @@ export interface Database {
         };
         Insert: {
           id?: string; plan_id: string; parent_id?: string | null; number: string; sort_order?: number;
+          tipo_pa?: string; area?: string; prioridade?: string; subacao?: string; como?: string;
           action: string; why?: string; where?: string; responsible?: string;
           planned_start?: string | null; planned_end?: string | null; actual_start?: string | null; actual_end?: string | null;
           cost?: string; expected_result?: string; actual_result?: string; status?: number; observations?: string;
@@ -145,6 +150,7 @@ export interface Database {
         };
         Update: {
           id?: string; plan_id?: string; parent_id?: string | null; number?: string; sort_order?: number;
+          tipo_pa?: string; area?: string; prioridade?: string; subacao?: string; como?: string;
           action?: string; why?: string; where?: string; responsible?: string;
           planned_start?: string | null; planned_end?: string | null; actual_start?: string | null; actual_end?: string | null;
           cost?: string; expected_result?: string; actual_result?: string; status?: number; observations?: string;
@@ -223,15 +229,15 @@ export interface Database {
         Relationships: [];
       };
       areas: {
-        Row: { id: string; tenant_id: string | null; name: string; sort_order: number; active: boolean; created_at: string; updated_at: string; };
-        Insert: { id?: string; tenant_id?: string | null; name: string; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
-        Update: { id?: string; tenant_id?: string | null; name?: string; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
+        Row: { id: string; tenant_id: string | null; name: string; regional_context: Json | null; sort_order: number; active: boolean; created_at: string; updated_at: string; };
+        Insert: { id?: string; tenant_id?: string | null; name: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
+        Update: { id?: string; tenant_id?: string | null; name?: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
         Relationships: [];
       };
       units: {
-        Row: { id: string; tenant_id: string | null; area_id: string | null; name: string; uf: string; sort_order: number; active: boolean; created_at: string; updated_at: string; };
-        Insert: { id?: string; tenant_id?: string | null; area_id?: string | null; name: string; uf?: string; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
-        Update: { id?: string; tenant_id?: string | null; area_id?: string | null; name?: string; uf?: string; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
+        Row: { id: string; tenant_id: string | null; area_id: string | null; name: string; uf: string; regional_context: Json | null; sort_order: number; active: boolean; created_at: string; updated_at: string; };
+        Insert: { id?: string; tenant_id?: string | null; area_id?: string | null; name: string; uf?: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
+        Update: { id?: string; tenant_id?: string | null; area_id?: string | null; name?: string; uf?: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
         Relationships: [];
       };
       macro_acoes: {
@@ -627,6 +633,162 @@ export interface Database {
           status?: "running" | "success" | "partial" | "failed";
           publications_ok?: number; publications_err?: number;
           error_detail?: string | null; started_at?: string; finished_at?: string | null;
+        };
+        Relationships: [];
+      };
+      modalidades: {
+        Row: {
+          id: string; name: string; sort_order: number;
+          active: boolean; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; name: string; sort_order?: number;
+          active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; name?: string; sort_order?: number;
+          active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      cursos_superiores: {
+        Row: {
+          id: string; name: string; sort_order: number;
+          active: boolean; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; name: string; sort_order?: number;
+          active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; name?: string; sort_order?: number;
+          active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      turnos: {
+        Row: {
+          id: string; name: string; sort_order: number;
+          active: boolean; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; name: string; sort_order?: number;
+          active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; name?: string; sort_order?: number;
+          active?: boolean; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      instituicoes: {
+        Row: {
+          id: string; tenant_id: string;
+          nome: string; nome_fantasia: string; cnpj: string;
+          tipo: "Publica" | "Privada" | "Filantropica";
+          grupo_economico: string; site: string;
+          unit_id: string | null; observacoes: string;
+          active: boolean; user_id: string | null;
+          created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; tenant_id: string;
+          nome: string; nome_fantasia?: string; cnpj?: string;
+          tipo?: "Publica" | "Privada" | "Filantropica";
+          grupo_economico?: string; site?: string;
+          unit_id?: string | null; observacoes?: string;
+          active?: boolean; user_id?: string | null;
+          created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; tenant_id?: string;
+          nome?: string; nome_fantasia?: string; cnpj?: string;
+          tipo?: "Publica" | "Privada" | "Filantropica";
+          grupo_economico?: string; site?: string;
+          unit_id?: string | null; observacoes?: string;
+          active?: boolean; user_id?: string | null;
+          created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      cursos_instituicao: {
+        Row: {
+          id: string; instituicao_id: string;
+          curso_id: string; tipo_pa_id: string;
+          unit_id: string | null;
+          coordenador_nome: string; coordenador_email: string;
+          coordenador_telefone: string; coordenador_lattes: string;
+          observacoes: string; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; instituicao_id: string;
+          curso_id: string; tipo_pa_id: string;
+          unit_id?: string | null;
+          coordenador_nome?: string; coordenador_email?: string;
+          coordenador_telefone?: string; coordenador_lattes?: string;
+          observacoes?: string; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; instituicao_id?: string;
+          curso_id?: string; tipo_pa_id?: string;
+          unit_id?: string | null;
+          coordenador_nome?: string; coordenador_email?: string;
+          coordenador_telefone?: string; coordenador_lattes?: string;
+          observacoes?: string; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      corpo_docente: {
+        Row: {
+          id: string; curso_instituicao_id: string;
+          nome: string; titulacao: string; lattes_url: string;
+          disciplina: string; email: string; regime: string;
+          sort_order: number; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; curso_instituicao_id: string;
+          nome: string; titulacao?: string; lattes_url?: string;
+          disciplina?: string; email?: string; regime?: string;
+          sort_order?: number; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; curso_instituicao_id?: string;
+          nome?: string; titulacao?: string; lattes_url?: string;
+          disciplina?: string; email?: string; regime?: string;
+          sort_order?: number; created_at?: string; updated_at?: string;
+        };
+        Relationships: [];
+      };
+      mensalidades_concorrentes: {
+        Row: {
+          id: string; curso_instituicao_id: string;
+          modalidade_id: string; turno_id: string;
+          valor: number;
+          periodo: "mensal" | "semestral" | "anual";
+          desconto: string;
+          vigencia_inicio: string; vigencia_fim: string | null;
+          data_coleta: string; fonte: string; observacoes: string;
+          user_id: string | null; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; curso_instituicao_id: string;
+          modalidade_id: string; turno_id: string;
+          valor: number;
+          periodo?: "mensal" | "semestral" | "anual";
+          desconto?: string;
+          vigencia_inicio: string; vigencia_fim?: string | null;
+          data_coleta?: string; fonte?: string; observacoes?: string;
+          user_id?: string | null; created_at?: string; updated_at?: string;
+        };
+        Update: {
+          id?: string; curso_instituicao_id?: string;
+          modalidade_id?: string; turno_id?: string;
+          valor?: number;
+          periodo?: "mensal" | "semestral" | "anual";
+          desconto?: string;
+          vigencia_inicio?: string; vigencia_fim?: string | null;
+          data_coleta?: string; fonte?: string; observacoes?: string;
+          user_id?: string | null; created_at?: string; updated_at?: string;
         };
         Relationships: [];
       };

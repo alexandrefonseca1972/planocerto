@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolvePlanUnitDisplayName } from "@/lib/action-plan-units";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,6 +14,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     // — usuário sem permissão recebe 404 abaixo.
     const { data: plan } = await supabase.from("action_plans").select("*").eq("id", id).single();
     if (!plan) return NextResponse.json({ error: "Plano não encontrado." }, { status: 404 });
+
+    const unitLabel = await resolvePlanUnitDisplayName(supabase, {
+      tenantId: plan.tenant_id,
+      unitId: plan.unit_id,
+      unitName: plan.unit,
+    });
 
     const { data: items } = await supabase.from("action_items").select("*").eq("plan_id", id).order("sort_order");
 
@@ -47,7 +54,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 <body>
   <div class="header">
     <h1>${plan.title}</h1>
-    <div class="meta">${[plan.unit, plan.director, plan.goal].filter(Boolean).join(" · ")} · ${new Date().toLocaleDateString("pt-BR")}</div>
+    <div class="meta">${[unitLabel, plan.director, plan.goal].filter(Boolean).join(" · ")} · ${new Date().toLocaleDateString("pt-BR")}</div>
   </div>
   <div class="kpi">
     <div class="kpi-card"><div class="value">${total}</div><div class="label">Total</div></div>

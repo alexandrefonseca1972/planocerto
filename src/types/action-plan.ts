@@ -2,8 +2,12 @@ export type ActionItemStatus = 1 | 2 | 3 | 4 | 5;
 
 export interface ActionPlan {
   id: string; tenant_id: string; title: string;
+  unit_id?: string | null;
   unit: string; director: string; goal: string;
   status: "active" | "archived";
+  exercicio?: number;
+  budget_limit?: number;
+  visibility?: "public" | "restricted";
   user_id: string | null; created_at: string; updated_at: string;
 }
 

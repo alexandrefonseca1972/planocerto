@@ -6,6 +6,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { z } from "zod";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
+import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 
 type ActionItemInsert = Database["public"]["Tables"]["action_items"]["Insert"];
 
@@ -24,13 +25,24 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
     const { data: source } = await supabase.from("action_plans").select("*").eq("id", sourcePlanId).single();
     if (!source) return { message: "Plano origem não encontrado." };
 
+    const resolvedTargetUnit = await resolvePlanUnitReference(supabase, {
+      tenantId: targetTenantId,
+      unitName: source.unit,
+      requireMatch: false,
+    });
+
     // Create new plan
     const { data: newPlan, error: planError } = await supabase.from("action_plans").insert({
       tenant_id: targetTenantId,
       title: `${source.title} (cópia)`,
-      unit: source.unit,
+      unit_id: resolvedTargetUnit.unitId,
+      unit: resolvedTargetUnit.unitName,
       director: source.director,
       goal: source.goal,
+      status: source.status,
+      exercicio: source.exercicio ?? null,
+      budget_limit: source.budget_limit ?? null,
+      visibility: source.visibility ?? "public",
       user_id: user.id,
     }).select().single();
 
@@ -57,23 +69,38 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
         parent_id: null,
         number: item.number,
         sort_order: item.sort_order,
+        tipo_pa: item.tipo_pa,
+        area: item.area,
+        prioridade: item.prioridade,
+        subacao: item.subacao,
+        como: item.como,
         action: item.action,
         why: item.why,
         where: item.where,
         responsible: item.responsible,
         planned_start: item.planned_start,
         planned_end: item.planned_end,
+        actual_start: null,
+        actual_end: null,
         cost: item.cost,
         expected_result: item.expected_result,
+        actual_result: "",
         status: 1,
         observations: item.observations,
+        preco: item.preco,
+        inscritos_esperado: item.inscritos_esperado,
+        inscritos_real: 0,
+        mat_fin_esperado: item.mat_fin_esperado,
+        mat_fin_real: 0,
+        mat_acad_esperado: item.mat_acad_esperado,
+        mat_acad_real: 0,
       });
     }
 
     await supabase.from("action_items").insert(batchItems as ActionItemInsert[]);
 
-    // Update parent_id references
-    const parentUpdates: { id: string; parent_id: string }[] = [];
+    // Batch parent_id updates via upsert
+    const parentUpdates: Record<string, unknown>[] = [];
     for (const item of items) {
       if (item.parent_id && idMap.has(item.parent_id)) {
         const newId = idMap.get(item.id);
@@ -84,8 +111,8 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
       }
     }
 
-    for (const update of parentUpdates) {
-      await supabase.from("action_items").update({ parent_id: update.parent_id }).eq("id", update.id);
+    if (parentUpdates.length > 0) {
+      await supabase.from("action_items").upsert(parentUpdates as ActionItemInsert[]);
     }
 
     revalidatePath("/planos");
@@ -162,14 +189,14 @@ export async function deleteComment(commentId: string): Promise<{ message: strin
 
 // --- Public Links ---
 
-export async function createPublicLink(planId: string, expiresInDays?: number): Promise<{ message: string; success?: boolean; token?: string }> {
+export async function createPublicLink(planId: string, expiresInHours?: number): Promise<{ message: string; success?: boolean; token?: string }> {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
 
     const token = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-    const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 86400000).toISOString() : null;
+    const expiresAt = expiresInHours ? new Date(Date.now() + expiresInHours * 3600000).toISOString() : null;
 
     const { error } = await supabase.from("public_links").insert({
       plan_id: planId,
@@ -226,10 +253,17 @@ export async function createPlanFromTemplate(templateId: string, tenantId: strin
     if (!template) return { message: "Template não encontrado." };
 
     // Create plan
+    const resolvedUnit = await resolvePlanUnitReference(supabase, {
+      tenantId,
+      unitName: template.unit,
+      requireMatch: false,
+    });
+
     const { data: newPlan, error: planError } = await supabase.from("action_plans").insert({
       tenant_id: tenantId,
       title: template.title,
-      unit: template.unit,
+      unit_id: resolvedUnit.unitId,
+      unit: resolvedUnit.unitName,
       director: template.director,
       goal: template.goal,
       user_id: user.id,

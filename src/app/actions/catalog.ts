@@ -1,7 +1,18 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Area, Unit, MacroAcao, Channel } from "@/types/catalog";
+import type { Area, Unit, MacroAcao, Channel, PrioridadeRow } from "@/types/catalog";
+
+export async function getPrioridades(): Promise<PrioridadeRow[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.from("prioridades").select("*").order("sort_order");
+    return (data || []) as PrioridadeRow[];
+  } catch (error) {
+    console.error("[getPrioridades] Error:", error);
+    return [];
+  }
+}
 
 export async function getAreas(): Promise<Area[]> {
   try {

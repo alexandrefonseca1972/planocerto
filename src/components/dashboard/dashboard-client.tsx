@@ -46,9 +46,19 @@ import {
   TrendingUp,
   Users,
   GripVertical,
+  X,
+  UserCheck,
+  MessageSquare,
+  Tag,
+  Layers,
 } from "lucide-react";
 
 const DASHBOARD_STORAGE_VERSION = "v1";
+
+interface SubTotals {
+  total: number; completed: number; inProgress: number; pending: number; overdue: number;
+  preco: number; insE: number; insR: number; fE: number; fR: number; aE: number; aR: number;
+}
 
 export interface UnitSummary {
   id: string;
@@ -70,6 +80,10 @@ export interface UnitSummary {
   matFinReal: number;
   matAcadEsperado: number;
   matAcadReal: number;
+  tiposPa: string[];
+  macroAcoes: string[];
+  tiposPaBreakdown: Record<string, SubTotals>;
+  macroAcoesBreakdown: Record<string, SubTotals>;
 }
 
 export interface AreaInfo {
@@ -94,6 +108,19 @@ interface DeadlineItem {
   kind: DeadlineKind;
 }
 
+interface MyTaskItem {
+  id: string;
+  planId: string;
+  title: string;
+  number: string;
+  planned_end: string | null;
+  status: number;
+  unitName: string;
+  planTitle: string;
+  daysLeft: number | null;
+  kind: "overdue" | "near" | "future" | "completed";
+}
+
 interface DashboardClientProps {
   userName: string;
   userPermissions?: Record<string, boolean>;
@@ -101,6 +128,9 @@ interface DashboardClientProps {
   areas: AreaInfo[];
   deadlines: DeadlineItem[];
   sparklineData: number[];
+  catalogTiposPa?: { id: string; name: string }[];
+  catalogMacroAcoes?: { id: string; name: string }[];
+  myTasks?: MyTaskItem[];
 }
 
 export function DashboardClient({
@@ -108,10 +138,13 @@ export function DashboardClient({
   unitSummaries,
   areas,
   deadlines: allDeadlines,
+  catalogTiposPa = [],
+  catalogMacroAcoes = [],
+  myTasks = [],
 }: DashboardClientProps) {
-  const { selectedTenantIds, currentTenant } = useTenant();
-
-  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const { selectedTenantIds, currentTenant, selectedUnitIds, setSelectedUnitIds } = useTenant();
+  const [selectedTipoPa, setSelectedTipoPa] = useState<string>("");
+  const [selectedMacroAcao, setSelectedMacroAcao] = useState<string>("");
   const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
   const [unitOrder, setUnitOrder] = useState<string[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -270,11 +303,40 @@ export function DashboardClient({
   );
 
   // 2ª camada: filtra por Unidades selecionadas (vazio = todas)
-  const filteredUnits = useMemo(() => {
+  const filteredByUnit = useMemo(() => {
     if (selectedUnitIds.length === 0) return tenantScopedUnits;
     const set = new Set(selectedUnitIds);
     return tenantScopedUnits.filter((u) => set.has(u.id));
   }, [tenantScopedUnits, selectedUnitIds]);
+
+  // Opções dinâmicas: apenas o que existe nos planos das unidades filtradas
+  const availableTiposPa = useMemo(() => {
+    const set = new Set<string>();
+    for (const u of filteredByUnit) u.tiposPa.forEach((t) => set.add(t));
+    return Array.from(set).sort();
+  }, [filteredByUnit]);
+
+  const availableMacroAcoes = useMemo(() => {
+    const set = new Set<string>();
+    for (const u of filteredByUnit) u.macroAcoes.forEach((m) => set.add(m));
+    return Array.from(set).sort();
+  }, [filteredByUnit]);
+
+  // Clamp: se o valor selecionado não existe mais nas opções da unidade, trata como vazio
+  const effectiveTipoPa = availableTiposPa.includes(selectedTipoPa) ? selectedTipoPa : "";
+  const effectiveMacroAcao = availableMacroAcoes.includes(selectedMacroAcao) ? selectedMacroAcao : "";
+
+  // 3ª camada: filtra por Tipo PA e Macro Ação (vazio = todos)
+  const filteredUnits = useMemo(() => {
+    let result = filteredByUnit;
+    if (effectiveTipoPa) {
+      result = result.filter((u) => u.tiposPa.includes(effectiveTipoPa));
+    }
+    if (effectiveMacroAcao) {
+      result = result.filter((u) => u.macroAcoes.includes(effectiveMacroAcao));
+    }
+    return result;
+  }, [filteredByUnit, effectiveTipoPa, effectiveMacroAcao]);
 
   const filteredDeadlines = useMemo(() => {
     const ids = new Set(filteredUnits.map((u) => u.id));
@@ -295,21 +357,31 @@ export function DashboardClient({
       aE = 0,
       aR = 0;
     for (const u of filteredUnits) {
-      total += u.totalActions;
-      completed += u.completed;
-      progress += u.inProgress;
-      pending += u.pending;
-      overdue += u.overdue;
-      preco += u.preco;
-      insE += u.inscritosEsperado;
-      insR += u.inscritosReal;
-      fE += u.matFinEsperado;
-      fR += u.matFinReal;
-      aE += u.matAcadEsperado;
-      aR += u.matAcadReal;
+      // When a sub-filter is active, use its breakdown so totals reflect only matching actions
+      if (effectiveTipoPa) {
+        const bd = u.tiposPaBreakdown[effectiveTipoPa];
+        if (bd) {
+          total += bd.total; completed += bd.completed; progress += bd.inProgress;
+          pending += bd.pending; overdue += bd.overdue; preco += bd.preco;
+          insE += bd.insE; insR += bd.insR; fE += bd.fE; fR += bd.fR; aE += bd.aE; aR += bd.aR;
+        }
+      } else if (effectiveMacroAcao) {
+        const bd = u.macroAcoesBreakdown[effectiveMacroAcao];
+        if (bd) {
+          total += bd.total; completed += bd.completed; progress += bd.inProgress;
+          pending += bd.pending; overdue += bd.overdue; preco += bd.preco;
+          insE += bd.insE; insR += bd.insR; fE += bd.fE; fR += bd.fR; aE += bd.aE; aR += bd.aR;
+        }
+      } else {
+        total += u.totalActions; completed += u.completed; progress += u.inProgress;
+        pending += u.pending; overdue += u.overdue; preco += u.preco;
+        insE += u.inscritosEsperado; insR += u.inscritosReal;
+        fE += u.matFinEsperado; fR += u.matFinReal;
+        aE += u.matAcadEsperado; aR += u.matAcadReal;
+      }
     }
     return { total, completed, progress, pending, overdue, preco, insE, insR, fE, fR, aE, aR };
-  }, [filteredUnits]);
+  }, [filteredUnits, effectiveTipoPa, effectiveMacroAcao]);
 
   const pct = (n: number) =>
     totals.total > 0 ? Math.round((n / totals.total) * 100) : 0;
@@ -370,18 +442,80 @@ export function DashboardClient({
         </Link>
       </div>
 
-      {/* Filtro Áreas + Unidades em uma única selectlist */}
-      <AreaUnitFilter
-        areas={tenantScopedAreas}
-        units={tenantScopedUnits.map((u) => ({
-          id: u.id,
-          name: u.name,
-          area_id: u.area_id,
-          uf: u.uf,
-        }))}
-        selectedUnitIds={selectedUnitIds}
-        onChangeUnits={setSelectedUnitIds}
-      />
+      {/* Filtros: Áreas + Unidades + Tipo PA + Macro Ação */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 sm:max-w-md">
+          <AreaUnitFilter
+            areas={tenantScopedAreas}
+            units={tenantScopedUnits.map((u) => ({
+              id: u.id,
+              name: u.name,
+              area_id: u.area_id,
+              uf: u.uf,
+            }))}
+            selectedUnitIds={selectedUnitIds}
+            onChangeUnits={setSelectedUnitIds}
+          />
+        </div>
+        {availableTiposPa.length > 0 && (
+          <div className="relative shrink-0">
+            <Tag className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <select
+              value={effectiveTipoPa}
+              onChange={(e) => setSelectedTipoPa(e.target.value)}
+              className={cn(
+                "h-10 w-36 appearance-none rounded-md border border-zinc-200 bg-white pl-8 pr-8 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
+                effectiveTipoPa ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400",
+              )}
+            >
+              <option value="">Tipo PA</option>
+              {availableTiposPa.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            {effectiveTipoPa && (
+              <button
+                type="button"
+                onClick={() => setSelectedTipoPa("")}
+                className="absolute right-7 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-white hover:bg-accent-600"
+                aria-label="Limpar filtro Tipo PA"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+        )}
+        {availableMacroAcoes.length > 0 && (
+          <div className="relative shrink-0">
+            <Layers className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <select
+              value={effectiveMacroAcao}
+              onChange={(e) => setSelectedMacroAcao(e.target.value)}
+              className={cn(
+                "h-10 w-40 appearance-none rounded-md border border-zinc-200 bg-white pl-8 pr-8 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
+                effectiveMacroAcao ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400",
+              )}
+            >
+              <option value="">Macro Ação</option>
+              {availableMacroAcoes.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            {effectiveMacroAcao && (
+              <button
+                type="button"
+                onClick={() => setSelectedMacroAcao("")}
+                className="absolute right-7 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-white hover:bg-accent-600"
+                aria-label="Limpar filtro Macro Ação"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       <Tabs defaultValue="indicadores" className="space-y-4">
         <TabsList className="h-10 w-full sm:w-auto sm:inline-flex">
@@ -394,12 +528,20 @@ export function DashboardClient({
           <TabsTrigger value="analise">
             <ListTodo className="mr-1.5 h-3.5 w-3.5" /> Detalhamento
           </TabsTrigger>
+          <TabsTrigger value="minhas-tarefas">
+            <UserCheck className="mr-1.5 h-3.5 w-3.5" /> Minhas Tarefas
+            {myTasks.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-accent-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                {myTasks.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* TAB 1 — Indicadores: KPI Row + Status Row */}
         <TabsContent value="indicadores" className="space-y-3">
           {/* KPI Row — métricas do plano */}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleKpiDragEnd}>
+          <DndContext id="dnd-kpi" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleKpiDragEnd}>
             <SortableContext items={kpiOrder} strategy={rectSortingStrategy}>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {kpiOrder.map((cardId) => {
@@ -446,7 +588,7 @@ export function DashboardClient({
           </DndContext>
 
           {/* Status Row */}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStatusDragEnd}>
+          <DndContext id="dnd-status" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStatusDragEnd}>
             <SortableContext items={statusOrder} strategy={rectSortingStrategy}>
               <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
                 {statusOrder.map((cardId) => {
@@ -571,6 +713,7 @@ export function DashboardClient({
               </div>
 
               <DndContext
+                id="dnd-units"
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
@@ -651,6 +794,25 @@ export function DashboardClient({
               overdue: u.overdue,
             }))}
           />
+        </TabsContent>
+
+        {/* TAB 4 — Minhas Tarefas */}
+        <TabsContent value="minhas-tarefas" className="space-y-3">
+          {myTasks.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center py-12 text-center">
+                <UserCheck className="h-10 w-10 text-zinc-300 dark:text-zinc-600" />
+                <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  Nenhuma tarefa atribuída
+                </h3>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Suas tarefas do campo &quot;Quem?&quot; dos planos de ação aparecerão aqui.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <MyTasksCard tasks={myTasks} userName={userName} />
+          )}
         </TabsContent>
       </Tabs>
     </div>
@@ -1387,5 +1549,116 @@ function StatusCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Minhas Tarefas ────────────────────────────────────────────────────────────
+
+function MyTasksCard({ tasks, userName }: { tasks: MyTaskItem[]; userName: string }) {
+  const [filter, setFilter] = useState<MyTaskItem["kind"] | "all">("all");
+
+  const filtered = filter === "all" ? tasks : tasks.filter(t => t.kind === filter);
+  const counts = {
+    overdue: tasks.filter(t => t.kind === "overdue").length,
+    near: tasks.filter(t => t.kind === "near").length,
+    future: tasks.filter(t => t.kind === "future").length,
+    completed: tasks.filter(t => t.kind === "completed").length,
+  };
+
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-2 p-3">
+          <span className="text-xs font-medium text-zinc-500">{userName}</span>
+          <span className="text-[10px] text-zinc-400">{tasks.length} tarefas</span>
+          <div className="ml-auto flex flex-wrap gap-1">
+            {([
+              ["all", "Todas"],
+              ["overdue", "Atrasadas"],
+              ["near", "Próximas"],
+              ["future", "Futuras"],
+              ["completed", "Concluídas"],
+            ] as const).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setFilter(k)}
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
+                  filter === k ? "bg-accent-500 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400",
+                )}
+              >
+                {label} {k !== "all" && <span className="opacity-70">({counts[k]})</span>}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center py-10 text-center">
+            <CheckCircle2 className="h-8 w-8 text-zinc-300 dark:text-zinc-600" />
+            <p className="mt-2 text-sm text-zinc-500">Nenhuma tarefa neste grupo.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(task => (
+            <MyTaskRow key={task.id} task={task} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MyTaskRow({ task }: { task: MyTaskItem }) {
+  const kindConfig = {
+    overdue: { icon: AlertTriangle, color: "text-red-600 bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-900/50" },
+    near: { icon: Clock, color: "text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/50" },
+    future: { icon: Calendar, color: "text-accent-600 bg-accent-50 border-accent-200 dark:bg-accent-950/20 dark:border-accent-900/50" },
+    completed: { icon: CheckCircle2, color: "text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/50" },
+  }[task.kind];
+
+  const Icon = kindConfig.icon;
+
+  return (
+    <Link href={`/planos?plan=${task.planId}`}>
+      <Card className={cn("border transition-shadow hover:shadow-md", kindConfig.color)}>
+        <CardContent className="flex items-center gap-3 p-3">
+          <Icon className="h-4 w-4 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+              {task.title}
+            </p>
+            <p className="truncate text-[11px] text-zinc-500">
+              {task.planTitle} · {task.unitName}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            {task.daysLeft != null && task.kind !== "completed" && (
+              <p className={cn(
+                "text-[11px] font-semibold tabular-nums",
+                task.kind === "overdue" ? "text-red-600" : task.kind === "near" ? "text-amber-600" : "text-zinc-500",
+              )}>
+                {task.daysLeft < 0
+                  ? `${Math.abs(task.daysLeft)}d atrasado`
+                  : task.daysLeft === 0
+                  ? "Hoje"
+                  : `${task.daysLeft}d`}
+              </p>
+            )}
+            {task.planned_end && (
+              <p className="text-[10px] text-zinc-400">
+                {new Date(task.planned_end + "T00:00:00").toLocaleDateString("pt-BR")}
+              </p>
+            )}
+            {task.status === 5 && (
+              <Badge variant="muted" className="text-[9px] bg-emerald-100 text-emerald-700">Concluído</Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

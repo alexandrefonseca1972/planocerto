@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   sanitizeText,
@@ -59,6 +59,7 @@ export async function upsertMacroAcao(
       if (error) return { message: await mapPgError(error, "Macro Ação") };
     }
     revalidatePath("/admin/catalogos/macro-acoes");
+    revalidateTag("catalog-macro-acoes", "max");
     return {
       success: true,
       message: id ? "Macro Ação atualizada!" : "Macro Ação criada!",
@@ -83,6 +84,7 @@ export async function deleteMacroAcao(
     const { error } = await supabase.from("macro_acoes").delete().eq("id", id);
     if (error) return { message: await mapPgError(error, "Macro Ação") };
     revalidatePath("/admin/catalogos/macro-acoes");
+    revalidateTag("catalog-macro-acoes", "max");
     return { success: true, message: "Macro Ação excluída!" };
   } catch (error) {
     console.error("[deleteMacroAcao] Error:", error);
@@ -105,6 +107,7 @@ export async function toggleMacroAcaoActive(
       .eq("id", id);
     if (error) return { message: await mapPgError(error, "Macro Ação") };
     revalidatePath("/admin/catalogos/macro-acoes");
+    revalidateTag("catalog-macro-acoes", "max");
     return {
       success: true,
       message: active ? "Macro Ação ativada." : "Macro Ação desativada.",

@@ -2,9 +2,14 @@ import { z } from "zod";
 
 export const planSchema = z.object({
   title: z.string().trim().min(2, "Título obrigatório e mínimo 2 caracteres.").max(200, "Máximo 200 caracteres."),
+  unit_id: z.preprocess((value) => (value === "" ? undefined : value), z.string().uuid().optional()),
   unit: z.string().max(200).trim().optional(),
   director: z.string().max(200).trim().optional(),
   goal: z.string().max(1000).trim().optional(),
+  status: z.enum(["active", "archived"]).default("active"),
+  exercicio: z.preprocess((v) => (!v ? undefined : v), z.coerce.number().int().min(2000).max(2100).optional()),
+  budget_limit: z.preprocess((v) => (!v ? undefined : v), z.coerce.number().min(0).optional()),
+  visibility: z.enum(["public", "restricted"]).default("public"),
 });
 
 export const itemSchema = z.object({

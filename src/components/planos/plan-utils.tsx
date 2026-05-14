@@ -33,6 +33,15 @@ export function trunc(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
+export function calculatePlanFinancials(items: ActionItem[], budgetLimit?: number) {
+  const allItems = flattenWithStatus(items);
+  const totalCost = allItems.reduce((acc, item) => acc + (Number(item.preco) || 0), 0);
+  const isOverBudget = !!budgetLimit && budgetLimit > 0 && totalCost > budgetLimit;
+  const percentUsed = budgetLimit && budgetLimit > 0 ? (totalCost / budgetLimit) * 100 : 0;
+
+  return { totalCost, isOverBudget, percentUsed };
+}
+
 export function FarolIcon({ status }: { status: number }) {
   const cls = "h-3.5 w-3.5";
   switch (status) {

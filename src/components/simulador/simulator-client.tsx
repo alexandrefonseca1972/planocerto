@@ -242,12 +242,12 @@ export function SimulatorClient({ channels, units }: { channels: Channel[]; unit
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
             <Calculator className="h-6 w-6 text-accent-600" /> Simulador de Metas
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Funil por canal: Inscritos → Mat. Financeira → Mat. Acadêmica ·{" "}
-            <Badge variant="muted" className="ml-1">
+          <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+            Funil por canal: Inscritos → Mat. Financeira → Mat. Acadêmica
+            <Badge variant="muted">
               {scenarios.length} cenário{scenarios.length === 1 ? "" : "s"}
             </Badge>
-          </p>
+          </div>
         </div>
         <Button
           size="sm"

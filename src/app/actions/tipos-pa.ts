@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   sanitizeText,
@@ -59,6 +59,7 @@ export async function upsertTipoPA(
       if (error) return { message: await mapPgError(error, "Tipo PA") };
     }
     revalidatePath("/admin/catalogos/tipos-pa");
+    revalidateTag("catalog-tipos-pa", "max");
     return { success: true, message: id ? "Tipo PA atualizado!" : "Tipo PA criado!" };
   } catch (error) {
     console.error("[upsertTipoPA] Error:", error);
@@ -80,6 +81,7 @@ export async function deleteTipoPA(
     const { error } = await supabase.from("tipos_pa").delete().eq("id", id);
     if (error) return { message: await mapPgError(error, "Tipo PA") };
     revalidatePath("/admin/catalogos/tipos-pa");
+    revalidateTag("catalog-tipos-pa", "max");
     return { success: true, message: "Tipo PA excluído!" };
   } catch (error) {
     console.error("[deleteTipoPA] Error:", error);
@@ -102,6 +104,7 @@ export async function toggleTipoPAActive(
       .eq("id", id);
     if (error) return { message: await mapPgError(error, "Tipo PA") };
     revalidatePath("/admin/catalogos/tipos-pa");
+    revalidateTag("catalog-tipos-pa", "max");
     return { success: true, message: active ? "Tipo PA ativado." : "Tipo PA desativado." };
   } catch (error) {
     console.error("[toggleTipoPAActive] Error:", error);

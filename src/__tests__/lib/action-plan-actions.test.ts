@@ -30,7 +30,7 @@ vi.mock("@/lib/teams", () => ({
   notifyPlanAction: vi.fn(),
 }));
 
-import { updateItemStatus, upsertItem } from "@/app/actions/action-plan";
+import { updateItemStatus, updatePlan, upsertItem } from "@/app/actions/action-plan";
 
 describe("action-plan permissions", () => {
   beforeEach(() => {
@@ -76,5 +76,90 @@ describe("action-plan permissions", () => {
     expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE);
     expect(createClientMock).not.toHaveBeenCalled();
     expect(result).toEqual({ message: "Acesso negado. Permissão insuficiente." });
+  });
+
+  it("persists governance fields when updating a plan", async () => {
+    checkPermissionMock.mockResolvedValue(true);
+    const validUnitId = "550e8400-e29b-41d4-a716-446655440099";
+
+    const eqMock = vi.fn().mockResolvedValue({ error: null });
+    const updateMock = vi.fn(() => ({ eq: eqMock }));
+    const fromMock = vi.fn((table: string) => {
+      if (table === "action_plans") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: { tenant_id: "tenant-1" } }),
+            })),
+          })),
+          update: updateMock,
+        };
+      }
+      if (table === "units") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn((column: string, value: string) => ({
+              eq: vi.fn((_tenantColumn: string, tenantValue: string) => ({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: column === "id" && value === validUnitId && tenantValue === "tenant-1"
+                    ? { id: validUnitId, tenant_id: "tenant-1", name: "Unidade Norte" }
+                    : null,
+                }),
+              })),
+            })),
+          })),
+        };
+      }
+      if (table === "plan_audit_log") {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      if (table === "profiles") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { name: "Tester" } }),
+            })),
+          })),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    createClientMock.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1", email: "test@example.com" } } }) },
+      from: fromMock,
+    });
+
+    const formData = new FormData();
+    formData.set("planId", "550e8400-e29b-41d4-a716-446655440000");
+    formData.set("title", "Plano atualizado");
+    formData.set("unit_id", validUnitId);
+    formData.set("unit", "Unidade Norte");
+    formData.set("director", "Diretora");
+    formData.set("goal", "Meta 2026");
+    formData.set("status", "archived");
+    formData.set("exercicio", "2026");
+    formData.set("budget_limit", "15000.50");
+    formData.set("visibility", "restricted");
+
+    const result = await updatePlan({}, formData);
+
+    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE);
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Plano atualizado",
+        unit_id: validUnitId,
+        unit: "Unidade Norte",
+        director: "Diretora",
+        goal: "Meta 2026",
+        status: "archived",
+        exercicio: 2026,
+        budget_limit: 15000.5,
+        visibility: "restricted",
+        updated_at: expect.any(String),
+      }),
+    );
+    expect(eqMock).toHaveBeenCalledWith("id", "550e8400-e29b-41d4-a716-446655440000");
+    expect(result).toEqual({ success: true, message: "Plano atualizado!" });
   });
 });

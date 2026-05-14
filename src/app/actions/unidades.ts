@@ -99,6 +99,30 @@ export async function deleteUnit(
   }
 }
 
+export async function updateUnitRegionalContext(
+  unitId: string,
+  context: NonNullable<Unit["regional_context"]>,
+): Promise<CatalogFormState> {
+  try {
+    const guard = await requireAdmin();
+    if (guard) return { message: guard };
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("units")
+      .update({ regional_context: context, updated_at: new Date().toISOString() })
+      .eq("id", unitId);
+
+    if (error) return { message: await mapPgError(error, "Unidade") };
+
+    revalidatePath("/admin/catalogos/unidades");
+    return { success: true, message: "Contexto regional atualizado!" };
+  } catch (error) {
+    console.error("[updateUnitRegionalContext] Error:", error);
+    return { message: "Serviço indisponível." };
+  }
+}
+
 export async function toggleUnitActive(
   id: string,
   active: boolean,

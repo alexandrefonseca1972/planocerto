@@ -114,6 +114,56 @@ export async function lookupCnpj(cnpj: string): Promise<CnpjLookupResult> {
   }
 }
 
+export async function createFornecedorRapido(
+  formData: FormData,
+): Promise<{ success?: boolean; message?: string; fornecedor?: Fornecedor }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { message: "Não autenticado." };
+
+    const name = ((formData.get("name") as string) || "").trim();
+    if (name.length < 2) return { message: "Nome deve ter pelo menos 2 caracteres." };
+    if (name.length > 120) return { message: "Nome muito longo (máx. 120 caracteres)." };
+
+    const cnpj = await sanitizeText(formData.get("cnpj"), 20);
+    const contato_email = await sanitizeText(formData.get("contato_email"), 160);
+    const contato_telefone = await sanitizeText(formData.get("contato_telefone"), 40);
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("active_tenant_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const { data, error } = await supabase
+      .from("fornecedores")
+      .insert({
+        name,
+        cnpj: cnpj || "",
+        categoria: "",
+        contato_nome: "",
+        contato_email: contato_email || "",
+        contato_telefone: contato_telefone || "",
+        observacoes: "",
+        tenant_id: profile?.active_tenant_id ?? null,
+        active: true,
+        sort_order: 0,
+      })
+      .select()
+      .single();
+
+    if (error) return { message: await mapPgError(error, "Fornecedor") };
+    revalidatePath("/financeiro/contas-a-pagar");
+    return { success: true, fornecedor: data as Fornecedor };
+  } catch (error) {
+    console.error("[createFornecedorRapido] Error:", error);
+    return { message: "Serviço indisponível." };
+  }
+}
+
 export async function getFornecedores(): Promise<Fornecedor[]> {
   try {
     const supabase = await createClient();

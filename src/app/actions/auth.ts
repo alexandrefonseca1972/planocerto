@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { buildAuthEmail } from "@/lib/auth-email";
+import { sendEmail } from "@/lib/email";
+import { env } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   loginSchema,
@@ -104,13 +108,25 @@ export async function resetPassword(
       };
     }
 
-    const supabase = await createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      validated.data.email,
-      { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/update-password` }
-    );
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient.auth.admin.generateLink({
+      type: "recovery",
+      email: validated.data.email,
+      options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
+    });
 
-    if (error) {
+    if (error || !data.properties?.action_link) {
+      return { message: "Erro ao enviar email de recuperação. Tente novamente." };
+    }
+
+    const emailContent = buildAuthEmail(
+      "recovery",
+      data.properties.action_link,
+      validated.data.email
+    );
+    const sent = await sendEmail(validated.data.email, emailContent.subject, emailContent.html);
+
+    if (!sent) {
       return { message: "Erro ao enviar email de recuperação. Tente novamente." };
     }
 

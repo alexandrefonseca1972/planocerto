@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { FAROL_MAP, COL, REQUIRED_HEADERS, normHeader, detectHeaderRow } from "@/lib/planos-import";
 import {
   UploadCloud, FileSpreadsheet, X, CheckCircle2, AlertCircle,
-  AlertTriangle, Loader2, ChevronRight, RotateCcw, FolderOpen,
+  AlertTriangle, Loader2, ChevronRight, RotateCcw, FolderOpen, Download,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────
@@ -446,6 +446,11 @@ export function UploadPlanosDialog({
           <div className="flex items-center gap-2">
             {step === "select" && (
               <>
+                <a href="/modelo-plano-acao.xlsx" download className="mr-auto">
+                  <Button variant="ghost" size="sm" type="button">
+                    <Download className="mr-1 h-3.5 w-3.5" /> Baixar modelo
+                  </Button>
+                </a>
                 <Button variant="outline" onClick={onClose}>Cancelar</Button>
                 <Button onClick={runValidation} disabled={files.length === 0}>
                   Validar arquivos <ChevronRight className="ml-1 h-4 w-4" />

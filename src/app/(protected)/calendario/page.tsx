@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getUserTenants } from "@/app/actions/tenant";
+import { checkPermission } from "@/app/actions/admin";
+import { PERMISSIONS } from "@/lib/permissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, Building2 } from "lucide-react";
 import {
@@ -28,11 +30,31 @@ export default async function CalendarioPage({
   const params = (await searchParams) || {};
   const initialFilter = isFilterKind(params.filter) ? params.filter : null;
 
+  const hasReadPerm = await checkPermission(PERMISSIONS.PLANS_READ);
+
   let currentTenantName = "";
   let noTenant = false;
   const items: CalendarDeadlineItem[] = [];
 
   try {
+    if (!hasReadPerm) {
+      return (
+        <div className="flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
+          <Card>
+            <CardContent className="flex flex-col items-center py-16">
+              <Calendar className="h-12 w-12 text-zinc-300 dark:text-zinc-600" />
+              <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Acesso negado
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Você não tem permissão para visualizar planos.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     const supabase = await createClient();
     const {
       data: { user },
@@ -58,12 +80,11 @@ export default async function CalendarioPage({
 
       const { data: allPlans } = await supabase
         .from("action_plans")
-        .select("id,tenant_id,title")
+        .select("id,tenant_id,title,unit_id")
         .eq("tenant_id", activeTenant.id);
       const planMap = new Map(allPlans?.map((p) => [p.id, p]) || []);
       const planIds = allPlans?.map((p) => p.id) || [];
 
-      // Paginação completa via range
       const all: {
         id: string;
         plan_id: string;
@@ -82,6 +103,7 @@ export default async function CalendarioPage({
               "id,plan_id,number,action,status,responsible,planned_end",
             )
             .not("planned_end", "is", null)
+            .neq("status", 5)
             .in("plan_id", planIds)
             .order("planned_end")
             .order("id")
@@ -101,15 +123,14 @@ export default async function CalendarioPage({
       }
 
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayMs = today.getTime();
-      const todayISO = today.toISOString().split("T")[0];
+      const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+      const todayMs = todayUTC.getTime();
+      const todayISO = todayUTC.toISOString().split("T")[0];
 
       const seenIds = new Set<string>();
       for (const it of all) {
         if (seenIds.has(it.id)) continue;
         seenIds.add(it.id);
-        if (it.status === 5) continue; // só não concluídas
 
         const ds = new Date(it.planned_end + "T00:00:00");
         const daysLeft = Math.round((ds.getTime() - todayMs) / 86400000);
@@ -122,6 +143,7 @@ export default async function CalendarioPage({
             : "future";
         items.push({
           id: it.id,
+          planId: it.plan_id,
           title: it.action,
           number: it.number,
           planned_end: it.planned_end,
@@ -129,6 +151,7 @@ export default async function CalendarioPage({
           responsible: norm(it.responsible || ""),
           tenant: activeTenant.name,
           planTitle: plan?.title || "",
+          unit_id: plan && "unit_id" in plan ? (plan.unit_id as string | null) : null,
           daysLeft,
           kind,
         });
