@@ -1,7 +1,9 @@
 import { Resend } from "resend";
 import { env } from "@/lib/env";
 
-const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+const resend = env.RESEND_API_KEY
+  ? new Resend(env.RESEND_API_KEY.replace(/\s+/g, ""))
+  : null;
 
 const DEFAULT_FROM = env.AUTH_EMAIL_FROM;
 const siteUrl = env.NEXT_PUBLIC_SITE_URL || "https://planocerto.app";
