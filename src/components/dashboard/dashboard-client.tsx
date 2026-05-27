@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -29,7 +30,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   AlertTriangle,
-  ArrowUpRight,
   Building2,
   Calendar,
   CheckCircle2,
@@ -434,12 +434,6 @@ export function DashboardClient({
             {filteredUnits.length} {filteredUnits.length === 1 ? "unidade" : "unidades"}
           </p>
         </div>
-        <Link
-          href="/planos"
-          className="inline-flex items-center gap-1 text-xs font-medium text-accent-600 hover:underline dark:text-accent-400"
-        >
-          Ver planos <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
       </div>
 
       {/* Filtros: Áreas + Unidades + Tipo PA + Macro Ação */}
@@ -877,13 +871,21 @@ function UnitMiniCard({ unit }: { unit: UnitSummary }) {
   const total = unit.totalActions;
   const isDone = total > 0 && unit.progress >= 100;
   const isEmpty = total === 0;
+  const { setSelectedUnitIds } = useTenant();
+  const router = useRouter();
+
+  function handleClick() {
+    setSelectedUnitIds([unit.id]);
+    router.push("/planos");
+  }
 
   return (
     <div className="group relative">
-      <Link
-        href="/planos"
+      <button
+        type="button"
+        onClick={handleClick}
         className={cn(
-          "block rounded-lg border border-zinc-200 bg-white p-2 transition-all duration-200 dark:border-zinc-700 dark:bg-zinc-900",
+          "block w-full text-left rounded-lg border border-zinc-200 bg-white p-2 transition-all duration-200 dark:border-zinc-700 dark:bg-zinc-900",
           "hover:border-accent-500 hover:bg-accent-50/40 hover:shadow-md hover:-translate-y-0.5",
           "dark:hover:bg-accent-950/20 dark:hover:border-accent-400",
         )}
@@ -932,7 +934,7 @@ function UnitMiniCard({ unit }: { unit: UnitSummary }) {
             <Tally color="text-red-600" value={unit.overdue} />
           </span>
         </div>
-      </Link>
+      </button>
 
       {/* Legenda detalhada — aparece no hover */}
       <div
