@@ -248,7 +248,7 @@ export function ContasPagarClient({
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;
-  }, [items, sortKey, sortDir]);
+  }, [items, sortKey, sortDir, highlightId]);
 
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);

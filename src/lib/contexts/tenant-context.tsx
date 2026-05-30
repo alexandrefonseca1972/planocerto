@@ -112,7 +112,7 @@ export function TenantProvider({
         });
       }
     },
-    [activeTenantId, router]
+    [activeTenantId, router, toast]
   );
 
   const currentTenant = useMemo(() => {
@@ -150,7 +150,7 @@ export function TenantProvider({
         setIsSwitching(false);
       }
     },
-    [router]
+    [router, toast]
   );
 
   return (
