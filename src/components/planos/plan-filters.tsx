@@ -30,21 +30,22 @@ function FilterSelect({
   onChange,
   options,
   placeholder,
-  activeItemCount,
   showClear,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   placeholder: string;
-  activeItemCount?: number;
   showClear?: boolean;
+  ariaLabel?: string;
 }) {
   return (
     <div className="relative inline-flex items-center">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel ?? placeholder}
         className="h-9 rounded-md border border-zinc-200 bg-white pl-3 pr-7 text-sm text-zinc-700 shadow-sm appearance-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
       >
         <option value="">{placeholder}</option>
@@ -110,6 +111,7 @@ export function PlanFilters({
             { value: "archived", label: "Arquivados" },
           ]}
           placeholder="Todos os planos"
+          ariaLabel="Situação do plano"
           showClear
         />
         <FilterSelect
@@ -120,6 +122,7 @@ export function PlanFilters({
             { value: "restricted", label: "Restrito" },
           ]}
           placeholder="Toda visibilidade"
+          ariaLabel="Visibilidade do plano"
           showClear
         />
         <FilterSelect
@@ -127,6 +130,7 @@ export function PlanFilters({
           onChange={(v) => setExercicioFilter(v ? Number(v) : null)}
           options={availableExercises.map((e) => ({ value: String(e), label: String(e) }))}
           placeholder="Todos os exercícios"
+          ariaLabel="Exercício do plano"
           showClear
         />
         {hasPlanFilters && (
