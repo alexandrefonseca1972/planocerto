@@ -3,6 +3,20 @@
 > Origem: análise minuciosa do codebase (2026-05-29). Ordem **risco primeiro**.
 > Decisões: pipeline de IA será **ativado** (Fase 2); execução inicia pela Fase 1.
 
+## Aplicação em produção (2026-05-29)
+
+- Migrations **049** (`profiles.timezone`) e **050** (índices únicos de idempotência)
+  aplicadas no projeto remoto via Supabase MCP (`apply_migration`), uma a uma.
+  Tabelas do pipeline estavam vazias → índices criados sem conflito. Dados intactos
+  (16 `action_plans`).
+- **NÃO** foi usado `supabase db push` (aplicaria a `048_reset_action_plans`,
+  destrutiva). A 048 e as 044–047 nunca constavam no histórico do remoto (aplicadas
+  por fora).
+- **`migration repair`** feito direto na tabela `supabase_migrations.schema_migrations`:
+  versões `044, 045, 045b, 046, 047, 048, 049, 050` marcadas como aplicadas (sem
+  re-executar). A **048 fica neutralizada** e `db push` passa a ser seguro.
+- Pendência operacional: **rotacionar as chaves do `.env.local`** antes de produção.
+
 ## Como este plano funciona
 
 Cada fase segue o mesmo ciclo, e **não avança** sem cumprir o critério de saída:
