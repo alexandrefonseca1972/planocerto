@@ -16,15 +16,18 @@ export function ShareLinkButton({ planId, toast, canCreate = false, autoOpen }: 
   const [links, setLinks] = useState<{ id: string; token: string; expires_at: string | null; created_at: string }[]>([]);
   const [expiresInHours, setExpiresInHours] = useState(24);
 
-  useEffect(() => {
-    if (autoOpen) loadLinks();
-  }, [autoOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const loadLinks = async () => {
     const l = await getPublicLinks(planId);
     setLinks(l);
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (!autoOpen) return;
+    const run = async () => { await loadLinks(); };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen]);
 
   const handleCreate = async () => {
     const result = await createPublicLink(planId, expiresInHours);

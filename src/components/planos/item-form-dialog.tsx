@@ -27,10 +27,9 @@ import {
   orderParentGroupsByMacroCatalog, 
   isValidActionText 
 } from "@/components/planos/planos-page-helpers";
-import { suggest5W2H } from "@/app/actions/action-plan-ai";
 import { getItemAuditLog } from "@/app/actions/action-plan";
 import { formatAuditEntryDate, getAuditEntryMarker, getAuditEntrySummary, getAuditEntryTone } from "@/components/planos/item-history-helpers";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 interface ItemFormDialogProps {
   item: ActionItem | null;
@@ -68,24 +67,9 @@ export function ItemFormDialog({
   const [actionText, setActionText] = useState(item?.action || "");
   const [whyText, setWhyText] = useState(item?.why || "");
   const [comoText, setComoText] = useState(item?.como || "");
-  const [iaLoading, setIaLoading] = useState(false);
   const [parentId, setParentId] = useState(item?.parent_id || "");
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
-
-  const handleAiSuggest = async () => {
-    if (!actionText || actionText.trim().length < 5) return;
-    setIaLoading(true);
-    try {
-      const result = await suggest5W2H(actionText, planId);
-      if (result.why) setWhyText(result.why);
-      if (result.how) setComoText(result.how);
-    } catch (error) {
-      console.error("AI Suggest Error:", error);
-    } finally {
-      setIaLoading(false);
-    }
-  };
 
   const allItems = flattenItems(items);
   const groups = orderParentGroupsByMacroCatalog(

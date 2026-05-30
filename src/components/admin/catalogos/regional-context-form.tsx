@@ -5,7 +5,7 @@ import { X, Save, Sparkles, Globe, Users, Calendar, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { updateUnitRegionalContext } from "@/app/actions/unidades";
-import type { Unit, CatalogFormState } from "@/types/catalog";
+import type { Unit } from "@/types/catalog";
 import { sanitize } from "@/lib/sanitize";
 
 interface RegionalContextFormProps {
@@ -40,7 +40,7 @@ export function RegionalContextForm({
       } else {
         setError(res.message || "Erro ao salvar.");
       }
-    } catch (e) {
+    } catch {
       setError("Erro de rede ou permissão.");
     } finally {
       setLoading(false);

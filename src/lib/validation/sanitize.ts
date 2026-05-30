@@ -1,4 +1,3 @@
-import { z } from "zod";
 import DOMPurify from "isomorphic-dompurify";
 
 export function sanitizeText(input: unknown): string {

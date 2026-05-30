@@ -1,15 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { 
   ChevronDown, 
   ChevronUp,
   ChevronsUpDown,
   MoreVertical, 
-  Paperclip, 
-  History,
-  MessageSquare, 
+  Paperclip,
+  MessageSquare,
   Receipt, 
   Pencil, 
   Check, 
@@ -24,22 +23,12 @@ import {
   DropdownMenuItem, 
   DropdownMenuSeparator 
 } from "@/components/ui/dropdown-menu";
-import { 
-  AlertDialog, 
-  AlertDialogContent, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogCancel 
-} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format-br";
 import { fmt } from "@/components/planos/plan-utils";
 import { StatusDot } from "@/components/planos/status-dot";
 import type { ActionItem } from "@/types/action-plan";
 import type { ItemContasSummary } from "@/app/actions/contas-pagar";
-import { isValidActionText } from "@/components/planos/planos-page-helpers";
 
 const PAGE_SIZE = 20;
 
@@ -59,6 +48,41 @@ interface PlanTableProps {
   onOpenTab: (item: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => void;
   inlineAction: (p: FormData) => void;
   isInlineSaving: boolean;
+}
+
+// Hoisted para fora do render: componentes não podem ser criados durante o render
+// (react-hooks/static-components). Recebe sort/onSort por props em vez de closure.
+function SortHeader({
+  column,
+  label,
+  className,
+  sort,
+  onSort,
+}: {
+  column: SortKey;
+  label: string;
+  className?: string;
+  sort: SortState;
+  onSort: (column: SortKey) => void;
+}) {
+  return (
+    <th
+      onClick={() => onSort(column)}
+      className={cn(
+        "cursor-pointer select-none px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors",
+        className,
+      )}
+    >
+      <span className="inline-flex items-center gap-0.5">
+        {label}
+        {sort.key === column ? (
+          sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronsUpDown className="h-3 w-3 opacity-30" />
+        )}
+      </span>
+    </th>
+  );
 }
 
 export function PlanTable({
@@ -146,33 +170,13 @@ export function PlanTable({
     return { flatItems: flat, totalPages: pages };
   }, [items, sort, expandedRows]);
 
-  // Clamp page when filtered results shrink
-  useEffect(() => {
-    if (page >= totalPages) setPage(Math.max(0, totalPages - 1));
-  }, [totalPages, page]);
+  // Clamp da página durante o render (sem effect → sem cascading render).
+  // setState durante o render é o padrão recomendado pelo React para ajustar
+  // estado derivado; converge em 1 re-render pois safePage já é clampado.
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
+  if (safePage !== page) setPage(safePage);
 
-  const pageItems = flatItems.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-
-  function SortHeader({ column, label, className }: { column: SortKey; label: string; className?: string }) {
-    return (
-      <th
-        onClick={() => toggleSort(column)}
-        className={cn(
-          "cursor-pointer select-none px-2 sm:px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors",
-          className,
-        )}
-      >
-        <span className="inline-flex items-center gap-0.5">
-          {label}
-          {sort.key === column ? (
-            sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
-          ) : (
-            <ChevronsUpDown className="h-3 w-3 opacity-30" />
-          )}
-        </span>
-      </th>
-    );
-  }
+  const pageItems = flatItems.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   return (
     <div className="space-y-2">
@@ -185,15 +189,15 @@ export function PlanTable({
                   <th className="sticky left-0 z-20 bg-inherit backdrop-blur-md px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 w-14">
                     Nº
                   </th>
-                  <SortHeader column="action" label="Ação" className="min-w-[180px]" />
-                  <SortHeader column="tipo_pa" label="Tipo" className="w-24" />
-                  <SortHeader column="prioridade" label="Prior" className="w-20" />
-                  <SortHeader column="responsible" label="Resp." className="min-w-[100px]" />
-                  <SortHeader column="why" label="Por Que" className="min-w-[100px]" />
-                  <SortHeader column="planned_end" label="Término" className="min-w-[80px]" />
-                  <SortHeader column="where" label="Onde" className="min-w-[80px]" />
-                  <SortHeader column="planned_start" label="Início" className="min-w-[80px]" />
-                  <SortHeader column="cost" label="Custo" className="min-w-[90px]" />
+                  <SortHeader column="action" label="Ação" className="min-w-[180px]" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="tipo_pa" label="Tipo" className="w-24" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="prioridade" label="Prior" className="w-20" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="responsible" label="Resp." className="min-w-[100px]" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="why" label="Por Que" className="min-w-[100px]" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="planned_end" label="Término" className="min-w-[80px]" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="where" label="Onde" className="min-w-[80px]" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="planned_start" label="Início" className="min-w-[80px]" sort={sort} onSort={toggleSort} />
+                  <SortHeader column="cost" label="Custo" className="min-w-[90px]" sort={sort} onSort={toggleSort} />
                   <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500 w-16">
                     Status
                   </th>
@@ -374,7 +378,6 @@ function ViewRow({
   onOpenTab: (i: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => void;
   contasSummary?: ItemContasSummary;
 }) {
-  const showFull = isExpanded && isGroup;
   return (
     <>
       <td className="sticky left-0 z-10 bg-inherit px-3 py-2.5 font-mono text-[11px] text-zinc-400 dark:text-zinc-500 align-top">

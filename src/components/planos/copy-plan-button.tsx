@@ -37,15 +37,6 @@ export function CopyPlanButton({ plan, plans, toast, router, autoOpen }: CopyPla
   const [allPlans, setAllPlans] = useState<ActionPlan[]>([]);
   const hasPlansList = plans && plans.length > 0;
 
-  useEffect(() => {
-    if (autoOpen) loadTenantsAndOpen();
-  }, [autoOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const effectivePlanId = plan?.id || selectedPlanId;
-  const effectivePlan = plan || allPlans.find(p => p.id === selectedPlanId) || null;
-
-  if (!plan && !hasPlansList) return null;
-
   const loadTenantsAndOpen = async () => {
     try {
       const { getUserTenants } = await import("@/app/actions/tenant");
@@ -60,6 +51,18 @@ export function CopyPlanButton({ plan, plans, toast, router, autoOpen }: CopyPla
       toast("Erro ao carregar empresas.", "error");
     }
   };
+
+  useEffect(() => {
+    if (!autoOpen) return;
+    const run = async () => { await loadTenantsAndOpen(); };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen]);
+
+  const effectivePlanId = plan?.id || selectedPlanId;
+  const effectivePlan = plan || allPlans.find(p => p.id === selectedPlanId) || null;
+
+  if (!plan && !hasPlansList) return null;
 
   const handleClone = async () => {
     if (!effectivePlanId) return;

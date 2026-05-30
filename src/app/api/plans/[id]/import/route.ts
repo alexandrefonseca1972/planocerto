@@ -68,7 +68,6 @@ export async function POST(
       let parentId: string | null = null;
       if (macroAcao && !groupMap.has(macroAcao)) {
         sortOrder++;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: grupo, error: grupoErr } = await supabase
           .from("action_items")
           .insert({
@@ -80,7 +79,7 @@ export async function POST(
             area,
             prioridade,
             status: 1,
-          } as any)
+          })
           .select("id")
           .single();
         if (grupoErr || !grupo) {
@@ -93,7 +92,6 @@ export async function POST(
       if (macroAcao) parentId = groupMap.get(macroAcao) ?? null;
 
       sortOrder++;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: itemErr } = await supabase.from("action_items").insert({
         plan_id: planId,
         parent_id: parentId,
@@ -120,7 +118,7 @@ export async function POST(
         mat_fin_real:       parseNum(row[COL.MATFIN_REAL]),
         mat_acad_esperado:  parseNum(row[COL.MATACD_ESP]),
         mat_acad_real:      parseNum(row[COL.MATACD_REAL]),
-      } as any);
+      });
 
       if (itemErr) {
         errors.push(`Linha "${acao}": ${itemErr.message}`);

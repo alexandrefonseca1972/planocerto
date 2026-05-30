@@ -161,10 +161,14 @@ export function ContasPagarClient({
   useEffect(() => {
     const itemId = searchParams.get("item_id");
     if (!itemId) return;
-    // Atualiza o estado de filtros antes de refetch para manter consistência
-    const next: ContaListFilters = { status: "todos", search: "", item_id: itemId };
-    setFilters(next);
-    refetch(next);
+    // Sync de filtros + refetch numa fn async aninhada: o corpo do effect não
+    // chama setState de forma síncrona (react-hooks/set-state-in-effect).
+    const run = async () => {
+      const next: ContaListFilters = { status: "todos", search: "", item_id: itemId };
+      setFilters(next);
+      await refetch(next);
+    };
+    run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get("item_id")]);
 

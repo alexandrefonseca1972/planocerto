@@ -423,7 +423,7 @@ export function UploadPlanosDialog({
           {/* Empty state */}
           {files.length === 0 && step === "select" && (
             <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/30">
-              <p className="text-xs font-medium text-zinc-500 mb-2">Formato esperado — aba "PLANO DE AÇÃO":</p>
+              <p className="text-xs font-medium text-zinc-500 mb-2">Formato esperado — aba &quot;PLANO DE AÇÃO&quot;:</p>
               <div className="flex flex-wrap gap-1.5">
                 {["TIPO PA","ÁREA","UNIDADE","PRIORIDADE","MACRO AÇÃO","AÇÃO","SUBAÇÃO","COMO?","ONDE?","QUEM?","QUANTO","INSCRITOS","MAT.FIN","MAT.ACAD","INÍCIO PREV","TÉRMINO PREV","INÍCIO REAL","TÉRMINO REAL","FAROL","OBSERVAÇÕES"].map((col) => (
                   <span key={col} className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">{col}</span>

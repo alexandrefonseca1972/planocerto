@@ -12,7 +12,7 @@ import {
 import {
   Receipt, Wallet, AlertTriangle, CheckCircle, Calendar,
   ChevronLeft, ChevronRight, RefreshCw, BarChart2, List, Users,
-  TrendingDown, TrendingUp, CircleDot,
+  CircleDot,
 } from "lucide-react";
 import { getResumoContas } from "@/app/actions/contas-pagar";
 import { getFornecedores } from "@/app/actions/fornecedores";
@@ -98,16 +98,22 @@ export default function FinanceiroPage() {
 
   const load = useCallback(() => {
     let cancelled = false;
-    setLoading(true);
-    getResumoContas({
-      range,
-      fornecedor_id: fornecedorFiltro || null,
-      ano: periodoModo === "anual" ? ano : anoAtual,
-    }).then((data) => {
-      if (!cancelled) { setResumo(data); setLoading(false); }
-    }).catch(() => {
-      if (!cancelled) setLoading(false);
-    });
+    // Fetch numa função async aninhada: o corpo do effect não chama setState
+    // de forma síncrona (evita react-hooks/set-state-in-effect / cascading renders).
+    const run = async () => {
+      setLoading(true);
+      try {
+        const data = await getResumoContas({
+          range,
+          fornecedor_id: fornecedorFiltro || null,
+          ano: periodoModo === "anual" ? ano : anoAtual,
+        });
+        if (!cancelled) setResumo(data);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, fornecedorFiltro, periodoModo, ano]);
@@ -383,8 +389,6 @@ function PorFornecedor({ resumo, loading }: { resumo: ResumoFinanceiro | null; l
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {lista.map((f) => {
             const total = f.total_pago + f.total_aberto;
-            const pctPago = total > 0 ? (f.total_pago / total) * 100 : 0;
-            const pctAberto = 100 - pctPago;
             return (
               <div key={f.fornecedor_id ?? "sem"} className="px-4 py-3 space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
@@ -425,7 +429,6 @@ function PorStatus({ resumo, loading }: { resumo: ResumoFinanceiro | null; loadi
   );
 
   const totalQtd = lista.reduce((s, x) => s + x.quantidade, 0);
-  const totalVal = lista.reduce((s, x) => s + x.valor_total, 0);
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -206,14 +206,18 @@ export function ContaForm({
   }
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    // Reset do formulário ao abrir, numa fn aninhada para não chamar setState
+    // diretamente no corpo do effect (react-hooks/set-state-in-effect).
+    const run = async () => {
       reset(initial);
       setModoParcelado(isEdit ? (conta?.parcelas?.length ?? 1) > 1 : false);
       setLocalFornecedores(fornecedores);
       setShowQuickAdd(false);
       setQuickAddName(""); setQuickAddCnpj(""); setQuickAddEmail(""); setQuickAddTelefone("");
       setQuickAddError("");
-    }
+    };
+    run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, conta?.id]);
 

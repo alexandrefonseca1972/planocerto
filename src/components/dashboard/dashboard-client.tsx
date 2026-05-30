@@ -48,7 +48,6 @@ import {
   GripVertical,
   X,
   UserCheck,
-  MessageSquare,
   Tag,
   Layers,
 } from "lucide-react";
@@ -138,8 +137,6 @@ export function DashboardClient({
   unitSummaries,
   areas,
   deadlines: allDeadlines,
-  catalogTiposPa = [],
-  catalogMacroAcoes = [],
   myTasks = [],
 }: DashboardClientProps) {
   const { selectedTenantIds, currentTenant, selectedUnitIds, setSelectedUnitIds } = useTenant();
