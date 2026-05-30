@@ -4,8 +4,8 @@ import type { ActionItem } from "@/types/action-plan";
 
 describe("calculatePlanFinancials", () => {
   const mockItems: ActionItem[] = [
-    { preco: 100, children: [{ preco: 50 }] } as any,
-    { preco: 200 } as any,
+    { preco: 100, children: [{ preco: 50 }] } as unknown as ActionItem,
+    { preco: 200 } as unknown as ActionItem,
   ];
 
   it("should calculate total cost correctly including nested items", () => {
@@ -31,7 +31,7 @@ describe("calculatePlanFinancials", () => {
   });
 
   it("should handle items without price", () => {
-    const itemsWithoutPrice = [{ action: "No price" } as any];
+    const itemsWithoutPrice = [{ action: "No price" } as unknown as ActionItem];
     const { totalCost } = calculatePlanFinancials(itemsWithoutPrice);
     expect(totalCost).toBe(0);
   });
