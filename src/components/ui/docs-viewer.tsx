@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import DOMPurify from 'isomorphic-dompurify';
 import { ChevronRight, Search, Copy, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -204,7 +205,7 @@ function DocContent({
 }
 
 function formatText(text: string): string {
-  return text
+  const html = text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline">$1</a>')
@@ -212,4 +213,10 @@ function formatText(text: string): string {
     .replace(/## (.*?)(?=\n|$)/g, '<h2 class="text-xl font-bold mt-8 mb-4">$1</h2>')
     .replace(/- (.*?)(?=\n|$)/g, '<li class="ml-4">$1</li>')
     .replace(/(\d+)\. (.*?)(?=\n|$)/g, '<li class="ml-4">$2</li>');
+  // Hardening: ainda que o conteúdo seja estático, sanitiza o HTML gerado antes
+  // de injetar via dangerouslySetInnerHTML (remove href javascript:, handlers, etc.).
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['strong', 'em', 'a', 'h2', 'h3', 'li', 'br'],
+    ALLOWED_ATTR: ['href', 'class'],
+  });
 }

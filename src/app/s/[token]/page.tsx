@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Clock, AlertTriangle, Play, Circle } from "lucide-react";
 
@@ -27,7 +29,15 @@ export default async function PublicDashboard({ params }: Params) {
   const items: { id: string; number: string; action: string; responsible: string; status: number; planned_end: string | null }[] = [];
   let error = "";
 
+  // Rate-limit por IP (best-effort): barreira contra scraping/enumeração de links.
+  const h = await headers();
+  const ip = (h.get("x-forwarded-for") || h.get("x-real-ip") || "unknown").split(",")[0].trim();
+  if (!rateLimit(`public-link:${ip}`, 30, 60_000).allowed) {
+    error = "Muitas requisições. Aguarde alguns instantes e tente novamente.";
+  }
+
   try {
+    if (error) throw null;
     const supabase = await createClient();
 
     // Validate the token

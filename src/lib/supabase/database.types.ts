@@ -15,6 +15,7 @@ export interface Database {
           avatar_url: string | null; active_tenant_id: string | null;
           phone: string; social_media: Json;
           permissions: Json; login_start_time: string | null; login_end_time: string | null; is_active: boolean;
+          timezone: string;
           created_at: string; updated_at: string;
         };
         Insert: {
@@ -22,6 +23,7 @@ export interface Database {
           avatar_url?: string | null; active_tenant_id?: string | null;
           phone?: string; social_media?: Json;
           permissions?: Json; login_start_time?: string | null; login_end_time?: string | null; is_active?: boolean;
+          timezone?: string;
           created_at?: string; updated_at?: string;
         };
         Update: {
@@ -29,6 +31,7 @@ export interface Database {
           avatar_url?: string | null; active_tenant_id?: string | null;
           phone?: string; social_media?: Json;
           permissions?: Json; login_start_time?: string | null; login_end_time?: string | null; is_active?: boolean;
+          timezone?: string;
           created_at?: string; updated_at?: string;
         };
         Relationships: [];

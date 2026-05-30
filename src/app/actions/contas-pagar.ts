@@ -22,6 +22,8 @@ import type {
 } from "@/types/financeiro";
 import { ANEXO_TIPOS } from "@/types/financeiro";
 
+import { getCurrentTenantId } from "@/app/actions/_helpers";
+
 // =========================================================================
 // Helpers
 // =========================================================================
@@ -29,20 +31,6 @@ import { ANEXO_TIPOS } from "@/types/financeiro";
 async function requirePerm(perm: Permission): Promise<string | null> {
   const ok = await checkPermission(perm);
   return ok ? null : "Acesso negado para esta operação financeira.";
-}
-
-async function getCurrentTenantId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("active_tenant_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  return (profile?.active_tenant_id as string | null) ?? null;
 }
 
 function parseContaForm(formData: FormData): {
@@ -117,6 +105,10 @@ export async function getContasPagar(
 ): Promise<ContaComParcelas[]> {
   try {
     const supabase = await createClient();
+    // Defense-in-depth: filtra por tenant no app layer além da RLS. contas_pagar
+    // é puramente tenant-scoped (sem registros globais), então fail-closed se nulo.
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return [];
     let query = supabase
       .from("contas_pagar")
       .select(
@@ -127,6 +119,7 @@ export async function getContasPagar(
          item:action_items(id,action),
          parcelas:parcelas_pagar(*)`,
       )
+      .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false });
 
     if (filters.status && filters.status !== "todos" && filters.status !== "atrasado") {
