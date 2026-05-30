@@ -28,24 +28,12 @@ import type {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function getTenantId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("active_tenant_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  return profile?.active_tenant_id ?? null;
-}
+import { getCurrentTenantId } from "@/app/actions/_helpers";
 
 async function checkCompetitorWrite(): Promise<string | null> {
   const ok = await checkPermission(PERMISSIONS.COMPETITOR_WRITE);
   if (!ok) return "Acesso negado.";
-  const tenantId = await getTenantId();
+  const tenantId = await getCurrentTenantId();
   if (!tenantId) return "Selecione uma empresa.";
   return null;
 }
@@ -110,7 +98,7 @@ export async function getTiposPa(): Promise<TipoPa[]> {
 
 export async function getInstituicoes(): Promise<Instituicao[]> {
   try {
-    const tenantId = await getTenantId();
+    const tenantId = await getCurrentTenantId();
     if (!tenantId) return [];
     const supabase = await createClient();
     const { data } = await supabase
@@ -147,7 +135,7 @@ export async function upsertInstituicao(
     const guard = await checkCompetitorWrite();
     if (guard) return { message: guard };
 
-    const tenantId = await getTenantId();
+    const tenantId = await getCurrentTenantId();
     if (!tenantId) return { message: "Selecione uma empresa." };
 
     const id = formData.get("id") as string | null;

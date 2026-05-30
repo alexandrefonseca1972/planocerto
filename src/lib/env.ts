@@ -17,6 +17,9 @@ const envSchema = z.object({
   INLABS_PASSWORD: z.string().min(1).default("placeholder"),
   WEBHOOK_SECRET: z.string().min(32).default("placeholder-secret-that-is-32-chars!"),
   CRON_SECRET: z.string().min(32).default("placeholder-secret-that-is-32-chars!"),
+  LOG_LEVEL: z
+    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+    .optional(),
 });
 
 export const env: z.infer<typeof envSchema> = envSchema.parse(process.env);

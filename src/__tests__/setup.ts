@@ -18,10 +18,18 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-vi.mock("pino", () => ({
-  default: vi.fn(() => ({
+function createMockLogger() {
+  return {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-  })),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+    child: vi.fn(() => createMockLogger()),
+  };
+}
+
+vi.mock("pino", () => ({
+  default: vi.fn(() => createMockLogger()),
 }));

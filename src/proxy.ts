@@ -1,98 +1,52 @@
-import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
-import { env } from "@/lib/env";
-import type { Database } from "@/lib/supabase/database.types";
+import { checkAuth } from "@/lib/middleware/auth-check";
+import { isProtectedPath, isAuthPage, isApiRoute } from "@/lib/middleware/route-guards";
+import { checkProfileRestrictions } from "@/lib/middleware/profile-restrictions";
+import { logger } from "@/lib/logger";
+
+const log = logger.child({ component: "proxy" });
 
 export async function proxy(request: NextRequest) {
   try {
-    let supabaseResponse = NextResponse.next({ request });
-
-    const supabase = createServerClient<Database>(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) =>
-              request.cookies.set(name, value)
-            );
-            supabaseResponse = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) => {
-              // Strip expiry — session cookies cleared on browser close
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { expires, maxAge, ...rest } = options || {};
-              supabaseResponse.cookies.set(name, value, rest);
-            });
-          },
-        },
-      }
-    );
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const { user, response: supabaseResponse } = await checkAuth(request);
 
     const { pathname, searchParams } = request.nextUrl;
 
-    const isProtectedPath =
-      pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/profile") ||
-      pathname.startsWith("/admin") ||
-      pathname.startsWith("/planos") ||
-      pathname.startsWith("/calendario") ||
-      pathname.startsWith("/pendente") ||
-      pathname.startsWith("/financeiro");
-
-    if (userError && isProtectedPath) {
-      console.error("[proxy] Erro ao obter usuário:", userError.message);
-    }
-
-    const isAuthPage =
-      pathname.startsWith("/auth") ||
-      pathname.startsWith("/login") ||
-      pathname.startsWith("/register");
+    const isAuth = isAuthPage(pathname);
+    const isProtected = isProtectedPath(pathname);
+    const isApi = isApiRoute(pathname);
 
     const hasAuthMessage = searchParams.has("message") || searchParams.has("error");
 
-    // Only redirect authenticated users away from auth pages if there's no message to show
-    if (user && !userError && isAuthPage && !hasAuthMessage) {
+    // Redireciona usuário autenticado fora de páginas de auth
+    if (user && !isApi && isAuth && !hasAuthMessage) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    // Check login time restrictions and access protection (skip for API routes)
-    const isApiRoute = pathname.startsWith("/api");
-    if (user && isProtectedPath && !isApiRoute) {
-      try {
-        const { data: profile } = await supabase.from("profiles").select("login_start_time, login_end_time, is_active").eq("id", user.id).maybeSingle();
-        if (profile && !profile.is_active) {
-          const url = new URL("/auth", request.url);
-          url.searchParams.set("error", "Sua conta está desativada. Entre em contato com o administrador.");
-          return NextResponse.redirect(url);
-        }
-        if (profile?.login_start_time && profile?.login_end_time) {
-          const now = new Date();
-          const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-          if (currentTime < profile.login_start_time || currentTime > profile.login_end_time) {
-            const url = new URL("/auth", request.url);
-            url.searchParams.set("error", `Seu horário de acesso é das ${profile.login_start_time.slice(0, 5)} às ${profile.login_end_time.slice(0, 5)}.`);
-            return NextResponse.redirect(url);
-          }
-        }
-      } catch (error) { console.error("[proxy] Erro ao verificar restrições:", error); }
+    // Verifica restrições de perfil (conta ativa, horário de login)
+    if (user && isProtected && !isApi) {
+      const { redirected } = await checkProfileRestrictions(request, user.id);
+      if (redirected) return redirected;
     }
 
-    if (!user && isProtectedPath) {
-      const url = new URL("/auth", request.url);
-      return NextResponse.redirect(url);
+    // Redireciona usuário não-autenticado para /auth
+    if (!user && isProtected) {
+      return NextResponse.redirect(new URL("/auth", request.url));
     }
 
     return supabaseResponse;
   } catch (error) {
-    console.error("[proxy] Erro crítico no middleware:", error);
+    log.error({ error }, "Erro crítico no middleware");
+
+    const { pathname } = request.nextUrl;
+
+    // Fail-closed: em caso de falha crítica, bloqueia rotas protegidas
+    if (isProtectedPath(pathname) && !isApiRoute(pathname)) {
+      const url = new URL("/auth", request.url);
+      url.searchParams.set("error", "Serviço temporariamente indisponível. Tente novamente em instantes.");
+      return NextResponse.redirect(url);
+    }
+
     return NextResponse.next();
   }
 }

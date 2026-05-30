@@ -15,7 +15,7 @@ export default defineConfig({
     coverage: {
       reporter: ["text", "lcov"],
       exclude: ["node_modules/", "src/__tests__/", "test-setup.ts"],
-      thresholds: { lines: 80, functions: 80 },
+      thresholds: { lines: 80, functions: 80, branches: 70, statements: 75 },
     },
   },
 });

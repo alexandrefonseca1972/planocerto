@@ -1,9 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchDOUByDate } from "./client";
 import { sanitizeText } from "@/lib/validation/sanitize";
-import pino from "pino";
+import { logger as baseLogger } from "@/lib/logger";
 
-const logger = pino({ name: "ingest-worker" });
+const logger = baseLogger.child({ component: "ingest-worker" });
 
 interface IngestResult {
   date: string;

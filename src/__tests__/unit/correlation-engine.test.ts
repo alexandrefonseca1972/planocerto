@@ -31,7 +31,7 @@ describe("calculateSeverity", () => {
       sentiment_score: -0.8,
       detected_at: new Date().toISOString(),
     };
-    expect(calculateSeverity(signal as SocialSignal, {})).toBe("critical");
+    expect(calculateSeverity(signal as SocialSignal)).toBe("critical");
   });
 
   it("retorna high para muitas menções", () => {
@@ -44,7 +44,7 @@ describe("calculateSeverity", () => {
       sentiment_score: -0.1,
       detected_at: new Date().toISOString(),
     };
-    expect(calculateSeverity(signal as SocialSignal, {})).toBe("high");
+    expect(calculateSeverity(signal as SocialSignal)).toBe("high");
   });
 
   it("retorna medium para sentimento negativo moderado", () => {
@@ -57,7 +57,7 @@ describe("calculateSeverity", () => {
       sentiment_score: -0.3,
       detected_at: new Date().toISOString(),
     };
-    expect(calculateSeverity(signal as SocialSignal, {})).toBe("medium");
+    expect(calculateSeverity(signal as SocialSignal)).toBe("medium");
   });
 
   it("retorna low para sinal fraco", () => {
@@ -70,6 +70,6 @@ describe("calculateSeverity", () => {
       sentiment_score: 0.2,
       detected_at: new Date().toISOString(),
     };
-    expect(calculateSeverity(signal as SocialSignal, {})).toBe("low");
+    expect(calculateSeverity(signal as SocialSignal)).toBe("low");
   });
 });

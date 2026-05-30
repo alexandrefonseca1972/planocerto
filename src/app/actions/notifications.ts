@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
+import { getCurrentTenantId } from "@/app/actions/_helpers";
 
 export interface NotificationItem {
   id: string;
@@ -28,8 +29,7 @@ export async function getNotifications(): Promise<NotificationItem[]> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    const { data: profile } = await supabase.from("profiles").select("active_tenant_id").eq("id", user.id).maybeSingle();
-    const tenantId = profile?.active_tenant_id;
+    const tenantId = await getCurrentTenantId();
 
     const { data: notifications } = await supabase
       .from("notifications")
@@ -55,8 +55,7 @@ export async function getUnreadCount(): Promise<number> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return 0;
 
-    const { data: profile } = await supabase.from("profiles").select("active_tenant_id").eq("id", user.id).maybeSingle();
-    const tenantId = profile?.active_tenant_id;
+    const tenantId = await getCurrentTenantId();
 
     // Fetch only IDs of active notifications targeted to this user
     const { data: notificationIds } = await supabase

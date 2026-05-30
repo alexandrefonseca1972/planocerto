@@ -9,6 +9,7 @@ import {
 } from "@/app/actions/_catalog-utils";
 import { fornecedorSchema } from "@/lib/schemas/catalog-schemas";
 import { isValidCNPJ, stripFormat } from "@/lib/format-br";
+import { getCurrentTenantId } from "@/app/actions/_helpers";
 import type { Fornecedor, CatalogFormState } from "@/types/catalog";
 
 export interface CnpjLookupResult {
@@ -132,11 +133,7 @@ export async function createFornecedorRapido(
     const contato_email = await sanitizeText(formData.get("contato_email"), 160);
     const contato_telefone = await sanitizeText(formData.get("contato_telefone"), 40);
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("active_tenant_id")
-      .eq("id", user.id)
-      .maybeSingle();
+    const tenantId = await getCurrentTenantId();
 
     const { data, error } = await supabase
       .from("fornecedores")
@@ -148,7 +145,7 @@ export async function createFornecedorRapido(
         contato_email: contato_email || "",
         contato_telefone: contato_telefone || "",
         observacoes: "",
-        tenant_id: profile?.active_tenant_id ?? null,
+        tenant_id: tenantId,
         active: true,
         sort_order: 0,
       })

@@ -13,6 +13,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deriveActionItemStatus } from "@/lib/action-item-status";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
+import { getCurrentTenantId } from "@/app/actions/_helpers";
 
 async function logAudit(planId: string, action: string, data: Record<string, unknown>, itemId?: string) {
   try {
@@ -158,8 +159,7 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
-    const { data: profile } = await supabase.from("profiles").select("active_tenant_id").eq("id", user.id).maybeSingle();
-    const tenantId = (formData.get("tenantId") as string) || profile?.active_tenant_id;
+    const tenantId = (formData.get("tenantId") as string) || await getCurrentTenantId();
     if (!tenantId) return { message: "Nenhuma empresa." };
     const raw = { 
       title: formData.get("title"), 
