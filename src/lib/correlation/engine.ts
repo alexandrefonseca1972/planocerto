@@ -2,10 +2,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { SocialSignal } from "@/lib/validation/schemas";
 import { generateInsight } from "@/lib/llm/generate-insight";
 import { normalizeName } from "@/lib/validation/sanitize";
-import pino from "pino";
+import { logger as baseLogger } from "@/lib/logger";
+import type { Json } from "@/lib/supabase/database.types";
 
-const logger = pino({ name: "correlation-engine" });
+const logger = baseLogger.child({ component: "correlation-engine" });
 const LOOKBACK_DAYS = 30;
+
+// Shape da publicação do DO embarcada no select (do_publications!inner(...)).
+interface DoPublicationJoin {
+  id: string;
+  title: string | null;
+  edition_date: string;
+  source: string;
+  act_type: string | null;
+  organ: string | null;
+  original_url: string | null;
+}
 
 export async function correlate(signal: SocialSignal): Promise<void> {
   const supabase = createAdminClient();
@@ -42,7 +54,7 @@ export async function correlate(signal: SocialSignal): Promise<void> {
   }
 
   for (const entity of entities) {
-    const pub = (entity as any).do_publications;
+    const pub = entity.do_publications as unknown as DoPublicationJoin;
 
     try {
       const insight = await generateInsight({
@@ -57,20 +69,25 @@ export async function correlate(signal: SocialSignal): Promise<void> {
         },
       });
 
-      const severity = calculateSeverity(signal, pub);
+      const severity = calculateSeverity(signal);
 
+      // Upsert idempotente: reenvio do mesmo sinal não recria a correlação nem
+      // redispara alerta (índice único monitored_entity_id + do_entity_id — migration 050).
       const { error: insertError } = await supabase
         .from("entity_correlations")
-        .insert({
-          monitored_entity_id: signal.entity_id,
-          do_entity_id: entity.id,
-          publication_id: entity.publication_id,
-          correlation_type: "social_peak_do_match",
-          social_signal: signal as any,
-          insight_text: insight,
-          severity,
-          alert_sent: false,
-        });
+        .upsert(
+          {
+            monitored_entity_id: signal.entity_id,
+            do_entity_id: entity.id,
+            publication_id: entity.publication_id,
+            correlation_type: "social_peak_do_match",
+            social_signal: signal as unknown as Json,
+            insight_text: insight,
+            severity,
+            alert_sent: false,
+          },
+          { onConflict: "monitored_entity_id,do_entity_id", ignoreDuplicates: true },
+        );
 
       if (insertError) {
         logger.error({ insertError }, "Erro ao salvar correlação");
@@ -92,7 +109,6 @@ export async function correlate(signal: SocialSignal): Promise<void> {
 
 export function calculateSeverity(
   signal: SocialSignal,
-  publication: any
 ): "low" | "medium" | "high" | "critical" {
   if (signal.signal_type === "crisis_alert" && signal.sentiment_score < -0.7) {
     return "critical";

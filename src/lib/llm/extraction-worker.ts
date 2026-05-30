@@ -1,9 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { extractEntities, type ExtractedEntity } from "./extract-entities";
 import { normalizeName } from "@/lib/validation/sanitize";
-import pino from "pino";
+import { logger as baseLogger } from "@/lib/logger";
 
-const logger = pino({ name: "extraction-worker" });
+const logger = baseLogger.child({ component: "extraction-worker" });
 const BATCH_SIZE = 20;
 
 export async function extractEntitiesForDate(date: string) {
@@ -37,9 +37,14 @@ export async function extractEntitiesForDate(date: string) {
         confidence: e.confidence,
       }));
 
+      // Upsert idempotente: reprocessar a mesma publicação não duplica entidades
+      // (índice único publication_id + normalized_name + entity_type — migration 050).
       const { error: insertError } = await supabase
         .from("do_entities")
-        .insert(rows);
+        .upsert(rows, {
+          onConflict: "publication_id,normalized_name,entity_type",
+          ignoreDuplicates: true,
+        });
 
       if (insertError) {
         logger.error({ error: insertError, pubId: pub.id }, "Erro ao inserir entidades");
