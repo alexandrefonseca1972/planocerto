@@ -213,18 +213,6 @@ export interface Database {
         Update: { id?: string; template_id?: string; number?: string; sort_order?: number; parent_id?: string | null; action?: string; why?: string; where_field?: string; responsible?: string; cost?: string; expected_result?: string; };
         Relationships: [];
       };
-      calendar_tokens: {
-        Row: { id: string; user_id: string; provider: string; access_token: string; refresh_token: string | null; token_expires_at: string | null; created_at: string; updated_at: string; };
-        Insert: { id?: string; user_id: string; provider: string; access_token: string; refresh_token?: string | null; token_expires_at?: string | null; created_at?: string; updated_at?: string; };
-        Update: { id?: string; user_id?: string; provider?: string; access_token?: string; refresh_token?: string | null; token_expires_at?: string | null; created_at?: string; updated_at?: string; };
-        Relationships: [];
-      };
-      calendar_sync: {
-        Row: { id: string; item_id: string; user_id: string; provider: string; calendar_event_id: string; last_synced_at: string; created_at: string; };
-        Insert: { id?: string; item_id: string; user_id: string; provider: string; calendar_event_id: string; last_synced_at?: string; created_at?: string; };
-        Update: { id?: string; item_id?: string; user_id?: string; provider?: string; calendar_event_id?: string; last_synced_at?: string; created_at?: string; };
-        Relationships: [];
-      };
       admin_audit_log: {
         Row: { id: string; admin_id: string; target_user_id: string; action: string; snapshot: Json | null; created_at: string; };
         Insert: { id?: string; admin_id: string; target_user_id: string; action: string; snapshot?: Json | null; created_at?: string; };
