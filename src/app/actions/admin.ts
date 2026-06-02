@@ -602,6 +602,10 @@ export async function deactivateUser(
         {
           method: "DELETE",
           headers: {
+            // apikey + Authorization cobre tanto a service_role legada (JWT)
+            // quanto a nova secret key (sb_secret_*), que o gateway valida
+            // pelo header apikey.
+            apikey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
             Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
             "Content-Type": "application/json",
           },

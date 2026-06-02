@@ -213,18 +213,6 @@ export interface Database {
         Update: { id?: string; template_id?: string; number?: string; sort_order?: number; parent_id?: string | null; action?: string; why?: string; where_field?: string; responsible?: string; cost?: string; expected_result?: string; };
         Relationships: [];
       };
-      calendar_tokens: {
-        Row: { id: string; user_id: string; provider: string; access_token: string; refresh_token: string | null; token_expires_at: string | null; created_at: string; updated_at: string; };
-        Insert: { id?: string; user_id: string; provider: string; access_token: string; refresh_token?: string | null; token_expires_at?: string | null; created_at?: string; updated_at?: string; };
-        Update: { id?: string; user_id?: string; provider?: string; access_token?: string; refresh_token?: string | null; token_expires_at?: string | null; created_at?: string; updated_at?: string; };
-        Relationships: [];
-      };
-      calendar_sync: {
-        Row: { id: string; item_id: string; user_id: string; provider: string; calendar_event_id: string; last_synced_at: string; created_at: string; };
-        Insert: { id?: string; item_id: string; user_id: string; provider: string; calendar_event_id: string; last_synced_at?: string; created_at?: string; };
-        Update: { id?: string; item_id?: string; user_id?: string; provider?: string; calendar_event_id?: string; last_synced_at?: string; created_at?: string; };
-        Relationships: [];
-      };
       admin_audit_log: {
         Row: { id: string; admin_id: string; target_user_id: string; action: string; snapshot: Json | null; created_at: string; };
         Insert: { id?: string; admin_id: string; target_user_id: string; action: string; snapshot?: Json | null; created_at?: string; };
@@ -552,93 +540,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      do_publications: {
-        Row: {
-          id: string; source: "DOU" | "DOE" | "DOM"; state: string | null; city: string | null;
-          edition_date: string; edition_num: string | null; section: string | null;
-          act_type: string | null; organ: string | null; title: string | null;
-          content: string; original_url: string | null; raw_file_path: string | null;
-          search_vector: unknown; extracted_at: string | null; created_at: string;
-        };
-        Insert: {
-          id?: string; source: "DOU" | "DOE" | "DOM"; state?: string | null; city?: string | null;
-          edition_date: string; edition_num?: string | null; section?: string | null;
-          act_type?: string | null; organ?: string | null; title?: string | null;
-          content: string; original_url?: string | null; raw_file_path?: string | null;
-          extracted_at?: string | null; created_at?: string;
-        };
-        Update: {
-          id?: string; source?: "DOU" | "DOE" | "DOM"; state?: string | null; city?: string | null;
-          edition_date?: string; edition_num?: string | null; section?: string | null;
-          act_type?: string | null; organ?: string | null; title?: string | null;
-          content?: string; original_url?: string | null; raw_file_path?: string | null;
-          extracted_at?: string | null; created_at?: string;
-        };
-        Relationships: [];
-      };
-      do_entities: {
-        Row: {
-          id: string; publication_id: string; entity_type: "person" | "company" | "process";
-          raw_name: string; normalized_name: string; document: string | null;
-          context_snippet: string | null; confidence: number | null; created_at: string;
-        };
-        Insert: {
-          id?: string; publication_id: string; entity_type: "person" | "company" | "process";
-          raw_name: string; normalized_name: string; document?: string | null;
-          context_snippet?: string | null; confidence?: number | null; created_at?: string;
-        };
-        Update: {
-          id?: string; publication_id?: string; entity_type?: "person" | "company" | "process";
-          raw_name?: string; normalized_name?: string; document?: string | null;
-          context_snippet?: string | null; confidence?: number | null; created_at?: string;
-        };
-        Relationships: [];
-      };
-      entity_correlations: {
-        Row: {
-          id: string; monitored_entity_id: string; do_entity_id: string; publication_id: string;
-          correlation_type: "social_peak_do_match" | "do_publication_found" | "narrative_contradiction";
-          social_signal: Json | null; insight_text: string | null;
-          severity: "low" | "medium" | "high" | "critical" | null;
-          alert_sent: boolean; alert_sent_at: string | null; created_at: string;
-        };
-        Insert: {
-          id?: string; monitored_entity_id: string; do_entity_id: string; publication_id: string;
-          correlation_type: "social_peak_do_match" | "do_publication_found" | "narrative_contradiction";
-          social_signal?: Json | null; insight_text?: string | null;
-          severity?: "low" | "medium" | "high" | "critical" | null;
-          alert_sent?: boolean; alert_sent_at?: string | null; created_at?: string;
-        };
-        Update: {
-          id?: string; monitored_entity_id?: string; do_entity_id?: string; publication_id?: string;
-          correlation_type?: "social_peak_do_match" | "do_publication_found" | "narrative_contradiction";
-          social_signal?: Json | null; insight_text?: string | null;
-          severity?: "low" | "medium" | "high" | "critical" | null;
-          alert_sent?: boolean; alert_sent_at?: string | null; created_at?: string;
-        };
-        Relationships: [];
-      };
-      ingest_runs: {
-        Row: {
-          id: string; source: string; edition_date: string;
-          status: "running" | "success" | "partial" | "failed";
-          publications_ok: number; publications_err: number;
-          error_detail: string | null; started_at: string; finished_at: string | null;
-        };
-        Insert: {
-          id?: string; source: string; edition_date: string;
-          status?: "running" | "success" | "partial" | "failed";
-          publications_ok?: number; publications_err?: number;
-          error_detail?: string | null; started_at?: string; finished_at?: string | null;
-        };
-        Update: {
-          id?: string; source?: string; edition_date?: string;
-          status?: "running" | "success" | "partial" | "failed";
-          publications_ok?: number; publications_err?: number;
-          error_detail?: string | null; started_at?: string; finished_at?: string | null;
-        };
-        Relationships: [];
-      };
       modalidades: {
         Row: {
           id: string; name: string; sort_order: number;
@@ -798,30 +699,6 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
-      search_publications: {
-        Args: {
-          query_text: string;
-          source_filter: string | null;
-          state_filter: string | null;
-          date_from: string | null;
-          date_to: string | null;
-          act_type_filter: string | null;
-          result_limit: number;
-          result_offset: number;
-        };
-        Returns: {
-          id: string;
-          title: string | null;
-          content: string | null;
-          source: string | null;
-          state: string | null;
-          edition_date: string;
-          organ: string | null;
-          act_type: string | null;
-          original_url: string | null;
-          rank: number;
-        }[];
-      };
       create_conta_with_parcelas: {
         Args: { payload: Record<string, unknown> };
         Returns: string;

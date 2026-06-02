@@ -32,8 +32,6 @@ const logger = pino(
         "RESEND_API_KEY",
         "SUPABASE_SERVICE_ROLE_KEY",
         "OPENROUTER_API_KEY",
-        "ZAPI_TOKEN",
-        "ZAPI_CLIENT_TOKEN",
       ],
       censor: "[REDACTED]",
     },
