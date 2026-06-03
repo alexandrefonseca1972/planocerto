@@ -17,6 +17,7 @@ function readTenantForm(formData: FormData) {
     name: String(formData.get("name") || ""),
     plan: String(formData.get("plan") || "free"),
     active: formData.get("active") === "on" || formData.get("active") === "true",
+    max_units: formData.get("max_units"),
     teams_webhook_url: String(formData.get("teams_webhook_url") || ""),
     cnpj: String(formData.get("cnpj") || ""),
     responsavel_nome: String(formData.get("responsavel_nome") || ""),
@@ -155,6 +156,13 @@ export async function createTenant(
     const hasPerm = await checkPermission(PERMISSIONS.TENANTS_CREATE);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
+    // Apenas super_admin cria empresas (admin tem ALL_PERMISSIONS, então o
+    // gate é o escopo, não a permissão).
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin) {
+      return { message: "Apenas super admins podem criar empresas." };
+    }
+
     const validated = tenantFormSchema.safeParse(readTenantForm(formData));
     if (!validated.success) {
       return {
@@ -183,6 +191,7 @@ export async function createTenant(
         email: validated.data.email,
         site: validated.data.site ? normalizeWebsite(validated.data.site) : "",
         fone: validated.data.fone,
+        max_units: validated.data.max_units,
       })
       .select()
       .single();
@@ -218,6 +227,12 @@ export async function updateTenant(
     const hasPerm = await checkPermission(PERMISSIONS.TENANTS_UPDATE);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
+    // Configurações da empresa (incl. limite de unidades) são exclusivas do super_admin.
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin) {
+      return { message: "Apenas super admins podem editar empresas." };
+    }
+
     const tenantId = formData.get("tenantId") as string;
     if (!tenantId) return { message: "ID da empresa obrigatório." };
 
@@ -248,6 +263,7 @@ export async function updateTenant(
         email: validated.data.email,
         site: validated.data.site ? normalizeWebsite(validated.data.site) : "",
         fone: validated.data.fone,
+        max_units: validated.data.max_units,
         updated_at: new Date().toISOString(),
       })
       .eq("id", tenantId);

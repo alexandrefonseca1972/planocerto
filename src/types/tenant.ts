@@ -11,6 +11,8 @@ export interface Tenant {
   email: string;
   site: string;
   fone: string;
+  /** Limite de unidades da empresa. null = ilimitado. */
+  max_units: number | null;
   created_at: string;
   updated_at: string;
 }

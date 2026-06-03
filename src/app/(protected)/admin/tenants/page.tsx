@@ -331,6 +331,7 @@ function TenantFormDialog({
       email: tenant?.email || "",
       site: tenant?.site || "",
       fone: tenant?.fone || "",
+      max_units: tenant?.max_units ?? null,
     }),
     [tenant],
   );
@@ -355,6 +356,7 @@ function TenantFormDialog({
     fd.set("email", values.email || "");
     fd.set("site", values.site || "");
     fd.set("fone", values.fone || "");
+    fd.set("max_units", values.max_units == null ? "" : String(values.max_units));
     action(fd);
   }
 
@@ -427,6 +429,27 @@ function TenantFormDialog({
           </div>
         </Field>
       </div>
+
+      <Field
+        id="t-max-units"
+        label="Limite de unidades"
+        helpText="Máximo de unidades desta empresa. Vazio = ilimitado."
+        error={errors.max_units}
+      >
+        <Input
+          id="t-max-units"
+          name="max_units"
+          type="number"
+          min="1"
+          placeholder="Ilimitado"
+          value={values.max_units == null ? "" : String(values.max_units)}
+          onChange={(e) =>
+            setValue("max_units", e.target.value === "" ? null : Number(e.target.value))
+          }
+          onBlur={() => markTouched("max_units")}
+          aria-invalid={Boolean(errors.max_units)}
+        />
+      </Field>
 
       {/* Bloco: Cadastro / Contato — todos opcionais */}
       <div className="rounded-lg border border-zinc-200 bg-zinc-50/40 p-3 dark:border-zinc-700 dark:bg-zinc-800/20">
