@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkPermission } from "@/app/actions/admin";
+import { getCurrentTenant } from "@/app/actions/tenant";
 import { PERMISSIONS } from "@/lib/permissions";
 import { sanitizeText } from "@/app/actions/_catalog-utils";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
@@ -23,13 +24,11 @@ export async function POST(req: NextRequest) {
     const canCreate = await checkPermission(PERMISSIONS.PLANS_CREATE);
     if (!canCreate) return NextResponse.json({ error: "Sem permissão para criar planos." }, { status: 403 });
 
-    // Resolve tenant ativo
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("active_tenant_id")
-      .eq("id", user.id)
-      .maybeSingle();
-    const tenantId = profile?.active_tenant_id;
+    // Resolve tenant ativo com a mesma lógica do layout (getCurrentTenant tem
+    // fallback para o primeiro tenant do usuário quando active_tenant_id não
+    // está definido) — evita 400 enquanto a UI mostra uma empresa ativa.
+    const tenant = await getCurrentTenant();
+    const tenantId = tenant?.id;
     if (!tenantId) return NextResponse.json({ error: "Nenhuma empresa ativa." }, { status: 400 });
 
     const formData = await req.formData();
@@ -136,8 +135,10 @@ export async function POST(req: NextRequest) {
           dataRows,
         );
 
-        // Nada criado (falha nos grupos ou em todos os lotes) → remove o órfão.
-        if (created === 0) {
+        // Nenhum item criado (falha nos grupos ou em todos os lotes de itens)
+        // → remove o plano órfão (cascade apaga grupos), senão "Tentar
+        // novamente" duplicaria o plano.
+        if (created <= groupCount) {
           await supabase.from("action_plans").delete().eq("id", planId);
           results.push({
             filename, planTitle: finalTitle, planUnit: finalUnit,
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
           filename, planId,
           planTitle: finalTitle, planUnit: finalUnit,
           created, skipped, errors,
-          status: created > groupCount ? "success" : "error",
+          status: "success",
         });
 
       } catch (err) {

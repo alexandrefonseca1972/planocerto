@@ -295,6 +295,9 @@ export async function createUser(
         .update({
           name: validated.data.name,
           role: validated.data.role,
+          // Define a empresa ativa inicial — sem isso o usuário nasce com
+          // active_tenant_id null e as APIs respondem "Nenhuma empresa ativa".
+          active_tenant_id: scopedTenantIds[0] ?? null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", data.user.id);

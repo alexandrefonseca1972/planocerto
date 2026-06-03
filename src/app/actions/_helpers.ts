@@ -68,7 +68,10 @@ export async function manageableUserIds(tenantIds: string[]): Promise<Set<string
 
 /**
  * Obtém o ID do tenant ativo do usuário autenticado.
- * Retorna null se o usuário não estiver autenticado ou não tiver tenant ativo.
+ * Quando `active_tenant_id` não está definido no profile, cai no primeiro
+ * tenant visível ao usuário (mesma lógica do layout/getCurrentTenant), para
+ * que as actions operem sobre a mesma empresa exibida na UI.
+ * Retorna null se o usuário não estiver autenticado ou não tiver tenant.
  */
 export async function getCurrentTenantId(): Promise<string | null> {
   try {
@@ -82,7 +85,16 @@ export async function getCurrentTenantId(): Promise<string | null> {
       .select("active_tenant_id")
       .eq("id", user.id)
       .maybeSingle();
-    return (profile?.active_tenant_id as string | null) ?? null;
+    if (profile?.active_tenant_id) return profile.active_tenant_id as string;
+    // Fallback: primeiro tenant que o usuário enxerga (RLS filtra), na mesma
+    // ordem usada pelo seletor de empresas da UI.
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("id")
+      .order("name")
+      .limit(1)
+      .maybeSingle();
+    return (tenant?.id as string | undefined) ?? null;
   } catch (error) {
     log.error({ error }, "Erro ao obter tenantId");
     return null;
