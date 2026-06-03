@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Field } from "@/components/ui/field";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -23,13 +25,14 @@ import {
   toggleUnitActive,
   getUnitsAdmin,
 } from "@/app/actions/unidades";
+import { unitSchema } from "@/lib/schemas/catalog-schemas";
+import { useLiveValidation } from "@/lib/hooks/use-live-validation";
+import { formatPhone, stripFormat } from "@/lib/format-br";
 import type { Unit, Area, CatalogFormState } from "@/types/catalog";
 import {
   Plus,
   Pencil,
   Trash2,
-  X,
-  Save,
   Search,
   Building,
   Power,
@@ -388,6 +391,17 @@ export function UnidadesClient({
   );
 }
 
+interface UnitFormValues {
+  name: string;
+  area_id: string | null;
+  uf: string;
+  responsavel: string;
+  email: string;
+  fone: string;
+  sort_order: number;
+  active: boolean;
+}
+
 function UnitForm({
   item,
   areas,
@@ -403,157 +417,202 @@ function UnitForm({
   isSaving: boolean;
   onClose: () => void;
 }) {
-  const e = state.errors || {};
+  const initial: UnitFormValues = useMemo(
+    () => ({
+      name: item?.name || "",
+      area_id: item?.area_id || null,
+      uf: item?.uf || "",
+      responsavel: item?.responsavel || "",
+      email: item?.email || "",
+      // telefone é exibido formatado; persistido em dígitos.
+      fone: formatPhone(item?.fone || ""),
+      sort_order: item?.sort_order ?? 0,
+      active: item ? item.active : true,
+    }),
+    [item],
+  );
+
+  const { values, setValue, errors, markTouched, isValid, isDirty, validateAll } =
+    useLiveValidation<UnitFormValues>(unitSchema, initial);
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const t = setTimeout(() => nameRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  const selectClass =
+    "flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900";
+
+  function submit() {
+    if (!validateAll()) return;
+    const fd = new FormData();
+    if (item) fd.set("id", item.id);
+    fd.set("name", values.name);
+    if (values.area_id) fd.set("area_id", values.area_id);
+    fd.set("uf", values.uf);
+    fd.set("responsavel", values.responsavel);
+    fd.set("email", values.email);
+    fd.set("fone", stripFormat(values.fone));
+    fd.set("sort_order", String(values.sort_order));
+    if (values.active) fd.set("active", "on");
+    action(fd);
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-700">
-          <h3 className="text-base font-semibold">
-            {item ? "Editar Unidade" : "Nova Unidade"}
-          </h3>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fechar">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <form action={action} className="space-y-3 p-6">
-          {item && <input type="hidden" name="id" value={item.id} />}
+    <FormDialog
+      open
+      title={item ? "Editar Unidade" : "Nova Unidade"}
+      subtitle={item ? "Atualize os dados da unidade" : "Cadastre uma nova unidade"}
+      isDirty={isDirty}
+      onClose={onClose}
+      onSubmit={submit}
+      isSaving={isSaving}
+      canSave={isValid}
+      serverError={!state.success ? state.message : undefined}
+      submitLabel={item ? "Salvar alterações" : "Criar Unidade"}
+      size="md"
+    >
+      <Field
+        id="unit-name"
+        label="Nome"
+        required
+        maxLength={100}
+        value={values.name}
+        error={errors.name}
+      >
+        <Input
+          id="unit-name"
+          ref={nameRef}
+          name="name"
+          maxLength={100}
+          autoComplete="off"
+          placeholder="ex: Belém, Manaus, Brasília..."
+          value={values.name}
+          onChange={(ev) => setValue("name", ev.target.value)}
+          onBlur={() => markTouched("name")}
+          aria-invalid={Boolean(errors.name)}
+        />
+      </Field>
 
-          <div className="space-y-1">
-            <Label className="text-xs font-medium uppercase text-zinc-500">
-              Nome*
-            </Label>
-            <Input
-              name="name"
-              defaultValue={item?.name || ""}
-              required
-              autoFocus
-              maxLength={100}
-              placeholder="ex: Belém, Manaus, Brasília..."
-            />
-            {e.name?.[0] && <p className="text-xs text-red-600">{e.name[0]}</p>}
-          </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field id="unit-area" label="Área" error={errors.area_id}>
+          <select
+            id="unit-area"
+            className={selectClass}
+            value={values.area_id ?? ""}
+            onChange={(ev) => setValue("area_id", ev.target.value || null)}
+            onBlur={() => markTouched("area_id")}
+          >
+            <option value="">—</option>
+            {areas.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium uppercase text-zinc-500">
-                Área
-              </Label>
-              <select
-                name="area_id"
-                defaultValue={item?.area_id || ""}
-                className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-              >
-                <option value="">—</option>
-                {areas.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium uppercase text-zinc-500">
-                UF
-              </Label>
-              <select
-                name="uf"
-                defaultValue={item?.uf || ""}
-                className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-              >
-                <option value="">—</option>
-                {UFS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-medium uppercase text-zinc-500">
-              Diretor/Reitor
-            </Label>
-            <Input
-              name="responsavel"
-              defaultValue={item?.responsavel || ""}
-              maxLength={150}
-              placeholder="Nome do responsável pela unidade"
-            />
-            {e.responsavel?.[0] && (
-              <p className="text-xs text-red-600">{e.responsavel[0]}</p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium uppercase text-zinc-500">
-                Email
-              </Label>
-              <Input
-                name="email"
-                type="email"
-                defaultValue={item?.email || ""}
-                maxLength={160}
-                placeholder="contato@unidade.com"
-              />
-              {e.email?.[0] && (
-                <p className="text-xs text-red-600">{e.email[0]}</p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium uppercase text-zinc-500">
-                Fone
-              </Label>
-              <Input
-                name="fone"
-                defaultValue={item?.fone || ""}
-                maxLength={40}
-                placeholder="(00) 00000-0000"
-              />
-              {e.fone?.[0] && (
-                <p className="text-xs text-red-600">{e.fone[0]}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-medium uppercase text-zinc-500">
-              Ordem de exibição
-            </Label>
-            <Input
-              name="sort_order"
-              type="number"
-              min="0"
-              defaultValue={String(item?.sort_order ?? 0)}
-            />
-          </div>
-          <label className="flex items-center gap-2 pt-1 text-sm">
-            <input
-              type="checkbox"
-              name="active"
-              defaultChecked={item ? item.active : true}
-              className="h-4 w-4"
-            />
-            Ativa
-          </label>
-
-          {state.message && !state.success && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
-              {state.message}
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-700">
-            <Button variant="outline" type="button" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" isLoading={isSaving}>
-              <Save className="h-4 w-4" /> Salvar
-            </Button>
-          </div>
-        </form>
+        <Field id="unit-uf" label="UF" error={errors.uf}>
+          <select
+            id="unit-uf"
+            className={selectClass}
+            value={values.uf}
+            onChange={(ev) => setValue("uf", ev.target.value)}
+            onBlur={() => markTouched("uf")}
+          >
+            <option value="">—</option>
+            {UFS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </Field>
       </div>
-    </div>
+
+      <Field
+        id="unit-responsavel"
+        label="Diretor/Reitor"
+        helpText="Responsável pela unidade."
+        maxLength={150}
+        value={values.responsavel}
+        error={errors.responsavel}
+      >
+        <Input
+          id="unit-responsavel"
+          name="responsavel"
+          maxLength={150}
+          placeholder="Nome do responsável"
+          value={values.responsavel}
+          onChange={(ev) => setValue("responsavel", ev.target.value)}
+          onBlur={() => markTouched("responsavel")}
+          aria-invalid={Boolean(errors.responsavel)}
+        />
+      </Field>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field id="unit-email" label="Email" error={errors.email}>
+          <Input
+            id="unit-email"
+            name="email"
+            type="email"
+            maxLength={160}
+            placeholder="contato@unidade.com"
+            value={values.email}
+            onChange={(ev) => setValue("email", ev.target.value.toLowerCase())}
+            onBlur={() => markTouched("email")}
+            inputMode="email"
+            aria-invalid={Boolean(errors.email)}
+          />
+        </Field>
+
+        <Field id="unit-fone" label="Fone" error={errors.fone}>
+          <Input
+            id="unit-fone"
+            name="fone"
+            maxLength={40}
+            placeholder="(00) 00000-0000"
+            value={values.fone}
+            onChange={(ev) => setValue("fone", formatPhone(ev.target.value))}
+            onBlur={() => markTouched("fone")}
+            inputMode="tel"
+            aria-invalid={Boolean(errors.fone)}
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field
+          id="unit-order"
+          label="Ordem de exibição"
+          helpText="Menor número aparece primeiro."
+          error={errors.sort_order}
+        >
+          <Input
+            id="unit-order"
+            name="sort_order"
+            type="number"
+            min="0"
+            max="9999"
+            value={String(values.sort_order)}
+            onChange={(ev) => setValue("sort_order", Number(ev.target.value) || 0)}
+            onBlur={() => markTouched("sort_order")}
+          />
+        </Field>
+
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-800/30">
+          <Switch
+            id="unit-active"
+            checked={values.active}
+            onChange={(ev) => setValue("active", ev.currentTarget.checked)}
+            label={values.active ? "Ativa" : "Inativa"}
+          />
+          <p className="mt-1 pl-11 text-xs text-zinc-500">
+            Unidades inativas ficam ocultas nos dropdowns.
+          </p>
+        </div>
+      </div>
+    </FormDialog>
   );
 }
