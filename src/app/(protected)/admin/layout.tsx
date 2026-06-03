@@ -84,7 +84,7 @@ export default async function AdminLayout({
         </p>
       </div>
 
-      <AdminNav userPermissions={access.userPermissions} />
+      <AdminNav userPermissions={access.userPermissions} isSuperAdmin={access.role === "super_admin"} />
 
       {children}
     </div>
