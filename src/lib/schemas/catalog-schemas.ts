@@ -55,6 +55,21 @@ export const unitSchema = z.object({
   name: nome(100),
   area_id: z.string().uuid().nullable(),
   uf: z.enum(UFS).default(""),
+  responsavel: sanitizedString({ max: 150 }).optional().default(""),
+  email: z
+    .string()
+    .trim()
+    .max(160)
+    .optional()
+    .default("")
+    .refine((v) => !v || isValidEmail(v), "E-mail inválido."),
+  fone: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .default("")
+    .refine((v) => !v || isValidPhone(v), "Telefone inválido (use DDD + 8 ou 9 dígitos)."),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });

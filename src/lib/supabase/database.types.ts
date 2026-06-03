@@ -226,9 +226,9 @@ export interface Database {
         Relationships: [];
       };
       units: {
-        Row: { id: string; tenant_id: string | null; area_id: string | null; name: string; uf: string; regional_context: Json | null; sort_order: number; active: boolean; created_at: string; updated_at: string; };
-        Insert: { id?: string; tenant_id?: string | null; area_id?: string | null; name: string; uf?: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
-        Update: { id?: string; tenant_id?: string | null; area_id?: string | null; name?: string; uf?: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
+        Row: { id: string; tenant_id: string | null; area_id: string | null; name: string; uf: string; responsavel: string; email: string; fone: string; regional_context: Json | null; sort_order: number; active: boolean; created_at: string; updated_at: string; };
+        Insert: { id?: string; tenant_id?: string | null; area_id?: string | null; name: string; uf?: string; responsavel?: string; email?: string; fone?: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
+        Update: { id?: string; tenant_id?: string | null; area_id?: string | null; name?: string; uf?: string; responsavel?: string; email?: string; fone?: string; regional_context?: Json | null; sort_order?: number; active?: boolean; created_at?: string; updated_at?: string; };
         Relationships: [];
       };
       macro_acoes: {
