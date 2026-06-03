@@ -137,6 +137,69 @@ export async function upsertCompany(
   }
 }
 
+const assignCompaniesSchema = z.object({
+  ids: z
+    .array(z.string().uuid())
+    .min(1, "Selecione ao menos uma empresa.")
+    .max(500, "Máximo de 500 por vez."),
+  unitId: z.string().uuid().nullable(),
+});
+
+/**
+ * Associa (ou desassocia, com unitId=null) várias empresas a uma unidade de
+ * uma vez. RLS de `companies` garante o escopo do tenant; `unitId` é validado
+ * contra `units`.
+ */
+export async function assignCompaniesToUnit(
+  ids: string[],
+  unitId: string | null,
+): Promise<{ success?: boolean; updated?: number; message: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { message: "Não autenticado." };
+
+    const v = assignCompaniesSchema.safeParse({ ids, unitId });
+    if (!v.success) return { message: v.error.issues[0]?.message ?? "Dados inválidos." };
+
+    if (v.data.unitId) {
+      const { data: unit } = await supabase
+        .from("units")
+        .select("id")
+        .eq("id", v.data.unitId)
+        .maybeSingle();
+      if (!unit) return { message: "Unidade inválida." };
+    }
+
+    const { error, count } = await supabase
+      .from("companies")
+      .update(
+        { unit_id: v.data.unitId, updated_at: new Date().toISOString() },
+        { count: "exact" },
+      )
+      .in("id", v.data.ids);
+    if (error) {
+      console.error("[assignCompaniesToUnit]", error);
+      return { message: "Erro ao associar empresas." };
+    }
+
+    revalidatePath("/empresas");
+    const n = count ?? v.data.ids.length;
+    return {
+      success: true,
+      updated: n,
+      message: v.data.unitId
+        ? `${n} empresa(s) associada(s) à unidade.`
+        : `${n} empresa(s) removida(s) da unidade.`,
+    };
+  } catch (error) {
+    console.error("[assignCompaniesToUnit] Error:", error);
+    return { message: "Serviço indisponível." };
+  }
+}
+
 export async function deleteCompany(
   _prev: CompanyFormState,
   formData: FormData,
