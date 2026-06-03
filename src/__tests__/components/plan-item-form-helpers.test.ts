@@ -8,9 +8,9 @@ const areas: Area[] = [
 ];
 
 const units: Unit[] = [
-  { id: "unit-1", tenant_id: null, area_id: "area-1", name: "Belém", uf: "PA", sort_order: 0, active: true, created_at: "", updated_at: "" },
-  { id: "unit-2", tenant_id: null, area_id: "area-1", name: "Macapá", uf: "AP", sort_order: 1, active: true, created_at: "", updated_at: "" },
-  { id: "unit-3", tenant_id: null, area_id: "area-2", name: "São Luís", uf: "MA", sort_order: 2, active: true, created_at: "", updated_at: "" },
+  { id: "unit-1", tenant_id: null, area_id: "area-1", name: "Belém", uf: "PA", responsavel: "", email: "", fone: "", sort_order: 0, active: true, created_at: "", updated_at: "" },
+  { id: "unit-2", tenant_id: null, area_id: "area-1", name: "Macapá", uf: "AP", responsavel: "", email: "", fone: "", sort_order: 1, active: true, created_at: "", updated_at: "" },
+  { id: "unit-3", tenant_id: null, area_id: "area-2", name: "São Luís", uf: "MA", responsavel: "", email: "", fone: "", sort_order: 2, active: true, created_at: "", updated_at: "" },
 ];
 
 describe("findAreaByName", () => {

@@ -20,6 +20,9 @@ export interface Unit {
   area_id: string | null;
   name: string;
   uf: string;
+  responsavel: string;
+  email: string;
+  fone: string;
   regional_context?: {
     perfil_persona?: string;
     regionalidade?: string;

@@ -40,6 +40,9 @@ export async function upsertUnit(
       name,
       area_id: areaIdRaw && areaIdRaw !== "" ? String(areaIdRaw) : null,
       uf: String(formData.get("uf") || "").toUpperCase(),
+      responsavel: String(formData.get("responsavel") || ""),
+      email: String(formData.get("email") || ""),
+      fone: String(formData.get("fone") || ""),
       sort_order: formData.get("sort_order") || 0,
       active:
         formData.get("active") === "on" || formData.get("active") === "true",
@@ -62,6 +65,9 @@ export async function upsertUnit(
         name: v.data.name,
         area_id: v.data.area_id ?? null,
         uf: v.data.uf,
+        responsavel: v.data.responsavel,
+        email: v.data.email,
+        fone: v.data.fone,
         sort_order: v.data.sort_order,
         active: v.data.active,
       });

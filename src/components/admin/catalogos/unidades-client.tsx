@@ -472,6 +472,53 @@ function UnitForm({
 
           <div className="space-y-1">
             <Label className="text-xs font-medium uppercase text-zinc-500">
+              Diretor/Reitor
+            </Label>
+            <Input
+              name="responsavel"
+              defaultValue={item?.responsavel || ""}
+              maxLength={150}
+              placeholder="Nome do responsável pela unidade"
+            />
+            {e.responsavel?.[0] && (
+              <p className="text-xs text-red-600">{e.responsavel[0]}</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium uppercase text-zinc-500">
+                Email
+              </Label>
+              <Input
+                name="email"
+                type="email"
+                defaultValue={item?.email || ""}
+                maxLength={160}
+                placeholder="contato@unidade.com"
+              />
+              {e.email?.[0] && (
+                <p className="text-xs text-red-600">{e.email[0]}</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium uppercase text-zinc-500">
+                Fone
+              </Label>
+              <Input
+                name="fone"
+                defaultValue={item?.fone || ""}
+                maxLength={40}
+                placeholder="(00) 00000-0000"
+              />
+              {e.fone?.[0] && (
+                <p className="text-xs text-red-600">{e.fone[0]}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs font-medium uppercase text-zinc-500">
               Ordem de exibição
             </Label>
             <Input
