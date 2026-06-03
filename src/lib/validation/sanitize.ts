@@ -1,10 +1,29 @@
-import DOMPurify from "isomorphic-dompurify";
 import { z } from "zod";
 
+// Elementos cujo CONTEÚDO também deve ser descartado (texto cru/perigoso),
+// equivalente ao comportamento do DOMPurify com ALLOWED_TAGS: [].
+const RAW_CONTENT_ELEMENTS =
+  /<(script|style|noscript|template|iframe|object|embed|svg|math)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+
+/**
+ * Reduz qualquer entrada a texto puro: remove elementos perigosos com seu
+ * conteúdo, descarta comentários e demais tags (preservando o texto), tira
+ * caracteres de controle, colapsa espaços e faz trim.
+ *
+ * Substitui o `isomorphic-dompurify` (que arrastava o jsdom para o bundle do
+ * servidor — os `require` dinâmicos de deps opcionais do jsdom quebram em
+ * função serverless sob Turbopack, derrubando toda server action com
+ * "Failed to load external module"). Como destino final é texto puro e o React
+ * reescapa na renderização, um strip puro-JS é suficiente como defesa em
+ * profundidade — sem dependência de DOM em cliente ou servidor.
+ */
 export function sanitizeText(input: unknown): string {
   if (typeof input !== "string") return "";
 
-  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [] })
+  return input
+    .replace(RAW_CONTENT_ELEMENTS, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?[a-zA-Z][^>]*>/g, "")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     .replace(/\s+/g, " ")
     .trim();
