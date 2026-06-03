@@ -20,6 +20,34 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.2.1] - 2026-06-03
+
+Correções de produção: empresa ativa na importação de planos, sanitização sem
+jsdom no servidor e revisão do fluxo de upload (PRs #21–#22).
+
+### Corrigido
+- **"Nenhuma empresa ativa" na importação de planos** mesmo com empresa ativa
+  visível na UI: `createUser` agora define `active_tenant_id` na criação,
+  `getCurrentTenantId` tem fallback para o primeiro tenant visível (alinhado
+  com o layout) e o `upload-batch` usa `getCurrentTenant()` (#22).
+- **FAROL com vocabulário alternativo** de planilhas de clientes — `A INICIAR`,
+  `ATRASADO`, `CONCLUÍDO NO PRAZO` — agora mapeado para os status corretos,
+  em vez de cair em "Não Iniciada" com avisos em massa (#22).
+- **Plano meio-órfão no upload em lote**: quando só os grupos eram criados e
+  todos os itens falhavam, o plano ficava no banco e "Tentar novamente"
+  duplicava; agora é removido (#22).
+- Diálogo de upload avisa quando arquivos acima do limite de 10 são
+  descartados (o aviso nunca disparava) e o botão diz "arquivo(s)" no modo de
+  importação para plano existente (#22).
+- **500 no login em produção**: sanitização de inputs não usa mais jsdom no
+  servidor (isomorphic-dompurify), cujos `require()` dinâmicos quebravam sob
+  Turbopack em função serverless (#21).
+
+### Segurança
+- `/api/plans/[id]/import` agora exige a permissão `plans.update` — antes
+  qualquer membro do tenant (inclusive Visualizador) conseguia inserir itens
+  via chamada direta à API (#22).
+
 ## [2.2.0] - 2026-06-03
 
 Modelo de acesso multi-tenant, limites por empresa e painel global do super
