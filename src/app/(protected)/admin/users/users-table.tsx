@@ -491,13 +491,14 @@ export function UsersTable({
               >
                 <option value="">Todos papéis</option>
                 {isSuperAdmin && <option value="super_admin">Super Admin</option>}
-                <option value="admin">Admin</option>
+                {isSuperAdmin && <option value="admin">Admin</option>}
                 <option value="manager">Gerente</option>
                 <option value="user">Usuário</option>
                 <option value="viewer">Visualizador</option>
-                {customRoles.map((r) => (
-                  <option key={r.id} value={r.name}>{r.name}</option>
-                ))}
+                {isSuperAdmin &&
+                  customRoles.map((r) => (
+                    <option key={r.id} value={r.name}>{r.name}</option>
+                  ))}
               </select>
               {allTenants.length > 0 && (
                 <select
@@ -1173,13 +1174,14 @@ function CreateUserDialog({
                   <option value="viewer">Visualizador</option>
                   <option value="user">Usuário</option>
                   <option value="manager">Gerente</option>
-                  <option value="admin">Admin</option>
+                  {isSuperAdmin && <option value="admin">Admin</option>}
                   {isSuperAdmin && (
                     <option value="super_admin">Super Admin</option>
                   )}
-                  {customRoles.map((role) => (
-                    <option key={role.id} value={role.name}>{role.name}</option>
-                  ))}
+                  {isSuperAdmin &&
+                    customRoles.map((role) => (
+                      <option key={role.id} value={role.name}>{role.name}</option>
+                    ))}
                 </select>
                 {state.errors?.role && (
                   <p className="text-sm text-red-600 dark:text-red-400">{state.errors.role[0]}</p>
@@ -1442,15 +1444,17 @@ function EditUserDialog({
             >
               <option value="user">Usuário</option>
               <option value="manager">Gerente</option>
-              <option value="admin">Admin</option>
-              {/* Super Admin visível apenas para super admins. */}
+              {/* Admin/Super/custom: só super_admin atribui; não-super pode manter o papel atual do alvo. */}
+              {(isSuperAdmin || user.role === "admin") && <option value="admin">Admin</option>}
               {isSuperAdmin && (
                 <option value="super_admin">Super Admin</option>
               )}
               <option value="viewer">Visualizador</option>
-              {customRoles.map((role) => (
-                <option key={role.id} value={role.name}>{role.name}</option>
-              ))}
+              {customRoles
+                .filter((role) => isSuperAdmin || role.name === user.role)
+                .map((role) => (
+                  <option key={role.id} value={role.name}>{role.name}</option>
+                ))}
             </select>
             {state.errors?.role && (
               <p className="text-sm text-red-600 dark:text-red-400">

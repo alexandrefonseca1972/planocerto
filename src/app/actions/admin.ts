@@ -132,9 +132,9 @@ const BUILTIN_ROLES = new Set(["super_admin", "admin", "manager", "user", "viewe
  */
 async function assertCanManageUser(
   targetUserId: string,
-): Promise<{ denied: AdminFormState | null; scope: RequesterScope }> {
+): Promise<{ denied: AdminFormState | null; scope: RequesterScope; targetRole: string | null }> {
   const scope = await getRequesterScope();
-  if (scope.isSuperAdmin) return { denied: null, scope };
+  if (scope.isSuperAdmin) return { denied: null, scope, targetRole: null };
 
   const adminClient = createAdminClient();
   const { data: target } = await adminClient
@@ -142,16 +142,20 @@ async function assertCanManageUser(
     .select("role")
     .eq("id", targetUserId)
     .maybeSingle();
-  if (!target) return { denied: { message: "Usuário não encontrado." }, scope };
-  if ((target.role as string) === "super_admin") {
-    return { denied: { message: "Acesso negado. Você não pode gerenciar um super admin." }, scope };
+  if (!target) return { denied: { message: "Usuário não encontrado." }, scope, targetRole: null };
+  const targetRole = target.role as string;
+  if (targetRole === "super_admin") {
+    return { denied: { message: "Acesso negado. Você não pode gerenciar um super admin." }, scope, targetRole };
   }
   const ids = await manageableUserIds(scope.tenantIds);
   if (!ids.has(targetUserId)) {
-    return { denied: { message: "Acesso negado. Usuário fora das suas empresas." }, scope };
+    return { denied: { message: "Acesso negado. Usuário fora das suas empresas." }, scope, targetRole };
   }
-  return { denied: null, scope };
+  return { denied: null, scope, targetRole };
 }
+
+/** Papéis que um não-super-admin pode ATRIBUIR a usuários (criar/editar). */
+const ADMIN_ASSIGNABLE_ROLES = new Set(["manager", "user", "viewer"]);
 
 /** Limita os tenantIds solicitados ao escopo do admin (super_admin: todos). */
 function scopeTenantIds(requested: string[], scope: RequesterScope): string[] {
@@ -255,11 +259,13 @@ export async function createUser(
     }
 
     const scope = await getRequesterScope();
-    // Apenas um super_admin pode conceder o papel super_admin.
-    if (validated.data.role === "super_admin" && !scope.isSuperAdmin) {
+    // Não-super só atribui papéis subordinados (manager/user/viewer). Admin,
+    // super_admin e papéis customizados (que podem ter qualquer permissão) são
+    // restritos a super_admins.
+    if (!scope.isSuperAdmin && !ADMIN_ASSIGNABLE_ROLES.has(validated.data.role)) {
       return {
-        errors: { role: ["Apenas um super admin pode conceder o papel Super Admin."] },
-        message: "Você não tem permissão para criar super admins.",
+        errors: { role: ["Você só pode atribuir os papéis Gerente, Usuário ou Visualizador."] },
+        message: "Papéis Admin, Super Admin e customizados são restritos a super admins.",
       };
     }
     // Admin só associa o novo usuário às empresas das quais ele é membro.
@@ -363,7 +369,7 @@ export async function updateUser(
     }
 
     // Admin só gerencia usuários das suas empresas e nunca super_admins.
-    const { denied, scope } = await assertCanManageUser(userId);
+    const { denied, scope, targetRole } = await assertCanManageUser(userId);
     if (denied) return denied;
 
     const rawData = {
@@ -395,11 +401,17 @@ export async function updateUser(
       return { message: "Você não pode alterar seu próprio papel." };
     }
 
-    // Apenas um super_admin pode conceder/manter o papel super_admin.
-    if (validated.data.role === "super_admin" && !scope.isSuperAdmin) {
+    // Não-super só atribui manager/user/viewer; pode MANTER o papel atual do
+    // alvo (não força rebaixar um admin já existente), mas não promove a
+    // admin/super_admin/customizado.
+    if (
+      !scope.isSuperAdmin &&
+      !ADMIN_ASSIGNABLE_ROLES.has(validated.data.role) &&
+      validated.data.role !== targetRole
+    ) {
       return {
-        errors: { role: ["Apenas um super admin pode conceder o papel Super Admin."] },
-        message: "Você não tem permissão para definir super admins.",
+        errors: { role: ["Você só pode atribuir os papéis Gerente, Usuário ou Visualizador."] },
+        message: "Papéis Admin, Super Admin e customizados são restritos a super admins.",
       };
     }
 
@@ -939,6 +951,13 @@ export async function createRole(
     const adminCheck = await requirePermission(PERMISSIONS.ROLES_MANAGE);
     if (!adminCheck.authorized) return adminCheck.error!;
 
+    // Papéis customizados podem carregar qualquer permissão; gerenciá-los é
+    // restrito a super_admins (senão um admin escaparia do escopo via papel).
+    const roleScope = await getRequesterScope();
+    if (!roleScope.isSuperAdmin) {
+      return { message: "Apenas super admins podem gerenciar papéis." };
+    }
+
     const name = sanitizeText(formData.get("name")).slice(0, 50);
     const description = sanitizeText(formData.get("description")).slice(0, 500);
     const permissionsJson = (formData.get("permissions") as string) || "{}";
@@ -984,6 +1003,13 @@ export async function updateRole(
   try {
     const adminCheck = await requirePermission(PERMISSIONS.ROLES_MANAGE);
     if (!adminCheck.authorized) return adminCheck.error!;
+
+    // Papéis customizados podem carregar qualquer permissão; gerenciá-los é
+    // restrito a super_admins (senão um admin escaparia do escopo via papel).
+    const roleScope = await getRequesterScope();
+    if (!roleScope.isSuperAdmin) {
+      return { message: "Apenas super admins podem gerenciar papéis." };
+    }
 
     const roleId = formData.get("roleId") as string;
     if (!roleId) return { message: "ID do papel obrigatório." };
@@ -1117,6 +1143,13 @@ export async function deleteRole(
   try {
     const adminCheck = await requirePermission(PERMISSIONS.ROLES_MANAGE);
     if (!adminCheck.authorized) return adminCheck.error!;
+
+    // Papéis customizados podem carregar qualquer permissão; gerenciá-los é
+    // restrito a super_admins (senão um admin escaparia do escopo via papel).
+    const roleScope = await getRequesterScope();
+    if (!roleScope.isSuperAdmin) {
+      return { message: "Apenas super admins podem gerenciar papéis." };
+    }
 
     const roleId = formData.get("roleId") as string;
     if (!roleId) return { message: "ID do papel obrigatório." };
