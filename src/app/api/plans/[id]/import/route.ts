@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isValidUuid } from "@/lib/validations/uuid";
-import { sanitizeText } from "@/app/actions/_catalog-utils";
-import { COL, parseStatus, parseDate, parseNum, trimStr, detectHeaderRow } from "@/lib/planos-import";
+import {
+  ACCEPTED_EXTS,
+  MAX_FILE_BYTES,
+  validatePlanoHeaders,
+} from "@/lib/planos-import";
+import { importPlanItems } from "@/lib/planos-import-server";
 
 export async function POST(
   req: NextRequest,
@@ -18,7 +22,7 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-    // Verifica acesso ao plano
+    // Verifica acesso ao plano (RLS filtra: só retorna se o usuário pode lê-lo).
     const { data: plan } = await supabase
       .from("action_plans")
       .select("id, tenant_id")
@@ -29,6 +33,15 @@ export async function POST(
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "Arquivo não enviado." }, { status: 400 });
+
+    // Guardas server-side (espelham o upload-batch).
+    const ext = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
+    if (!ACCEPTED_EXTS.has(ext)) {
+      return NextResponse.json({ error: "Tipo de arquivo não suportado. Use .xlsx, .xlsb ou .xls." }, { status: 422 });
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      return NextResponse.json({ error: "Arquivo excede o limite de 20 MB." }, { status: 413 });
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const XLSX = await import("xlsx");
@@ -43,90 +56,34 @@ export async function POST(
     if (!ws) return NextResponse.json({ error: "Aba 'PLANO DE AÇÃO' não encontrada." }, { status: 422 });
 
     const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-    const headerRow = detectHeaderRow(rows);
+
+    // Valida estrutura contra o modelo padrão.
+    const { headerRow, errors: headerErrors } = validatePlanoHeaders(rows);
+    if (headerErrors.length > 0) {
+      return NextResponse.json(
+        { error: "Estrutura do arquivo não corresponde ao modelo.", details: headerErrors },
+        { status: 422 },
+      );
+    }
+
     const dataRows = rows.slice(headerRow + 1);
 
-    const groupMap = new Map<string, string>(); // macroAcao → item_id
-    let sortOrder = 0;
-    let created = 0;
-    let skipped = 0;
-    const errors: string[] = [];
+    // Anexa após os itens existentes para não colidir o sort_order.
+    const { data: maxRow } = await supabase
+      .from("action_items")
+      .select("sort_order")
+      .eq("plan_id", planId)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const baseSort = maxRow?.sort_order ?? 0;
 
-    for (const rawRow of dataRows) {
-      const row = rawRow as unknown[];
-      const acao = trimStr(row[COL.ACAO]);
-      const farolRaw = trimStr(row[COL.FAROL]);
+    const { created, skipped, errors } = await importPlanItems(supabase, planId, dataRows, { baseSort });
 
-      if (!acao) { skipped++; continue; }
-
-      const macroAcao = trimStr(row[COL.MACRO]);
-      const tipoPa    = await sanitizeText(trimStr(row[COL.TIPO_PA]));
-      const area      = await sanitizeText(trimStr(row[COL.AREA]));
-      const prioridade = await sanitizeText(trimStr(row[COL.PRIORIDADE]));
-
-      // Cria grupo pai se necessário
-      let parentId: string | null = null;
-      if (macroAcao && !groupMap.has(macroAcao)) {
-        sortOrder++;
-        const { data: grupo, error: grupoErr } = await supabase
-          .from("action_items")
-          .insert({
-            plan_id: planId,
-            number: String(sortOrder),
-            sort_order: sortOrder,
-            action: await sanitizeText(macroAcao),
-            tipo_pa: tipoPa,
-            area,
-            prioridade,
-            status: 1,
-          })
-          .select("id")
-          .single();
-        if (grupoErr || !grupo) {
-          errors.push(`Erro ao criar grupo "${macroAcao}": ${grupoErr?.message}`);
-          continue;
-        }
-        groupMap.set(macroAcao, grupo.id);
-        created++;
-      }
-      if (macroAcao) parentId = groupMap.get(macroAcao) ?? null;
-
-      sortOrder++;
-      const { error: itemErr } = await supabase.from("action_items").insert({
-        plan_id: planId,
-        parent_id: parentId,
-        number: parentId ? `${groupMap.size}.${sortOrder}` : String(sortOrder),
-        sort_order: sortOrder,
-        action: await sanitizeText(acao),
-        subacao: await sanitizeText(trimStr(row[COL.SUBACAO])),
-        como: await sanitizeText(trimStr(row[COL.COMO])),
-        where: await sanitizeText(trimStr(row[COL.ONDE])),
-        responsible: await sanitizeText(trimStr(row[COL.QUEM])),
-        cost: await sanitizeText(trimStr(row[COL.QUANTO])),
-        tipo_pa: tipoPa,
-        area,
-        prioridade,
-        planned_start: parseDate(row[COL.INICIO_PREV]),
-        planned_end:   parseDate(row[COL.TERMINO_PREV]),
-        actual_start:  parseDate(row[COL.INICIO_REAL]),
-        actual_end:    parseDate(row[COL.TERMINO_REAL]),
-        status: parseStatus(farolRaw),
-        observations: await sanitizeText(trimStr(row[COL.OBS])),
-        inscritos_esperado: parseNum(row[COL.INSC_ESP]),
-        inscritos_real:     parseNum(row[COL.INSC_REAL]),
-        mat_fin_esperado:   parseNum(row[COL.MATFIN_ESP]),
-        mat_fin_real:       parseNum(row[COL.MATFIN_REAL]),
-        mat_acad_esperado:  parseNum(row[COL.MATACD_ESP]),
-        mat_acad_real:      parseNum(row[COL.MATACD_REAL]),
-      });
-
-      if (itemErr) {
-        errors.push(`Linha "${acao}": ${itemErr.message}`);
-        skipped++;
-      } else {
-        created++;
-      }
-    }
+    await supabase
+      .from("action_plans")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", planId);
 
     return NextResponse.json({ created, skipped, errors });
   } catch (err) {
