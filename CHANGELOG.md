@@ -20,6 +20,44 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.2.0] - 2026-06-03
+
+Modelo de acesso multi-tenant, limites por empresa e painel global do super
+admin (PRs #12–#18).
+
+### Adicionado
+- **Painel do super admin** em `/admin/painel`: KPIs globais (empresas,
+  usuários, planos de ação, unidades) e tabela de todas as empresas com plano,
+  status, nº de membros e unidades usadas/limite. Aba visível apenas para
+  super_admin (#17).
+- **Atalhos do painel** com deep-link: "Gerenciar" abre o gerenciador de
+  membros da empresa (`?manage=<id>`) e "Nova empresa" abre o diálogo de
+  criação (`?new=1`) (#18).
+- **Limite de unidades por empresa** (`tenants.max_units`, migration 056):
+  o cadastro de unidade bloqueia ao atingir o limite e a tela mostra
+  "usadas/limite". `NULL` = ilimitado (#16).
+
+### Alterado
+- **Admin escopado por empresa**: o `admin` passa a ver e gerenciar apenas os
+  usuários das empresas que o super_admin lhe atribuir (via `tenant_members`),
+  sem enxergar super_admins nem usuários de outras empresas (#15).
+- **Criação de empresas restrita ao super_admin** (criação/edição de tenants),
+  preparando a fase-2 de onboarding/venda online (#16).
+- Placeholder e descrição do campo **Nome** da empresa sem nomes de marca (#13).
+
+### Corrigido
+- **Rodapé consolidado**: versão exibida em um único `Footer` global, sem
+  duplicação entre páginas protegidas (#12).
+- Diálogos/alertas de empresa agora **fecham após criar, editar ou excluir**
+  (antes permitiam recriação em loop) (#14).
+- Painel registra `log.warn` quando uma query de agregação de KPI falha, em vez
+  de zerar os números silenciosamente (#18).
+
+### Segurança
+- `ROLES_MANAGE` restrito ao super_admin e **teto de atribuição de papéis**: o
+  admin não cria super_admins nem escala privilégios além do próprio escopo
+  (#15).
+
 ## [2.1.0] - 2026-06-03
 
 Migração para o banco de produção novo e consolidação dos PRs #1–#10.
