@@ -13,6 +13,7 @@ import {
   sanitizePermissions,
 } from "@/lib/validations/admin";
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
+import { getRequesterScope, manageableUserIds, type RequesterScope } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { generateSecurePassword } from "@/lib/security/password";
 import type { FormState } from "@/types/auth";
@@ -122,8 +123,46 @@ export async function checkPermission(requiredPermission: Permission): Promise<b
 
 const BUILTIN_ROLES = new Set(["super_admin", "admin", "manager", "user", "viewer"]);
 
-/** Único email autorizado a ter o papel super_admin. */
-const SUPER_ADMIN_EMAIL = "alexandre.fonseca@live.com";
+/**
+ * Garante que o solicitante pode gerenciar o usuário alvo.
+ * - super_admin: sempre pode.
+ * - admin: o alvo precisa ser membro de uma das empresas do admin e NÃO pode
+ *   ser super_admin (admins não veem nem gerenciam super_admins).
+ * Retorna { denied, scope } — `denied` é o erro a devolver, ou null se ok.
+ */
+async function assertCanManageUser(
+  targetUserId: string,
+): Promise<{ denied: AdminFormState | null; scope: RequesterScope; targetRole: string | null }> {
+  const scope = await getRequesterScope();
+  if (scope.isSuperAdmin) return { denied: null, scope, targetRole: null };
+
+  const adminClient = createAdminClient();
+  const { data: target } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", targetUserId)
+    .maybeSingle();
+  if (!target) return { denied: { message: "Usuário não encontrado." }, scope, targetRole: null };
+  const targetRole = target.role as string;
+  if (targetRole === "super_admin") {
+    return { denied: { message: "Acesso negado. Você não pode gerenciar um super admin." }, scope, targetRole };
+  }
+  const ids = await manageableUserIds(scope.tenantIds);
+  if (!ids.has(targetUserId)) {
+    return { denied: { message: "Acesso negado. Usuário fora das suas empresas." }, scope, targetRole };
+  }
+  return { denied: null, scope, targetRole };
+}
+
+/** Papéis que um não-super-admin pode ATRIBUIR a usuários (criar/editar). */
+const ADMIN_ASSIGNABLE_ROLES = new Set(["manager", "user", "viewer"]);
+
+/** Limita os tenantIds solicitados ao escopo do admin (super_admin: todos). */
+function scopeTenantIds(requested: string[], scope: RequesterScope): string[] {
+  if (scope.isSuperAdmin) return requested;
+  const allowed = new Set(scope.tenantIds);
+  return requested.filter((id) => allowed.has(id));
+}
 
 async function getValidRoleNames(): Promise<Set<string>> {
   try {
@@ -219,16 +258,18 @@ export async function createUser(
       };
     }
 
-    // Super Admin é restrito a um único email autorizado
-    if (
-      validated.data.role === "super_admin" &&
-      validated.data.email.toLowerCase() !== SUPER_ADMIN_EMAIL.toLowerCase()
-    ) {
+    const scope = await getRequesterScope();
+    // Não-super só atribui papéis subordinados (manager/user/viewer). Admin,
+    // super_admin e papéis customizados (que podem ter qualquer permissão) são
+    // restritos a super_admins.
+    if (!scope.isSuperAdmin && !ADMIN_ASSIGNABLE_ROLES.has(validated.data.role)) {
       return {
-        errors: { role: ["O papel Super Admin é restrito a um usuário específico."] },
-        message: "Não é possível atribuir o papel Super Admin a este email.",
+        errors: { role: ["Você só pode atribuir os papéis Gerente, Usuário ou Visualizador."] },
+        message: "Papéis Admin, Super Admin e customizados são restritos a super admins.",
       };
     }
+    // Admin só associa o novo usuário às empresas das quais ele é membro.
+    const scopedTenantIds = scopeTenantIds(tenantIds, scope);
 
     const generatedPassword = validated.data.password || generateSecurePassword();
     const isGenerated = !validated.data.password;
@@ -264,9 +305,9 @@ export async function createUser(
         return { message: "Erro ao configurar perfil. O usuário foi removido. Tente novamente." };
       }
 
-      if (tenantIds.length > 0) {
+      if (scopedTenantIds.length > 0) {
         const { error: membErr } = await adminClient.from("tenant_members").insert(
-          tenantIds.map((tenantId) => ({
+          scopedTenantIds.map((tenantId) => ({
             user_id: data.user!.id,
             tenant_id: tenantId,
             role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
@@ -327,6 +368,10 @@ export async function updateUser(
       return { message: "ID do usuário é obrigatório." };
     }
 
+    // Admin só gerencia usuários das suas empresas e nunca super_admins.
+    const { denied, scope, targetRole } = await assertCanManageUser(userId);
+    if (denied) return denied;
+
     const rawData = {
       name: formData.get("name"),
       role: formData.get("role"),
@@ -356,17 +401,18 @@ export async function updateUser(
       return { message: "Você não pode alterar seu próprio papel." };
     }
 
-    // Super Admin é restrito a um único email autorizado — verifica email do usuário alvo
-    if (validated.data.role === "super_admin") {
-      const adminClient = createAdminClient();
-      const { data: targetUser } = await adminClient.auth.admin.getUserById(userId);
-      const targetEmail = targetUser?.user?.email ?? "";
-      if (targetEmail.toLowerCase() !== SUPER_ADMIN_EMAIL.toLowerCase()) {
-        return {
-          errors: { role: ["O papel Super Admin é restrito a um usuário específico."] },
-          message: "Não é possível atribuir o papel Super Admin a este usuário.",
-        };
-      }
+    // Não-super só atribui manager/user/viewer; pode MANTER o papel atual do
+    // alvo (não força rebaixar um admin já existente), mas não promove a
+    // admin/super_admin/customizado.
+    if (
+      !scope.isSuperAdmin &&
+      !ADMIN_ASSIGNABLE_ROLES.has(validated.data.role) &&
+      validated.data.role !== targetRole
+    ) {
+      return {
+        errors: { role: ["Você só pode atribuir os papéis Gerente, Usuário ou Visualizador."] },
+        message: "Papéis Admin, Super Admin e customizados são restritos a super admins.",
+      };
     }
 
     const isActive = formData.get("is_active") === "true";
@@ -438,11 +484,15 @@ export async function updateUser(
         .eq("user_id", userId);
 
       const existingIds = new Set((existing || []).map((m) => m.tenant_id));
-      const newIds = new Set(tenantIds);
+      // Admin só reconcilia empresas do próprio escopo; vínculos fora do
+      // escopo (ex.: outras empresas onde o usuário é membro) são preservados.
+      const inScope = (id: string) => scope.isSuperAdmin || scope.tenantIds.includes(id);
+      const newIds = new Set(scopeTenantIds(tenantIds, scope));
+      const existingInScope = [...existingIds].filter(inScope);
 
-      const toRemove = [...existingIds].filter((id) => !newIds.has(id));
+      const toRemove = existingInScope.filter((id) => !newIds.has(id));
       const toAdd = [...newIds].filter((id) => !existingIds.has(id));
-      const toKeep = [...existingIds].filter((id) => newIds.has(id));
+      const toKeep = existingInScope.filter((id) => newIds.has(id));
 
       if (toRemove.length > 0) {
         await adminClient.from("tenant_members").delete()
@@ -524,6 +574,9 @@ export async function deleteUser(
       return { message: "Você não pode excluir seu próprio usuário." };
     }
 
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return denied;
+
     const adminClient = createAdminClient();
 
     const memResult = await adminClient
@@ -586,6 +639,9 @@ export async function deactivateUser(
       return { message: "Você não pode desativar seu próprio usuário." };
     }
 
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return denied;
+
     const adminClient = createAdminClient();
 
     const { error } = await adminClient
@@ -638,6 +694,9 @@ export async function activateUser(
     const userId = formData.get("userId") as string;
     if (!userId) return { message: "ID do usuário obrigatório." };
 
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return denied;
+
     const adminClient = createAdminClient();
 
     const { error } = await adminClient
@@ -670,6 +729,20 @@ export async function resendConfirmation(
 
     const email = formData.get("email") as string;
     if (!email) return { message: "Email é obrigatório." };
+
+    // Admin só reenvia para usuários das suas empresas (e nunca super_admins).
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin) {
+      const lookupClient = createAdminClient();
+      const { data: target } = await lookupClient
+        .from("profiles")
+        .select("id")
+        .eq("email", email.toLowerCase())
+        .maybeSingle();
+      if (!target) return { message: "Usuário não encontrado." };
+      const { denied } = await assertCanManageUser(target.id as string);
+      if (denied) return denied;
+    }
 
     const adminClient = createAdminClient();
     const { data, error } = await adminClient.auth.admin.generateLink({
@@ -711,6 +784,26 @@ export async function bulkDeleteUsers(
 
     if (userIds.includes(adminCheck.currentUserId!)) {
       return { message: "Você não pode excluir seu próprio usuário." };
+    }
+
+    // Admin só pode excluir em lote usuários das suas empresas (nunca super_admins).
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin) {
+      const lookupClient = createAdminClient();
+      const { data: targets } = await lookupClient
+        .from("profiles")
+        .select("id, role")
+        .in("id", userIds);
+      const manageable = await manageableUserIds(scope.tenantIds);
+      const blocked = userIds.filter((id) => {
+        const t = (targets ?? []).find((x) => x.id === id);
+        return !t || (t.role as string) === "super_admin" || !manageable.has(id);
+      });
+      if (blocked.length > 0) {
+        return {
+          message: "Acesso negado. Alguns usuários estão fora das suas empresas ou são super admins.",
+        };
+      }
     }
 
     const adminClient = createAdminClient();
@@ -858,6 +951,13 @@ export async function createRole(
     const adminCheck = await requirePermission(PERMISSIONS.ROLES_MANAGE);
     if (!adminCheck.authorized) return adminCheck.error!;
 
+    // Papéis customizados podem carregar qualquer permissão; gerenciá-los é
+    // restrito a super_admins (senão um admin escaparia do escopo via papel).
+    const roleScope = await getRequesterScope();
+    if (!roleScope.isSuperAdmin) {
+      return { message: "Apenas super admins podem gerenciar papéis." };
+    }
+
     const name = sanitizeText(formData.get("name")).slice(0, 50);
     const description = sanitizeText(formData.get("description")).slice(0, 500);
     const permissionsJson = (formData.get("permissions") as string) || "{}";
@@ -903,6 +1003,13 @@ export async function updateRole(
   try {
     const adminCheck = await requirePermission(PERMISSIONS.ROLES_MANAGE);
     if (!adminCheck.authorized) return adminCheck.error!;
+
+    // Papéis customizados podem carregar qualquer permissão; gerenciá-los é
+    // restrito a super_admins (senão um admin escaparia do escopo via papel).
+    const roleScope = await getRequesterScope();
+    if (!roleScope.isSuperAdmin) {
+      return { message: "Apenas super admins podem gerenciar papéis." };
+    }
 
     const roleId = formData.get("roleId") as string;
     if (!roleId) return { message: "ID do papel obrigatório." };
@@ -1036,6 +1143,13 @@ export async function deleteRole(
   try {
     const adminCheck = await requirePermission(PERMISSIONS.ROLES_MANAGE);
     if (!adminCheck.authorized) return adminCheck.error!;
+
+    // Papéis customizados podem carregar qualquer permissão; gerenciá-los é
+    // restrito a super_admins (senão um admin escaparia do escopo via papel).
+    const roleScope = await getRequesterScope();
+    if (!roleScope.isSuperAdmin) {
+      return { message: "Apenas super admins podem gerenciar papéis." };
+    }
 
     const roleId = formData.get("roleId") as string;
     if (!roleId) return { message: "ID do papel obrigatório." };

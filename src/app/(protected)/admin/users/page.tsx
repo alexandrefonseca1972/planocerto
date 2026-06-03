@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { UsersTable } from "@/app/(protected)/admin/users/users-table";
+import { getRequesterScope, manageableUserIds } from "@/app/actions/_helpers";
 import type { RoleRow } from "@/app/actions/admin";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 const PER_PAGE = 20;
 
 type PageResult =
-  | { success: true; users: Profile[]; total: number; customRoles: RoleRow[] }
+  | { success: true; users: Profile[]; total: number; customRoles: RoleRow[]; isSuperAdmin: boolean }
   | { success: false; errorMessage: string };
 
 async function fetchUsers(
@@ -29,12 +29,26 @@ async function fetchUsers(
     const from = (page - 1) * PER_PAGE;
     const to = from + PER_PAGE - 1;
 
+    // Escopo: super_admin vê todos; admin vê só usuários das suas empresas,
+    // excluindo super_admins. (fetchUsers usa service role, então o filtro de
+    // visibilidade é aplicado aqui, no app.)
+    const scope = await getRequesterScope();
+
     let countQuery = adminClient.from("profiles").select("*", { count: "exact", head: true });
     let listQuery = adminClient
       .from("profiles")
       .select("*")
       .order("created_at", { ascending: false })
       .range(from, to);
+
+    if (!scope.isSuperAdmin) {
+      const allowedIds = [...(await manageableUserIds(scope.tenantIds))];
+      if (allowedIds.length === 0) {
+        return { success: true, users: [], total: 0, customRoles: [], isSuperAdmin: false };
+      }
+      countQuery = countQuery.in("id", allowedIds).neq("role", "super_admin");
+      listQuery = listQuery.in("id", allowedIds).neq("role", "super_admin");
+    }
 
     if (search) {
       // Escapa wildcards LIKE e chars especiais do PostgREST: %, _, ,, ", (, ), \
@@ -79,6 +93,7 @@ async function fetchUsers(
       users: (profilesResult.data || []) as Profile[],
       total: countResult.count ?? 0,
       customRoles: (rolesResult.data || []) as RoleRow[],
+      isSuperAdmin: scope.isSuperAdmin,
     };
   } catch (e) {
     console.error("[fetchUsers]", e);
@@ -100,13 +115,7 @@ export default async function AdminUsersPage({
   const role = (params.role || "").slice(0, 50);
   const status: "all" | "active" | "inactive" =
     params.status === "active" || params.status === "inactive" ? params.status : "all";
-  const [result, supabase] = await Promise.all([
-    fetchUsers(page, search, status, role),
-    createClient(),
-  ]);
-
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
-  const currentUserEmail = currentUser?.email ?? "";
+  const result = await fetchUsers(page, search, status, role);
 
   if (!result.success) {
     return (
@@ -131,7 +140,7 @@ export default async function AdminUsersPage({
       perPage={PER_PAGE}
       customRoles={result.customRoles}
       initialSearch={search}
-      currentUserEmail={currentUserEmail}
+      isSuperAdmin={result.isSuperAdmin}
       initialStatus={status}
       initialRole={role}
     />

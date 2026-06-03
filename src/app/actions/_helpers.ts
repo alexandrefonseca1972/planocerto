@@ -2,9 +2,69 @@
 // NÃO leva "use server": exporta helpers síncronos (extractFormFields) e é
 // consumido apenas por outros módulos de servidor — não é superfície de action.
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ component: "actions:helpers" });
+
+export interface RequesterScope {
+  userId: string;
+  /** super_admin enxerga e gerencia tudo. */
+  isSuperAdmin: boolean;
+  /** Empresas (tenant_members) do solicitante — escopo de um admin. */
+  tenantIds: string[];
+}
+
+/**
+ * Escopo do solicitante autenticado para gestão de usuários/empresas:
+ * id, se é super_admin e as empresas a que pertence (tenant_members).
+ */
+export async function getRequesterScope(): Promise<RequesterScope> {
+  const empty: RequesterScope = { userId: "", isSuperAdmin: false, tenantIds: [] };
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return empty;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    const adminClient = createAdminClient();
+    const { data: mems } = await adminClient
+      .from("tenant_members")
+      .select("tenant_id")
+      .eq("user_id", user.id);
+    return {
+      userId: user.id,
+      isSuperAdmin: (profile?.role as string | undefined) === "super_admin",
+      tenantIds: Array.from(new Set((mems ?? []).map((m) => m.tenant_id as string))),
+    };
+  } catch (error) {
+    log.error({ error }, "Erro ao obter escopo do solicitante");
+    return empty;
+  }
+}
+
+/**
+ * Conjunto de user_ids que um admin pode gerenciar: os membros das empresas
+ * informadas (tenant_members). Vazio se não houver empresas no escopo.
+ */
+export async function manageableUserIds(tenantIds: string[]): Promise<Set<string>> {
+  if (tenantIds.length === 0) return new Set();
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from("tenant_members")
+      .select("user_id")
+      .in("tenant_id", tenantIds);
+    return new Set((data ?? []).map((m) => m.user_id as string));
+  } catch {
+    return new Set();
+  }
+}
 
 /**
  * Obtém o ID do tenant ativo do usuário autenticado.
