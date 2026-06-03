@@ -7,6 +7,7 @@ import { isValidUrl } from "@/lib/sanitize";
 import { tenantFormSchema } from "@/lib/schemas/tenant-schemas";
 import { normalizeWebsite } from "@/lib/format-br";
 import { checkPermission } from "@/app/actions/admin";
+import { getRequesterScope } from "@/app/actions/_helpers";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { TenantFormState } from "@/types/tenant";
 import type { Tenant, TenantMemberWithProfile } from "@/types/tenant";
@@ -345,10 +346,14 @@ export async function updateTenantMemberRole(
 export async function getAllTenants(): Promise<Tenant[]> {
   try {
     const adminClient = createAdminClient();
-    const { data } = await adminClient
-      .from("tenants")
-      .select("*")
-      .order("name");
+    // super_admin vê todas; admin vê só as empresas das quais é membro.
+    const scope = await getRequesterScope();
+    let query = adminClient.from("tenants").select("*").order("name");
+    if (!scope.isSuperAdmin) {
+      if (scope.tenantIds.length === 0) return [];
+      query = query.in("id", scope.tenantIds);
+    }
+    const { data } = await query;
     return (data || []) as Tenant[];
   } catch (error) { console.error("[getAllTenants] Error:", error); return []; }
 }

@@ -165,8 +165,6 @@ function exportToCSV(
   URL.revokeObjectURL(url);
 }
 
-const SUPER_ADMIN_EMAIL = "alexandre.fonseca@live.com";
-
 export function UsersTable({
   users,
   total,
@@ -176,7 +174,7 @@ export function UsersTable({
   initialSearch = "",
   initialStatus = "all",
   initialRole = "",
-  currentUserEmail = "",
+  isSuperAdmin = false,
 }: {
   users: Profile[];
   total: number;
@@ -186,7 +184,7 @@ export function UsersTable({
   initialSearch?: string;
   initialStatus?: "all" | "active" | "inactive";
   initialRole?: string;
-  currentUserEmail?: string;
+  isSuperAdmin?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -492,7 +490,7 @@ export function UsersTable({
                 aria-label="Filtrar por papel"
               >
                 <option value="">Todos papéis</option>
-                <option value="super_admin">Super Admin</option>
+                {isSuperAdmin && <option value="super_admin">Super Admin</option>}
                 <option value="admin">Admin</option>
                 <option value="manager">Gerente</option>
                 <option value="user">Usuário</option>
@@ -821,7 +819,7 @@ export function UsersTable({
           onClose={handleCreateClose}
           tenants={allTenants}
           customRoles={customRoles}
-          isSuperAdmin={currentUserEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
 
@@ -840,8 +838,7 @@ export function UsersTable({
           selectedAreaIds={editingUserAreaIds}
           selectedUnitIds={editingUserUnitIds}
           customRoles={customRoles}
-          targetUserEmail={editingUser.email}
-          isSuperAdmin={currentUserEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
 
@@ -1343,7 +1340,6 @@ function EditUserDialog({
   selectedAreaIds = [],
   selectedUnitIds = [],
   customRoles = [],
-  targetUserEmail = "",
   isSuperAdmin = false,
 }: {
   user: Profile;
@@ -1359,7 +1355,6 @@ function EditUserDialog({
   selectedAreaIds?: string[];
   selectedUnitIds?: string[];
   customRoles?: RoleRow[];
-  targetUserEmail?: string;
   isSuperAdmin?: boolean;
 }) {
   const [permissions, setPermissions] = useState<Record<string, boolean>>(
@@ -1448,8 +1443,8 @@ function EditUserDialog({
               <option value="user">Usuário</option>
               <option value="manager">Gerente</option>
               <option value="admin">Admin</option>
-              {/* Super Admin visível apenas para o próprio super admin ou se o usuário editado já tem esse papel */}
-              {(isSuperAdmin || targetUserEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) && (
+              {/* Super Admin visível apenas para super admins. */}
+              {isSuperAdmin && (
                 <option value="super_admin">Super Admin</option>
               )}
               <option value="viewer">Visualizador</option>
