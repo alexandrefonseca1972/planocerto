@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
@@ -9,11 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCompanies, upsertCompany, deleteCompany } from "@/app/actions/companies";
+import { getCompanies, upsertCompany, deleteCompany, assignCompaniesToUnit } from "@/app/actions/companies";
 import { SortableTh, TablePagination, useDataTable } from "@/components/ui/data-table";
 import type { Company, CompanyFormState } from "@/types/company";
 import type { Unit } from "@/types/catalog";
-import { Plus, Pencil, Trash2, X, Save, Search, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Save, Search, Building2, Link2, Unlink } from "lucide-react";
 
 type CompanySortKey =
   | "nome_fantasia"
@@ -40,8 +40,14 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [unitFilter, setUnitFilter] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkUnitId, setBulkUnitId] = useState<string>("");
   const [editing, setEditing] = useState<Company | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [isAssigning, startAssign] = useTransition();
+
+  const unitMap = useMemo(() => new Map(units.map((u) => [u.id, u.name])), [units]);
 
   const [upsertState, upsertAction, isSaving] = useActionState(upsertCompany, init);
   const [, deleteAction, isDeleting] = useActionState(deleteCompany, init);
@@ -79,15 +85,18 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return companies;
-    return companies.filter(
-      (c) =>
+    return companies.filter((c) => {
+      if (unitFilter === "__none__" && c.unit_id) return false;
+      if (unitFilter && unitFilter !== "__none__" && c.unit_id !== unitFilter) return false;
+      if (!q) return true;
+      return (
         c.nome_fantasia.toLowerCase().includes(q) ||
         c.cnpj.toLowerCase().includes(q) ||
         c.municipio.toLowerCase().includes(q) ||
-        c.responsavel_nome.toLowerCase().includes(q),
-    );
-  }, [search, companies]);
+        c.responsavel_nome.toLowerCase().includes(q)
+      );
+    });
+  }, [search, companies, unitFilter]);
 
   const CHANCE_RANK = { Alta: 0, Media: 1, Baixa: 2, "": 3 } as const;
 
@@ -133,7 +142,52 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
     fd.set("companyId", company.id);
     deleteAction(fd);
     setCompanies((prev) => prev.filter((c) => c.id !== company.id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(company.id);
+      return next;
+    });
     toast("Empresa excluída.");
+  }
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (filtered.every((c) => next.has(c.id))) {
+        filtered.forEach((c) => next.delete(c.id));
+      } else {
+        filtered.forEach((c) => next.add(c.id));
+      }
+      return next;
+    });
+  }
+
+  function handleAssign(unitId: string | null) {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    startAssign(async () => {
+      const res = await assignCompaniesToUnit(ids, unitId);
+      if (res.success) {
+        toast(res.message);
+        setSelectedIds(new Set());
+        setBulkUnitId("");
+        if (currentTenant?.id) getCompanies(currentTenant.id).then(setCompanies);
+      } else {
+        toast(res.message, "error");
+      }
+    });
   }
 
   return (
@@ -148,7 +202,20 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
             {currentTenant ? ` em ${currentTenant.name}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={unitFilter}
+            onChange={(e) => setUnitFilter(e.target.value)}
+            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="">Todas as unidades</option>
+            <option value="__none__">Sem unidade</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <Input
@@ -163,6 +230,53 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
           </Button>
         </div>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent-200 bg-accent-50/60 px-4 py-2.5 dark:border-accent-800 dark:bg-accent-950/20">
+          <span className="text-sm font-medium">
+            {selectedIds.size} selecionada{selectedIds.size === 1 ? "" : "s"}
+          </span>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-zinc-500" />
+            <select
+              value={bulkUnitId}
+              onChange={(e) => setBulkUnitId(e.target.value)}
+              className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value="">Selecione a unidade…</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              onClick={() => handleAssign(bulkUnitId)}
+              disabled={!bulkUnitId || isAssigning}
+              isLoading={isAssigning}
+            >
+              <Link2 className="h-4 w-4" /> Associar
+            </Button>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleAssign(null)}
+            disabled={isAssigning}
+          >
+            <Unlink className="h-4 w-4" /> Remover da unidade
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-auto"
+          >
+            Limpar seleção
+          </Button>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">
@@ -182,6 +296,15 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 dark:bg-zinc-800/50">
               <tr className="text-left">
+                <th className="px-3 py-2 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Selecionar todas"
+                    className="h-4 w-4 align-middle"
+                  />
+                </th>
                 <th className="px-3 py-2 w-12 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">#</th>
                 <SortableTh<CompanySortKey>
                   label="Empresa"
@@ -190,6 +313,7 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
                   asc={table.asc}
                   onSort={table.handleSort}
                 />
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Unidade</th>
                 <SortableTh<CompanySortKey>
                   label="Segmento"
                   sortKey="segmento"
@@ -239,7 +363,16 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {table.pageItems.map((c, i) => (
-                <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
+                <tr key={c.id} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/30 ${selectedIds.has(c.id) ? "bg-accent-50/40 dark:bg-accent-950/10" : ""}`}>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(c.id)}
+                      onChange={() => toggleSelect(c.id)}
+                      aria-label={`Selecionar ${c.nome_fantasia}`}
+                      className="h-4 w-4 align-middle"
+                    />
+                  </td>
                   <td className="px-3 py-2 font-mono text-[11px] tabular-nums text-zinc-400">
                     {table.offset + i + 1}
                   </td>
@@ -253,6 +386,9 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
                     {c.cnpj && (
                       <div className="text-[11px] text-zinc-500">{c.cnpj}</div>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-zinc-500">
+                    {c.unit_id ? (unitMap.get(c.unit_id) || "—") : <span className="text-zinc-400">—</span>}
                   </td>
                   <td className="px-3 py-2 text-zinc-500">{c.segmento || "—"}</td>
                   <td className="px-3 py-2 text-zinc-500">

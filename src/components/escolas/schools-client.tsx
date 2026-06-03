@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
@@ -9,11 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSchools, upsertSchool, deleteSchool } from "@/app/actions/schools";
+import { getSchools, upsertSchool, deleteSchool, assignSchoolsToUnit } from "@/app/actions/schools";
 import { SortableTh, TablePagination, useDataTable } from "@/components/ui/data-table";
 import type { School, SchoolFormState } from "@/types/school";
 import type { Unit } from "@/types/catalog";
-import { Plus, Pencil, Trash2, X, Save, Search, GraduationCap } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Save, Search, GraduationCap, Building2, Link2, Unlink } from "lucide-react";
 
 type SchoolSortKey =
   | "idx"
@@ -42,8 +42,14 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [unitFilter, setUnitFilter] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkUnitId, setBulkUnitId] = useState<string>("");
   const [editing, setEditing] = useState<School | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [isAssigning, startAssign] = useTransition();
+
+  const unitMap = useMemo(() => new Map(units.map((u) => [u.id, u.name])), [units]);
 
   const [upsertState, upsertAction, isSaving] = useActionState(upsertSchool, init);
   const [, deleteAction, isDeleting] = useActionState(deleteSchool, init);
@@ -81,14 +87,17 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return schools;
-    return schools.filter(
-      (s) =>
+    return schools.filter((s) => {
+      if (unitFilter === "__none__" && s.unit_id) return false;
+      if (unitFilter && unitFilter !== "__none__" && s.unit_id !== unitFilter) return false;
+      if (!q) return true;
+      return (
         s.nome.toLowerCase().includes(q) ||
         s.municipio.toLowerCase().includes(q) ||
-        s.diretor.toLowerCase().includes(q),
-    );
-  }, [search, schools]);
+        s.diretor.toLowerCase().includes(q)
+      );
+    });
+  }, [search, schools, unitFilter]);
 
   const PRIORIDADE_RANK = { Alta: 0, Media: 1, Baixa: 2 } as const;
 
@@ -136,7 +145,52 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
     fd.set("schoolId", school.id);
     deleteAction(fd);
     setSchools((prev) => prev.filter((s) => s.id !== school.id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(school.id);
+      return next;
+    });
     toast("Escola excluída.");
+  }
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (filtered.every((s) => next.has(s.id))) {
+        filtered.forEach((s) => next.delete(s.id));
+      } else {
+        filtered.forEach((s) => next.add(s.id));
+      }
+      return next;
+    });
+  }
+
+  function handleAssign(unitId: string | null) {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    startAssign(async () => {
+      const res = await assignSchoolsToUnit(ids, unitId);
+      if (res.success) {
+        toast(res.message);
+        setSelectedIds(new Set());
+        setBulkUnitId("");
+        if (currentTenant?.id) getSchools(currentTenant.id).then(setSchools);
+      } else {
+        toast(res.message, "error");
+      }
+    });
   }
 
   return (
@@ -151,7 +205,20 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
             {currentTenant ? ` em ${currentTenant.name}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={unitFilter}
+            onChange={(e) => setUnitFilter(e.target.value)}
+            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="">Todas as unidades</option>
+            <option value="__none__">Sem unidade</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <Input
@@ -166,6 +233,53 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
           </Button>
         </div>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-accent-200 bg-accent-50/60 px-4 py-2.5 dark:border-accent-800 dark:bg-accent-950/20">
+          <span className="text-sm font-medium">
+            {selectedIds.size} selecionada{selectedIds.size === 1 ? "" : "s"}
+          </span>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-zinc-500" />
+            <select
+              value={bulkUnitId}
+              onChange={(e) => setBulkUnitId(e.target.value)}
+              className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value="">Selecione a unidade…</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              onClick={() => handleAssign(bulkUnitId)}
+              disabled={!bulkUnitId || isAssigning}
+              isLoading={isAssigning}
+            >
+              <Link2 className="h-4 w-4" /> Associar
+            </Button>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleAssign(null)}
+            disabled={isAssigning}
+          >
+            <Unlink className="h-4 w-4" /> Remover da unidade
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-auto"
+          >
+            Limpar seleção
+          </Button>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">
@@ -185,6 +299,15 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
                 <tr className="text-left">
+                  <th className="px-3 py-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Selecionar todas"
+                      className="h-4 w-4 align-middle"
+                    />
+                  </th>
                   <th className="px-3 py-2 w-12 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">#</th>
                   <SortableTh<SchoolSortKey>
                     label="Escola"
@@ -193,6 +316,7 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
                     asc={table.asc}
                     onSort={table.handleSort}
                   />
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Unidade</th>
                   <SortableTh<SchoolSortKey>
                     label="Município/UF"
                     sortKey="municipio"
@@ -251,7 +375,16 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {table.pageItems.map((s, i) => (
-                  <tr key={s.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
+                  <tr key={s.id} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/30 ${selectedIds.has(s.id) ? "bg-accent-50/40 dark:bg-accent-950/10" : ""}`}>
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                        aria-label={`Selecionar ${s.nome}`}
+                        className="h-4 w-4 align-middle"
+                      />
+                    </td>
                     <td className="px-3 py-2 font-mono text-[11px] tabular-nums text-zinc-400">
                       {table.offset + i + 1}
                     </td>
@@ -262,6 +395,9 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
                         Conveniada
                       </span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-zinc-500">
+                    {s.unit_id ? (unitMap.get(s.unit_id) || "—") : <span className="text-zinc-400">—</span>}
                   </td>
                   <td className="px-3 py-2 text-zinc-500">
                     {[s.municipio, s.uf].filter(Boolean).join("/") || "—"}

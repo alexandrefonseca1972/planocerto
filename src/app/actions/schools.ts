@@ -149,6 +149,69 @@ export async function upsertSchool(
   }
 }
 
+const assignSchoolsSchema = z.object({
+  ids: z
+    .array(z.string().uuid())
+    .min(1, "Selecione ao menos uma escola.")
+    .max(500, "Máximo de 500 por vez."),
+  unitId: z.string().uuid().nullable(),
+});
+
+/**
+ * Associa (ou desassocia, com unitId=null) várias escolas a uma unidade de
+ * uma vez. RLS de `schools` garante o escopo do tenant; `unitId` é validado
+ * contra `units` (leitura também filtrada por RLS).
+ */
+export async function assignSchoolsToUnit(
+  ids: string[],
+  unitId: string | null,
+): Promise<{ success?: boolean; updated?: number; message: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { message: "Não autenticado." };
+
+    const v = assignSchoolsSchema.safeParse({ ids, unitId });
+    if (!v.success) return { message: v.error.issues[0]?.message ?? "Dados inválidos." };
+
+    if (v.data.unitId) {
+      const { data: unit } = await supabase
+        .from("units")
+        .select("id")
+        .eq("id", v.data.unitId)
+        .maybeSingle();
+      if (!unit) return { message: "Unidade inválida." };
+    }
+
+    const { error, count } = await supabase
+      .from("schools")
+      .update(
+        { unit_id: v.data.unitId, updated_at: new Date().toISOString() },
+        { count: "exact" },
+      )
+      .in("id", v.data.ids);
+    if (error) {
+      logSupabaseError("assignSchoolsToUnit", error);
+      return { message: "Erro ao associar escolas." };
+    }
+
+    revalidatePath("/escolas");
+    const n = count ?? v.data.ids.length;
+    return {
+      success: true,
+      updated: n,
+      message: v.data.unitId
+        ? `${n} escola(s) associada(s) à unidade.`
+        : `${n} escola(s) removida(s) da unidade.`,
+    };
+  } catch (error) {
+    console.error("[assignSchoolsToUnit] Error:", error);
+    return { message: "Serviço indisponível." };
+  }
+}
+
 export async function deleteSchool(
   _prev: SchoolFormState,
   formData: FormData,
