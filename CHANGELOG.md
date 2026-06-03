@@ -1,6 +1,61 @@
 # Changelog
 
-Todas as mudanças notáveis do PlanoCerto documentadas aqui.
+Todas as mudanças notáveis do PlanoCerto são documentadas aqui.
+
+O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
+projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/)
+(`MAJOR.MINOR.PATCH`). A versão de referência é a do `package.json`.
+
+## Como versionar
+
+1. Durante o desenvolvimento, registre as mudanças sob `## [Não lançado]`.
+2. Ao fechar uma versão, bumpe o `package.json` (sem criar tag/commit):
+   `npm run version:patch` · `version:minor` · `version:major`.
+3. Mova as entradas de `[Não lançado]` para uma seção `## [x.y.z] - AAAA-MM-DD`.
+4. Commit + PR. Após o merge na `main`, crie a tag anotada:
+   `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`.
+
+Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
+**Segurança**, **Performance**, **Depreciado**.
+
+## [Não lançado]
+
+## [2.1.0] - 2026-06-03
+
+Migração para o banco de produção novo e consolidação dos PRs #1–#10.
+
+### Adicionado
+- Campos **Diretor/Reitor**, **Email** e **Fone** no catálogo de unidades (#4).
+- **Validação em tempo real** e melhorias de UX no formulário de unidade
+  (FormDialog + máscara de telefone + e-mail normalizado) (#5).
+- **Associação em massa** de escolas e empresas a uma unidade — seleção
+  múltipla, filtro e coluna de unidade nas listas (#7, #8).
+- **Slug de empresa gerado automaticamente** e único no servidor, eliminando o
+  erro de duplicidade (#10).
+
+### Alterado
+- `database.types.ts` reconciliado com o schema das migrations; colunas
+  `profiles.phone`/`profiles.social_media` e `units.responsavel/email/fone`
+  adicionadas (migrations 053 e 055).
+- Slug de empresa passou a ser imutável após a criação (URLs estáveis).
+
+### Segurança
+- **Sanitização robusta de inputs** (DOMPurify) centralizada nos schemas zod,
+  cobrindo todo texto livre e fechando lacunas sem validação (notificações,
+  papéis) (#2).
+- Chaves Supabase migradas para o formato novo (publishable/secret) e RLS
+  habilitada em `knowledge_base` (migration 051).
+
+### Corrigido
+- Fluxo de **import de planos** unificado entre as duas rotas: vínculo
+  pai↔filho robusto, numeração hierárquica consistente e validação server-side
+  (headers/tamanho/extensão) no import single-plan (#6).
+- Warning "useActionState called outside of a transition" corrigido
+  centralmente no `FormDialog` (#9).
+
+### Removido
+- Integração **Diário Oficial** (monitor/INLABS) — código e schema (migration 052) (#1).
+- Integração **Google Calendar** (código morto) — código e schema (migration 054) (#1).
 
 ## [2.0.0] — 2026-05-04
 
