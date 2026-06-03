@@ -19,15 +19,7 @@ export const tenantFormSchema = z.object({
     minMsg: "Nome deve ter pelo menos 2 caracteres.",
     maxMsg: "Nome deve ter no máximo 100 caracteres.",
   }),
-  slug: z
-    .string()
-    .trim()
-    .min(2, "Slug deve ter pelo menos 2 caracteres.")
-    .max(50, "Slug deve ter no máximo 50 caracteres.")
-    .regex(
-      /^[a-z0-9-]+$/,
-      "Use apenas letras minúsculas, números e hífens.",
-    ),
+  // slug é gerado automaticamente no servidor a partir do nome (único).
   plan: z.enum(["free", "pro", "enterprise"]),
   active: z.boolean().default(true),
   teams_webhook_url: z

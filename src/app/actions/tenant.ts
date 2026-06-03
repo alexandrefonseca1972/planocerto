@@ -14,7 +14,6 @@ import type { Tenant, TenantMemberWithProfile } from "@/types/tenant";
 function readTenantForm(formData: FormData) {
   return {
     name: String(formData.get("name") || ""),
-    slug: String(formData.get("slug") || "").toLowerCase(),
     plan: String(formData.get("plan") || "free"),
     active: formData.get("active") === "on" || formData.get("active") === "true",
     teams_webhook_url: String(formData.get("teams_webhook_url") || ""),
@@ -24,6 +23,41 @@ function readTenantForm(formData: FormData) {
     site: String(formData.get("site") || ""),
     fone: String(formData.get("fone") || ""),
   };
+}
+
+/** Converte um nome em slug (a-z, 0-9, hífens), limitado para caber no sufixo. */
+function slugify(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+}
+
+/**
+ * Gera um slug único a partir do nome. Como `tenants.slug` é único globalmente,
+ * a checagem usa o admin client (enxerga todos os tenants) e anexa `-2`, `-3`…
+ * em caso de colisão — evitando o erro de duplicidade para o usuário.
+ */
+async function uniqueSlug(
+  adminClient: ReturnType<typeof createAdminClient>,
+  name: string,
+): Promise<string> {
+  const root = slugify(name) || "empresa";
+  // `.like` (método dedicado) usa `%` como curinga; pega tudo que começa com a
+  // raiz (superconjunto seguro — só precisamos conhecer os slugs em colisão).
+  const { data } = await adminClient
+    .from("tenants")
+    .select("slug")
+    .like("slug", `${root}%`);
+  const taken = new Set((data ?? []).map((t) => t.slug));
+  if (!taken.has(root)) return root;
+  let i = 2;
+  while (taken.has(`${root}-${i}`)) i++;
+  return `${root}-${i}`;
 }
 
 export async function getUserTenants(): Promise<Tenant[]> {
@@ -134,11 +168,12 @@ export async function createTenant(
     } = await supabase.auth.getUser();
 
     const adminClient = createAdminClient();
+    const slug = await uniqueSlug(adminClient, validated.data.name);
     const { data: tenant, error } = await adminClient
       .from("tenants")
       .insert({
         name: validated.data.name,
-        slug: validated.data.slug,
+        slug,
         plan: validated.data.plan,
         active: validated.data.active,
         teams_webhook_url: validated.data.teams_webhook_url,
@@ -202,8 +237,8 @@ export async function updateTenant(
     const { error } = await adminClient
       .from("tenants")
       .update({
+        // slug é imutável após a criação (mantém URLs estáveis).
         name: validated.data.name,
-        slug: validated.data.slug,
         plan: validated.data.plan,
         active: validated.data.active,
         teams_webhook_url: webhookUrl,

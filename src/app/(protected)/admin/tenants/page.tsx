@@ -62,17 +62,6 @@ function planBadge(plan: Tenant["plan"]) {
   return <Badge variant="muted">Gratuito</Badge>;
 }
 
-function slugify(s: string) {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 50);
-}
-
 export default function AdminTenantsPage() {
   const { allTenants, currentTenant } = useTenant();
   const [showCreate, setShowCreate] = useState(false);
@@ -289,7 +278,6 @@ function TenantFormDialog({
   const initial: TenantFormValues = useMemo(
     () => ({
       name: tenant?.name || "",
-      slug: tenant?.slug || "",
       plan: (tenant?.plan as TenantFormValues["plan"]) || "free",
       active: tenant?.active ?? true,
       teams_webhook_url: tenant?.teams_webhook_url || "",
@@ -305,19 +293,8 @@ function TenantFormDialog({
   const { values, setValue, errors, markTouched, isValid, isDirty, validateAll } =
     useLiveValidation<TenantFormValues>(tenantFormSchema, initial);
 
-  const [slugTouched, setSlugTouched] = useState(false);
-
-  // Auto-gera slug a partir do nome enquanto usuário não tocar manualmente no slug
-  useEffect(() => {
-    if (slugTouched || isEdit) return;
-    const auto = slugify(values.name);
-    if (auto !== values.slug) setValue("slug", auto);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [values.name, slugTouched, isEdit]);
-
   const filled =
     (values.name.trim().length >= 2 ? 1 : 0) +
-    (values.slug.trim().length >= 2 ? 1 : 0) +
     (values.plan ? 1 : 0);
 
   function submit() {
@@ -325,7 +302,6 @@ function TenantFormDialog({
     const fd = new FormData();
     if (tenant) fd.set("tenantId", tenant.id);
     fd.set("name", values.name);
-    fd.set("slug", values.slug);
     fd.set("plan", values.plan);
     if (values.active) fd.set("active", "on");
     fd.set("teams_webhook_url", values.teams_webhook_url || "");
@@ -352,7 +328,7 @@ function TenantFormDialog({
       isSaving={isPending}
       canSave={isValid}
       serverError={!state.success ? state.message : undefined}
-      progress={{ filled, total: 3 }}
+      progress={{ filled, total: 2 }}
       submitLabel={isEdit ? "Salvar alterações" : "Criar empresa"}
       size="lg"
     >
@@ -375,36 +351,6 @@ function TenantFormDialog({
           onChange={(e) => setValue("name", e.target.value)}
           onBlur={() => markTouched("name")}
           aria-invalid={Boolean(errors.name)}
-        />
-      </Field>
-
-      <Field
-        id="t-slug"
-        label="Slug"
-        required
-        helpText={
-          isEdit
-            ? "Identificador único para URLs. Cuidado ao alterar (afeta links existentes)."
-            : "Gerado automaticamente a partir do nome. Você pode editar."
-        }
-        maxLength={50}
-        value={values.slug}
-        error={errors.slug || (state.errors?.slug?.[0] as string | undefined)}
-      >
-        <Input
-          id="t-slug"
-          name="slug"
-          maxLength={50}
-          autoComplete="off"
-          placeholder="estacio"
-          value={values.slug}
-          onChange={(e) => {
-            setSlugTouched(true);
-            setValue("slug", slugify(e.target.value));
-          }}
-          onBlur={() => markTouched("slug")}
-          aria-invalid={Boolean(errors.slug)}
-          className="font-mono"
         />
       </Field>
 
