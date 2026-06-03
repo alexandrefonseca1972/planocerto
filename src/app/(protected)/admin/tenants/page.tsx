@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
+import { useToast } from "@/components/ui/toast";
 import {
   createTenant,
   updateTenant,
@@ -70,9 +72,52 @@ export default function AdminTenantsPage() {
   const [managing, setManaging] = useState<Tenant | null>(null);
   const [search, setSearch] = useState("");
 
+  const router = useRouter();
+  const { toast } = useToast();
+
   const [createState, createAction, isCreating] = useActionState(createTenant, initialState);
   const [updateState, updateAction, isUpdating] = useActionState(updateTenant, initialState);
   const [deleteState, deleteAction, isDeleting] = useActionState(deleteTenant, initialState);
+
+  // Fecha o diálogo e atualiza a lista após cada ação bem-sucedida.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (createState.success) {
+      toast(createState.message || "Empresa criada!");
+      setShowCreate(false);
+      router.refresh();
+    } else if (createState.message && !createState.success) {
+      toast(createState.message, "error");
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createState]);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (updateState.success) {
+      toast(updateState.message || "Empresa atualizada!");
+      setEditing(null);
+      router.refresh();
+    } else if (updateState.message && !updateState.success) {
+      toast(updateState.message, "error");
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateState]);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (deleteState.success) {
+      toast(deleteState.message || "Empresa excluída.");
+      setDeleting(null);
+      router.refresh();
+    } else if (deleteState.message && !deleteState.success) {
+      toast(deleteState.message, "error");
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteState]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
