@@ -205,7 +205,10 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={unitFilter}
-            onChange={(e) => setUnitFilter(e.target.value)}
+            onChange={(e) => {
+              setUnitFilter(e.target.value);
+              setSelectedIds(new Set());
+            }}
             className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
           >
             <option value="">Todas as unidades</option>
