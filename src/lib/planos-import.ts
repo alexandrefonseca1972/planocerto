@@ -104,3 +104,119 @@ export function detectHeaderRow(rows: unknown[][]): number {
 export function normHeader(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 }
+
+// \u2500\u2500\u2500 Valida\u00e7\u00e3o de arquivo (compartilhada cliente/servidor) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+export const ACCEPTED_EXTS = new Set([".xlsx", ".xlsb", ".xls"]);
+export const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+
+/**
+ * Valida que a linha de header bate com o modelo padr\u00e3o (REQUIRED_HEADERS).
+ * Retorna a linha de header detectada e a lista de erros (vazia = ok).
+ */
+export function validatePlanoHeaders(rows: unknown[][]): {
+  headerRow: number;
+  errors: string[];
+} {
+  const headerRow = detectHeaderRow(rows);
+  const header = (rows[headerRow] ?? []) as unknown[];
+  const errors: string[] = [];
+  for (const [idx, expected] of Object.entries(REQUIRED_HEADERS)) {
+    const actual = trimStr(header[Number(idx)]);
+    if (!actual || normHeader(actual) !== normHeader(expected)) {
+      errors.push(
+        `Col ${String.fromCharCode(65 + Number(idx))}: esperada "${expected}", encontrada "${actual || "(vazia)"}"`,
+      );
+    }
+  }
+  return { headerRow, errors };
+}
+
+// \u2500\u2500\u2500 Planejamento de itens (agrupamento + numera\u00e7\u00e3o hier\u00e1rquica) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+export interface PlanGroup {
+  /** Nome cru da MACRO A\u00c7\u00c3O (chave de v\u00ednculo pai\u2194filho). */
+  name: string;
+  /** N\u00famero de exibi\u00e7\u00e3o do grupo: "1", "2", \u2026 */
+  number: string;
+  /** Ordem de exibi\u00e7\u00e3o (1-based, relativa). */
+  sortOrder: number;
+}
+
+export interface PlanItem {
+  row: unknown[];
+  /** Nome cru da MACRO A\u00c7\u00c3O ("" se item sem grupo). */
+  macroAcao: string;
+  /** N\u00famero de exibi\u00e7\u00e3o: "1.1", "1.2", "2.1"\u2026 ou sequencial se sem grupo. */
+  number: string;
+  /** Ordem de exibi\u00e7\u00e3o (1-based, relativa). */
+  sortOrder: number;
+}
+
+/**
+ * Converte as linhas de dados (j\u00e1 sem o cabe\u00e7alho) em grupos + itens com
+ * numera\u00e7\u00e3o hier\u00e1rquica consistente e `sort_order` intercalado na ordem das
+ * linhas (grupo \u2192 seus filhos \u2192 pr\u00f3ximo grupo). Fun\u00e7\u00e3o pura: sem DB, sem
+ * sanitiza\u00e7\u00e3o. Usada pelas duas rotas de import para garantir o MESMO
+ * resultado. `sortOrder` \u00e9 relativo (1-based); a rota soma um offset se for
+ * importar em um plano que j\u00e1 tem itens.
+ *
+ * - Grupos numerados 1..N pela ordem da primeira apari\u00e7\u00e3o.
+ * - Filhos numerados "{\u00edndiceDoGrupo}.{contadorNoGrupo}".
+ * - Itens sem MACRO A\u00c7\u00c3O numerados sequencialmente ap\u00f3s os grupos (N+1, N+2\u2026).
+ */
+export function parsePlanRows(dataRows: unknown[][]): {
+  groups: PlanGroup[];
+  items: PlanItem[];
+} {
+  // Passo 1: \u00edndice 1-based de cada grupo pela ordem de primeira apari\u00e7\u00e3o.
+  const groupIndex = new Map<string, number>();
+  for (const raw of dataRows) {
+    const row = raw as unknown[];
+    if (!trimStr(row[COL.ACAO])) continue;
+    const macro = trimStr(row[COL.MACRO]);
+    if (macro && !groupIndex.has(macro)) {
+      groupIndex.set(macro, groupIndex.size + 1);
+    }
+  }
+  const totalGroups = groupIndex.size;
+
+  // Passo 2: emite grupos (lazy, na ordem das linhas) e itens, com sort_order
+  // intercalado e numera\u00e7\u00e3o hier\u00e1rquica.
+  const groups: PlanGroup[] = [];
+  const emitted = new Set<string>();
+  const childCounter = new Map<string, number>();
+  const items: PlanItem[] = [];
+  let sort = 0;
+  let topLevel = totalGroups; // itens sem grupo continuam ap\u00f3s os grupos
+
+  for (const raw of dataRows) {
+    const row = raw as unknown[];
+    if (!trimStr(row[COL.ACAO])) continue;
+    const macro = trimStr(row[COL.MACRO]);
+
+    if (macro && !emitted.has(macro)) {
+      emitted.add(macro);
+      sort++;
+      groups.push({
+        name: macro,
+        number: String(groupIndex.get(macro)),
+        sortOrder: sort,
+      });
+    }
+
+    sort++;
+    let number: string;
+    if (macro) {
+      const c = (childCounter.get(macro) ?? 0) + 1;
+      childCounter.set(macro, c);
+      number = `${groupIndex.get(macro)}.${c}`;
+    } else {
+      topLevel++;
+      number = String(topLevel);
+    }
+    items.push({ row, macroAcao: macro, number, sortOrder: sort });
+  }
+
+  return { groups, items };
+}
