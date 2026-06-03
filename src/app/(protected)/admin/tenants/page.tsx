@@ -336,7 +336,7 @@ function TenantFormDialog({
         id="t-name"
         label="Nome"
         required
-        helpText="Nome legível da organização (ex: Estácio, IDOMED, IBMEC)."
+        helpText="Nome legível da organização."
         maxLength={100}
         value={values.name}
         error={errors.name || (state.errors?.name?.[0] as string | undefined)}
@@ -346,7 +346,7 @@ function TenantFormDialog({
           name="name"
           maxLength={100}
           autoComplete="off"
-          placeholder="Ex: Estácio"
+          placeholder="Ex: nome da organização"
           value={values.name}
           onChange={(e) => setValue("name", e.target.value)}
           onBlur={() => markTouched("name")}
