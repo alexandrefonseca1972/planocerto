@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -116,7 +116,7 @@ export function FormDialog({
           onKeyDown={(e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSave && !isSaving) {
               e.preventDefault();
-              onSubmit();
+              startTransition(() => onSubmit());
             }
           }}
         >
@@ -163,7 +163,10 @@ export function FormDialog({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (canSave && !isSaving) onSubmit();
+              // Dentro de startTransition: os consumidores chamam o dispatch do
+              // useActionState aqui, que precisa rodar numa transition (senão o
+              // React 19 avisa e o isPending não atualiza corretamente).
+              if (canSave && !isSaving) startTransition(() => onSubmit());
             }}
             className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 dark:border-zinc-800"
           >
