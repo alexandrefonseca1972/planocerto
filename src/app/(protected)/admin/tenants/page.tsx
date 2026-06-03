@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -73,7 +73,27 @@ export default function AdminTenantsPage() {
   const [search, setSearch] = useState("");
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+
+  // Deep-link vindo do painel do super admin: ?new=1 abre criação;
+  // ?manage=<id> abre o gerenciador de membros da empresa. Limpa a URL após abrir.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const wantsNew = searchParams.get("new");
+    const manageId = searchParams.get("manage");
+    if (!wantsNew && !manageId) return;
+    if (wantsNew) {
+      setShowCreate(true);
+    } else if (manageId) {
+      const target = allTenants.find((t) => t.id === manageId);
+      if (!target) return; // aguarda allTenants carregar
+      setManaging(target);
+    }
+    router.replace("/admin/tenants");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, allTenants]);
 
   const [createState, createAction, isCreating] = useActionState(createTenant, initialState);
   const [updateState, updateAction, isUpdating] = useActionState(updateTenant, initialState);

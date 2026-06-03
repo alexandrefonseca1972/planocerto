@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRequesterScope } from "@/app/actions/_helpers";
+import { logger } from "@/lib/logger";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
@@ -59,6 +60,15 @@ export default async function AdminPainelPage() {
     adminClient.from("action_plans").select("id", { count: "exact", head: true }),
   ]);
 
+  // KPIs caem para 0 silenciosamente se uma query falhar; registra para diagnóstico.
+  const failed = [tenantsRes, membersRes, unitsRes, usersRes, plansRes].filter((r) => r.error);
+  if (failed.length > 0) {
+    logger.child({ component: "admin:painel" }).warn(
+      { errors: failed.map((r) => r.error?.message) },
+      "Falha ao agregar KPIs do painel do super admin",
+    );
+  }
+
   const tenants = tenantsRes.data ?? [];
   const memberCount = new Map<string, number>();
   for (const m of membersRes.data ?? []) {
@@ -84,7 +94,7 @@ export default async function AdminPainelPage() {
           </p>
         </div>
         <Link
-          href="/admin/tenants"
+          href="/admin/tenants?new=1"
           className="inline-flex h-9 items-center gap-2 rounded-md bg-brand-600 px-3 text-sm font-medium text-white transition-colors hover:bg-brand-700"
         >
           <Plus className="h-4 w-4" /> Nova empresa
@@ -150,7 +160,7 @@ export default async function AdminPainelPage() {
                       <td className="px-3 py-2 text-zinc-500">{formatDate(t.created_at)}</td>
                       <td className="px-3 py-2 text-right">
                         <Link
-                          href="/admin/tenants"
+                          href={`/admin/tenants?manage=${t.id}`}
                           className="inline-flex items-center gap-1 text-xs font-medium text-accent-600 hover:underline dark:text-accent-400"
                         >
                           <Settings2 className="h-3.5 w-3.5" /> Gerenciar
