@@ -10,7 +10,6 @@ import { ToastProvider } from "@/components/ui/toast";
 import { HelpModal } from "@/components/ui/help-modal";
 import { getUserTenants } from "@/app/actions/tenant";
 import { getPermissionsMap, buildCustomRolesMap } from "@/lib/permissions";
-import { APP_VERSION } from "@/lib/version";
 import type { User } from "@supabase/supabase-js";
 import type { Tenant } from "@/types/tenant";
 
@@ -119,18 +118,15 @@ export default async function ProtectedLayout({
         currentTenant={session.currentTenant}
         tenants={session.tenants}
       >
-        <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
+        <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
           <Navbar
             user={session.user}
             userPermissions={session.userPermissions}
             role={session.role}
           />
-          <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </main>
-          <footer className="mx-auto w-full max-w-7xl px-4 py-3 text-center text-xs text-zinc-400 sm:px-6 lg:px-8 dark:text-zinc-600">
-            PlanoCerto · v{APP_VERSION}
-          </footer>
           <HelpModal />
         </div>
       </TenantAwareWrapper>
