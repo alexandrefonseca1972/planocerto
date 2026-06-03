@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkPermission } from "@/app/actions/admin";
+import { PERMISSIONS } from "@/lib/permissions";
 import { isValidUuid } from "@/lib/validations/uuid";
 import {
   ACCEPTED_EXTS,
@@ -21,6 +23,12 @@ export async function POST(
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+
+    // Mesma permissão exigida pelas actions de edição de itens — sem isso,
+    // qualquer membro do tenant (inclusive Visualizador) poderia inserir
+    // itens via chamada direta à API (o RLS de INSERT não distingue papel).
+    const canUpdate = await checkPermission(PERMISSIONS.PLANS_UPDATE);
+    if (!canUpdate) return NextResponse.json({ error: "Sem permissão para editar planos." }, { status: 403 });
 
     // Verifica acesso ao plano (RLS filtra: só retorna se o usuário pode lê-lo).
     const { data: plan } = await supabase

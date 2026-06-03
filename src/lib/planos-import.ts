@@ -9,10 +9,13 @@
 export const FAROL_MAP: Record<string, number> = {
   "NÃO PROGRAMADO": 1, "NAO PROGRAMADO": 1,
   "NÃO INICIADA": 1,   "NAO INICIADA": 1,
+  "A INICIAR": 1,
   "PENDENTE": 2,
   "EM ANDAMENTO (ATRASO)": 3,
+  "ATRASADO": 3,
   "EM ANDAMENTO": 4,
   "CONCLUÍDO": 5,      "CONCLUIDO": 5,
+  "CONCLUÍDO NO PRAZO": 5, "CONCLUIDO NO PRAZO": 5,
 };
 
 export function parseStatus(raw: string): number {

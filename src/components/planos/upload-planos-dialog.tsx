@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -189,28 +189,32 @@ export function UploadPlanosDialog({
       return true;
     });
 
-    setFiles((prev) => {
-      const existing = new Set(prev.map((f) => f.file.name));
-      const novos = valid.filter((f) => !existing.has(f.name)).slice(0, MAX_FILES - prev.length);
-      if (prev.length + novos.length > MAX_FILES) {
-        toast(`Máximo de ${MAX_FILES} arquivos por upload.`, "error");
-      }
-      return [
-        ...prev,
-        ...novos.map((f): FileValidation => ({ file: f, status: "pending", planTitle: "", planUnit: "", itemCount: 0, groupCount: 0, errors: [], warnings: [] })),
-      ];
-    });
+    // Dedup + corte calculados fora do updater para o toast não ficar dentro
+    // do setState (efeito colateral duplicado em StrictMode).
+    const existing = new Set(files.map((f) => f.file.name));
+    const candidatos = valid.filter((f) => !existing.has(f.name));
+    const novos = candidatos.slice(0, Math.max(0, MAX_FILES - files.length));
+    if (candidatos.length > novos.length) {
+      toast(`Máximo de ${MAX_FILES} arquivos por upload — ${candidatos.length - novos.length} arquivo(s) ignorado(s).`, "error");
+    }
+    if (novos.length === 0) return;
+    setFiles((prev) => [
+      ...prev,
+      ...novos.map((f): FileValidation => ({ file: f, status: "pending", planTitle: "", planUnit: "", itemCount: 0, groupCount: 0, errors: [], warnings: [] })),
+    ]);
   }
 
   function removeFile(idx: number) {
     setFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  const onDrop = useCallback((e: React.DragEvent) => {
+  // Sem useCallback: addFiles lê `files` do closure e precisa da versão da
+  // render atual (memoizar com deps vazias deixaria o estado stale no drop).
+  function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
     addFiles(e.dataTransfer.files);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // ── Validation ───────────────────────────────────────────────────────────
 
@@ -468,7 +472,7 @@ export function UploadPlanosDialog({
                   </Button>
                 ) : (
                   <Button onClick={runUpload} disabled={validCount === 0}>
-                    Importar {validCount} plano{validCount !== 1 ? "s" : ""} <ChevronRight className="ml-1 h-4 w-4" />
+                    Importar {validCount} {isImportMode ? "arquivo" : "plano"}{validCount !== 1 ? "s" : ""} <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>
                 )}
               </>

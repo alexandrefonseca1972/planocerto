@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parsePlanRows,
   validatePlanoHeaders,
+  parseStatus,
   COL,
   REQUIRED_HEADERS,
 } from "@/lib/planos-import";
@@ -61,6 +62,29 @@ describe("parsePlanRows", () => {
     expect(groups).toHaveLength(1);
     expect(items).toHaveLength(1);
     expect(items[0].number).toBe("1.1");
+  });
+});
+
+describe("parseStatus", () => {
+  it("mapeia o vocabulário do modelo padrão", () => {
+    expect(parseStatus("NÃO INICIADA")).toBe(1);
+    expect(parseStatus("PENDENTE")).toBe(2);
+    expect(parseStatus("EM ANDAMENTO (ATRASO)")).toBe(3);
+    expect(parseStatus("EM ANDAMENTO")).toBe(4);
+    expect(parseStatus("CONCLUÍDO")).toBe(5);
+  });
+
+  it("mapeia o vocabulário alternativo das planilhas de clientes", () => {
+    expect(parseStatus("A INICIAR")).toBe(1);
+    expect(parseStatus("ATRASADO")).toBe(3);
+    expect(parseStatus("CONCLUÍDO NO PRAZO")).toBe(5);
+    expect(parseStatus("CONCLUIDO NO PRAZO")).toBe(5);
+  });
+
+  it("é case-insensitive, tolera espaços e cai em Não Iniciada para desconhecidos", () => {
+    expect(parseStatus("  atrasado  ")).toBe(3);
+    expect(parseStatus("QUALQUER COISA")).toBe(1);
+    expect(parseStatus("")).toBe(1);
   });
 });
 
