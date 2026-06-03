@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidCNPJ, isValidPhone, isValidEmail } from "@/lib/format-br";
+import { sanitizedString } from "@/lib/validation/sanitize";
 
 /**
  * Schemas zod compartilhados entre server actions e client components.
@@ -17,53 +18,41 @@ const UFS = [
   "RS", "RO", "RR", "SC", "SP", "SE", "TO", "",
 ] as const;
 
+const nome = (max: number) =>
+  sanitizedString({
+    min: 2,
+    max,
+    minMsg: "Nome deve ter pelo menos 2 caracteres.",
+    maxMsg: `Nome deve ter no máximo ${max} caracteres.`,
+  });
+
 export const tipoPaSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(80, "Nome deve ter no máximo 80 caracteres."),
+  name: nome(80),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });
 
 export const macroAcaoSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres."),
+  name: nome(100),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });
 
 export const areaSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(80, "Nome deve ter no máximo 80 caracteres."),
+  name: nome(80),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });
 
 export const prioridadeSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(40, "Nome deve ter no máximo 40 caracteres."),
+  name: nome(40),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
   color: z.enum(ALLOWED_PRIORIDADE_COLORS).default("zinc"),
 });
 
 export const unitSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres."),
+  name: nome(100),
   area_id: z.string().uuid().nullable(),
   uf: z.enum(UFS).default(""),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
@@ -71,11 +60,7 @@ export const unitSchema = z.object({
 });
 
 export const fornecedorSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(120, "Nome deve ter no máximo 120 caracteres."),
+  name: nome(120),
   cnpj: z
     .string()
     .trim()
@@ -83,11 +68,8 @@ export const fornecedorSchema = z.object({
     .optional()
     .default("")
     .refine((v) => !v || isValidCNPJ(v), "CNPJ inválido."),
-  categoria: z.string().trim().max(80).optional().default(""),
-  contato_nome: z
-    .string()
-    .trim()
-    .max(120)
+  categoria: sanitizedString({ max: 80 }).optional().default(""),
+  contato_nome: sanitizedString({ max: 120 })
     .optional()
     .default("")
     .refine(
@@ -108,7 +90,7 @@ export const fornecedorSchema = z.object({
     .optional()
     .default("")
     .refine((v) => !v || isValidPhone(v), "Telefone inválido (use DDD + 8 ou 9 dígitos)."),
-  observacoes: z.string().trim().max(2000).optional().default(""),
+  observacoes: sanitizedString({ max: 2000 }).optional().default(""),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });

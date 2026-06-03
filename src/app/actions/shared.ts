@@ -7,6 +7,7 @@ import { z } from "zod";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
+import { sanitizedString } from "@/lib/validation/sanitize";
 
 type ActionItemInsert = Database["public"]["Tables"]["action_items"]["Insert"];
 
@@ -123,7 +124,7 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
 // --- Comments ---
 
 const commentSchema = z.object({
-  content: z.string().trim().min(1, "Comentário obrigatório.").max(2000),
+  content: sanitizedString({ min: 1, max: 2000, minMsg: "Comentário obrigatório." }),
 });
 
 export async function addComment(itemId: string, content: string): Promise<{

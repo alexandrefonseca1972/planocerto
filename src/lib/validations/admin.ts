@@ -1,6 +1,14 @@
 import { z } from "zod";
+import { sanitizedString } from "@/lib/validation/sanitize";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+const userName = sanitizedString({
+  min: 2,
+  max: 100,
+  minMsg: "Nome deve ter pelo menos 2 caracteres.",
+  maxMsg: "Nome deve ter no máximo 100 caracteres.",
+});
 
 const ALLOWED_BUILTIN_ROLES = ["super_admin", "admin", "manager", "user", "viewer"] as const;
 
@@ -20,22 +28,14 @@ export const createUserSchema = z.object({
     .refine((v) => !v || /[A-Z]/.test(v), "Senha deve conter pelo menos uma letra maiúscula.")
     .refine((v) => !v || /[0-9]/.test(v), "Senha deve conter pelo menos um número.")
     .refine((v) => !v || /[^a-zA-Z0-9]/.test(v), "Senha deve conter pelo menos um caractere especial."),
-  name: z
-    .string()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres.")
-    .trim(),
+  name: userName,
   role: z.string().min(1, "Papel é obrigatório.").trim(),
 });
 
 export { ALLOWED_BUILTIN_ROLES };
 
 export const updateUserSchema = z.object({
-  name: z
-    .string()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres.")
-    .trim(),
+  name: userName,
   role: z.string().min(1, "Papel é obrigatório.").trim(),
   permissions: z
     .string()

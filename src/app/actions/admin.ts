@@ -13,6 +13,7 @@ import {
   sanitizePermissions,
 } from "@/lib/validations/admin";
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
+import { sanitizeText } from "@/lib/validation/sanitize";
 import { generateSecurePassword } from "@/lib/security/password";
 import type { FormState } from "@/types/auth";
 
@@ -857,8 +858,8 @@ export async function createRole(
     const adminCheck = await requirePermission(PERMISSIONS.ROLES_MANAGE);
     if (!adminCheck.authorized) return adminCheck.error!;
 
-    const name = (formData.get("name") as string)?.trim();
-    const description = (formData.get("description") as string)?.trim() || "";
+    const name = sanitizeText(formData.get("name")).slice(0, 50);
+    const description = sanitizeText(formData.get("description")).slice(0, 500);
     const permissionsJson = (formData.get("permissions") as string) || "{}";
 
     if (!name || name.length < 2 || name.length > 50) {
@@ -906,8 +907,8 @@ export async function updateRole(
     const roleId = formData.get("roleId") as string;
     if (!roleId) return { message: "ID do papel obrigatório." };
 
-    const name = (formData.get("name") as string)?.trim();
-    const description = (formData.get("description") as string)?.trim() || "";
+    const name = sanitizeText(formData.get("name")).slice(0, 50);
+    const description = sanitizeText(formData.get("description")).slice(0, 500);
     const permissionsJson = (formData.get("permissions") as string) || "{}";
 
     if (!name || name.length < 2 || name.length > 50) {

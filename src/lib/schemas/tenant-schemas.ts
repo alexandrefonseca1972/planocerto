@@ -5,6 +5,7 @@ import {
   isValidPhone,
   isValidWebsite,
 } from "@/lib/format-br";
+import { sanitizedString } from "@/lib/validation/sanitize";
 
 /**
  * Schema completo do formulário admin de Empresas (tenants).
@@ -12,11 +13,12 @@ import {
  * este aqui é o schema "wide" do form, incluindo campos opcionais.
  */
 export const tenantFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres."),
+  name: sanitizedString({
+    min: 2,
+    max: 100,
+    minMsg: "Nome deve ter pelo menos 2 caracteres.",
+    maxMsg: "Nome deve ter no máximo 100 caracteres.",
+  }),
   slug: z
     .string()
     .trim()
@@ -45,11 +47,7 @@ export const tenantFormSchema = z.object({
     .max(20, "CNPJ muito longo.")
     .refine((v) => v === "" || isValidCNPJ(v), "CNPJ inválido.")
     .default(""),
-  responsavel_nome: z
-    .string()
-    .trim()
-    .max(120, "Nome muito longo.")
-    .default(""),
+  responsavel_nome: sanitizedString({ max: 120, maxMsg: "Nome muito longo." }).default(""),
   email: z
     .string()
     .trim()

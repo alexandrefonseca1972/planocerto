@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizedString } from "@/lib/validation/sanitize";
 import type {
   SimulatorScenario,
   SimulatorChannelMetric,
@@ -10,12 +11,12 @@ import type {
 } from "@/types/simulator";
 
 const scenarioSchema = z.object({
-  name: z.string().trim().min(2, "Nome obrigatório.").max(120),
-  reference_label: z.string().max(120).trim().optional(),
+  name: sanitizedString({ min: 2, max: 120, minMsg: "Nome obrigatório." }),
+  reference_label: sanitizedString({ max: 120 }).optional(),
   meta_real_aa: z.coerce.number().min(0).max(1).default(0.15),
   is_baseline: z.boolean().default(false),
   unit_id: z.string().uuid().nullable().optional(),
-  notes: z.string().max(2000).trim().optional(),
+  notes: sanitizedString({ max: 2000 }).optional(),
 });
 
 const metricSchema = z.object({

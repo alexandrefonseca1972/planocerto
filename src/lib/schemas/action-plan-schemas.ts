@@ -1,11 +1,17 @@
 import { z } from "zod";
+import { sanitizedString } from "@/lib/validation/sanitize";
 
 export const planSchema = z.object({
-  title: z.string().trim().min(2, "Título obrigatório e mínimo 2 caracteres.").max(200, "Máximo 200 caracteres."),
+  title: sanitizedString({
+    min: 2,
+    max: 200,
+    minMsg: "Título obrigatório e mínimo 2 caracteres.",
+    maxMsg: "Máximo 200 caracteres.",
+  }),
   unit_id: z.preprocess((value) => (value === "" ? undefined : value), z.string().uuid().optional()),
-  unit: z.string().max(200).trim().optional(),
-  director: z.string().max(200).trim().optional(),
-  goal: z.string().max(1000).trim().optional(),
+  unit: sanitizedString({ max: 200 }).optional(),
+  director: sanitizedString({ max: 200 }).optional(),
+  goal: sanitizedString({ max: 1000 }).optional(),
   status: z.enum(["active", "archived"]).default("active"),
   exercicio: z.preprocess((v) => (!v ? undefined : v), z.coerce.number().int().min(2000).max(2100).optional()),
   budget_limit: z.preprocess((v) => (!v ? undefined : v), z.coerce.number().min(0).optional()),
@@ -13,29 +19,29 @@ export const planSchema = z.object({
 });
 
 export const itemSchema = z.object({
-  action: z.string().trim().min(3, "Mínimo 3 caracteres.").max(500),
+  action: sanitizedString({ min: 3, max: 500, minMsg: "Mínimo 3 caracteres." }),
   number: z.string().trim().min(1).max(20),
   parent_id: z.string().optional(),
   sort_order: z.coerce.number().int().default(0),
   // Classificação
-  tipo_pa: z.string().max(100).trim().optional(),
-  area: z.string().max(100).trim().optional(),
-  prioridade: z.string().max(100).trim().optional(),
-  subacao: z.string().max(500).trim().optional(),
-  como: z.string().max(1000).trim().optional(),
+  tipo_pa: sanitizedString({ max: 100 }).optional(),
+  area: sanitizedString({ max: 100 }).optional(),
+  prioridade: sanitizedString({ max: 100 }).optional(),
+  subacao: sanitizedString({ max: 500 }).optional(),
+  como: sanitizedString({ max: 1000 }).optional(),
   // 5W2H
-  why: z.string().max(1000).trim().optional(),
-  where: z.string().max(500).trim().optional(),
-  responsible: z.string().max(200).trim().optional(),
+  why: sanitizedString({ max: 1000 }).optional(),
+  where: sanitizedString({ max: 500 }).optional(),
+  responsible: sanitizedString({ max: 200 }).optional(),
   planned_start: z.string().optional(),
   planned_end: z.string().optional(),
   actual_start: z.string().optional(),
   actual_end: z.string().optional(),
-  cost: z.string().max(100).trim().optional(),
-  expected_result: z.string().max(1000).trim().optional(),
-  actual_result: z.string().max(1000).trim().optional(),
+  cost: sanitizedString({ max: 100 }).optional(),
+  expected_result: sanitizedString({ max: 1000 }).optional(),
+  actual_result: sanitizedString({ max: 1000 }).optional(),
   status: z.coerce.number().int().min(1).max(5).default(1),
-  observations: z.string().max(2000).trim().optional(),
+  observations: sanitizedString({ max: 2000 }).optional(),
   // Métricas
   preco: z.coerce.number().min(0).optional(),
   inscritos_esperado: z.coerce.number().int().min(0).optional(),

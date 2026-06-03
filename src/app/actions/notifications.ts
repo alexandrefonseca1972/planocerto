@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
 import { getCurrentTenantId } from "@/app/actions/_helpers";
+import { sanitizeText } from "@/lib/validation/sanitize";
 
 export interface NotificationItem {
   id: string;
@@ -101,8 +102,8 @@ export async function createNotification(
     const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_CREATE);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
-    const title = formData.get("title") as string;
-    const message = formData.get("message") as string;
+    const title = sanitizeText(formData.get("title")).slice(0, 200);
+    const message = sanitizeText(formData.get("message")).slice(0, 2000);
     const type = formData.get("type") as string || "info";
     const targetType = formData.get("target_type") as string || "all";
     const targetId = formData.get("target_id") as string || null;
