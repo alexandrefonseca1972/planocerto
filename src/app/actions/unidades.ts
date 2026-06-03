@@ -8,20 +8,41 @@ import {
   requireAdmin,
 } from "@/app/actions/_catalog-utils";
 import { unitSchema } from "@/lib/schemas/catalog-schemas";
+import { getCurrentTenantId } from "@/app/actions/_helpers";
 import type { Unit, CatalogFormState } from "@/types/catalog";
 
 export async function getUnitsAdmin(): Promise<Unit[]> {
   try {
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return [];
     const supabase = await createClient();
     const { data } = await supabase
       .from("units")
       .select("*")
+      .eq("tenant_id", tenantId)
       .order("sort_order")
       .order("name");
     return (data || []) as Unit[];
   } catch (error) {
     console.error("[getUnitsAdmin] Error:", error);
     return [];
+  }
+}
+
+/** Cota de unidades da empresa ativa: usadas e limite (null = ilimitado). */
+export async function getUnitsQuota(): Promise<{ used: number; max: number | null }> {
+  try {
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return { used: 0, max: 0 };
+    const supabase = await createClient();
+    const [{ count }, { data: tenant }] = await Promise.all([
+      supabase.from("units").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+      supabase.from("tenants").select("max_units").eq("id", tenantId).maybeSingle(),
+    ]);
+    return { used: count ?? 0, max: (tenant?.max_units as number | null) ?? null };
+  } catch (error) {
+    console.error("[getUnitsQuota] Error:", error);
+    return { used: 0, max: null };
   }
 }
 
@@ -61,6 +82,28 @@ export async function upsertUnit(
         .eq("id", id);
       if (error) return { message: await mapPgError(error, "Unidade") };
     } else {
+      const tenantId = await getCurrentTenantId();
+      if (!tenantId) return { message: "Nenhuma empresa ativa para vincular a unidade." };
+
+      // Enforce o limite de unidades da empresa (max_units; null = ilimitado).
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("max_units")
+        .eq("id", tenantId)
+        .maybeSingle();
+      const max = (tenant?.max_units as number | null) ?? null;
+      if (max != null) {
+        const { count } = await supabase
+          .from("units")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId);
+        if ((count ?? 0) >= max) {
+          return {
+            message: `Limite de ${max} unidade(s) atingido para esta empresa. Exclua uma unidade ou aumente o limite.`,
+          };
+        }
+      }
+
       const { error } = await supabase.from("units").insert({
         name: v.data.name,
         area_id: v.data.area_id ?? null,
@@ -70,6 +113,7 @@ export async function upsertUnit(
         fone: v.data.fone,
         sort_order: v.data.sort_order,
         active: v.data.active,
+        tenant_id: tenantId,
       });
       if (error) return { message: await mapPgError(error, "Unidade") };
     }

@@ -22,6 +22,18 @@ export const tenantFormSchema = z.object({
   // slug é gerado automaticamente no servidor a partir do nome (único).
   plan: z.enum(["free", "pro", "enterprise"]),
   active: z.boolean().default(true),
+  // Limite de unidades. Vazio = ilimitado (null).
+  max_units: z
+    .preprocess(
+      (v) => (v === "" || v === null || v === undefined ? null : v),
+      z.coerce
+        .number({ message: "Limite inválido." })
+        .int("Use um número inteiro.")
+        .min(1, "Mínimo 1 unidade.")
+        .max(100000, "Limite muito alto.")
+        .nullable(),
+    )
+    .default(null),
   teams_webhook_url: z
     .string()
     .trim()

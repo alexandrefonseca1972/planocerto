@@ -61,6 +61,7 @@ export interface Database {
           logo_url: string | null; teams_webhook_url: string;
           cnpj: string; responsavel_nome: string;
           email: string; site: string; fone: string;
+          max_units: number | null;
           created_at: string; updated_at: string;
         };
         Insert: {
@@ -69,6 +70,7 @@ export interface Database {
           logo_url?: string | null; teams_webhook_url?: string;
           cnpj?: string; responsavel_nome?: string;
           email?: string; site?: string; fone?: string;
+          max_units?: number | null;
           created_at?: string; updated_at?: string;
         };
         Update: {
@@ -77,6 +79,7 @@ export interface Database {
           logo_url?: string | null; teams_webhook_url?: string;
           cnpj?: string; responsavel_nome?: string;
           email?: string; site?: string; fone?: string;
+          max_units?: number | null;
           created_at?: string; updated_at?: string;
         };
         Relationships: [];

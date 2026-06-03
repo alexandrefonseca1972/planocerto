@@ -61,9 +61,11 @@ const UFS = [
 export function UnidadesClient({
   initial,
   areas,
+  maxUnits = null,
 }: {
   initial: Unit[];
   areas: Area[];
+  maxUnits?: number | null;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -126,6 +128,7 @@ export function UnidadesClient({
   }, [search, items, showInactive, areaFilter, areaMap]);
 
   const activeCount = useMemo(() => items.filter((i) => i.active).length, [items]);
+  const atLimit = maxUnits != null && items.length >= maxUnits;
 
   function openCreate() {
     setEditing(null);
@@ -191,7 +194,16 @@ export function UnidadesClient({
           </h2>
           <p className="text-sm text-zinc-500">
             {activeCount} ativa{activeCount === 1 ? "" : "s"} de {items.length} cadastrada
-            {items.length === 1 ? "" : "s"}.
+            {items.length === 1 ? "" : "s"}
+            {maxUnits != null && (
+              <>
+                {" "}·{" "}
+                <span className={atLimit ? "font-medium text-red-600 dark:text-red-400" : ""}>
+                  {items.length}/{maxUnits} do limite
+                </span>
+              </>
+            )}
+            .
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -225,7 +237,12 @@ export function UnidadesClient({
               className="h-9 w-64 pl-8"
             />
           </div>
-          <Button size="sm" onClick={openCreate}>
+          <Button
+            size="sm"
+            onClick={openCreate}
+            disabled={atLimit}
+            title={atLimit ? `Limite de ${maxUnits} unidades atingido para esta empresa.` : undefined}
+          >
             <Plus className="h-4 w-4" /> Nova Unidade
           </Button>
         </div>
