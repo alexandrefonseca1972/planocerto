@@ -2,17 +2,14 @@
 
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
-import { sanitize } from "@/lib/sanitize";
+import { sanitizeText as sanitizeStrict } from "@/lib/validation/sanitize";
 
 /**
- * Sanitiza texto para inputs de catálogo: tira HTML básico, normaliza
- * espaços e aplica limite de tamanho.
+ * Sanitiza texto para inputs de catálogo: remove HTML (DOMPurify, sem tags) e
+ * caracteres de controle, normaliza espaços, trim e aplica limite de tamanho.
  */
 export async function sanitizeText(value: unknown, maxLen = 200): Promise<string> {
-  if (value === null || value === undefined) return "";
-  const raw = typeof value === "string" ? value : String(value);
-  // strip < >, normaliza espaços múltiplos, trim, cap
-  return sanitize(raw).replace(/\s+/g, " ").trim().slice(0, maxLen);
+  return sanitizeStrict(value).slice(0, maxLen);
 }
 
 /**

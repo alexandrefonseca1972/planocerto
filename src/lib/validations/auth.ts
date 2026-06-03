@@ -1,4 +1,12 @@
 import { z } from "zod";
+import { sanitizedString } from "@/lib/validation/sanitize";
+
+const fullName = sanitizedString({
+  min: 2,
+  max: 100,
+  minMsg: "Nome deve ter pelo menos 2 caracteres.",
+  maxMsg: "Nome deve ter no máximo 100 caracteres.",
+});
 
 export const loginSchema = z.object({
   email: z
@@ -12,11 +20,7 @@ export const loginSchema = z.object({
 
 export const registerSchema = z
   .object({
-    name: z
-      .string()
-      .min(2, "Nome deve ter pelo menos 2 caracteres.")
-      .max(100, "Nome deve ter no máximo 100 caracteres.")
-      .trim(),
+    name: fullName,
     email: z
       .string()
       .min(1, "Email é obrigatório.")
@@ -42,11 +46,7 @@ export const registerSchema = z
   });
 
 export const profileSchema = z.object({
-  name: z
-    .string()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres.")
-    .trim(),
+  name: fullName,
   phone: z.string().trim().max(20, "Telefone muito longo.").default(""),
   is_whatsapp: z.boolean().default(false),
 });

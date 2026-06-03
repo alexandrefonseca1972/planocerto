@@ -3,29 +3,30 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizedString } from "@/lib/validation/sanitize";
 import type { Company, CompanyFormState } from "@/types/company";
 
 const companySchema = z.object({
   unit_id: z.string().uuid().nullable().optional(),
   conveniado: z.boolean().default(false),
-  cluster: z.string().max(100).trim().optional(),
-  segmento: z.string().max(100).trim().optional(),
+  cluster: sanitizedString({ max: 100 }).optional(),
+  segmento: sanitizedString({ max: 100 }).optional(),
   cnpj: z.string().max(20).trim().optional(),
-  nome_fantasia: z.string().trim().min(2, "Nome obrigatório.").max(200),
+  nome_fantasia: sanitizedString({ min: 2, max: 200, minMsg: "Nome obrigatório." }),
   chance_contato: z.enum(["", "Alta", "Media", "Baixa"]).default(""),
-  faixa_funcionarios: z.string().max(50).trim().optional(),
-  endereco: z.string().max(300).trim().optional(),
-  bairro: z.string().max(100).trim().optional(),
-  municipio: z.string().max(100).trim().optional(),
+  faixa_funcionarios: sanitizedString({ max: 50 }).optional(),
+  endereco: sanitizedString({ max: 300 }).optional(),
+  bairro: sanitizedString({ max: 100 }).optional(),
+  municipio: sanitizedString({ max: 100 }).optional(),
   uf: z.string().max(2).trim().optional(),
-  pais: z.string().max(50).trim().default("Brasil"),
-  responsavel_nome: z.string().max(200).trim().optional(),
-  responsavel_cargo: z.string().max(100).trim().optional(),
+  pais: sanitizedString({ max: 50 }).default("Brasil"),
+  responsavel_nome: sanitizedString({ max: 200 }).optional(),
+  responsavel_cargo: sanitizedString({ max: 100 }).optional(),
   contato_whatsapp: z.string().max(50).trim().optional(),
   email: z.string().max(200).trim().optional(),
   link_facebook: z.string().max(300).trim().optional(),
   link_instagram: z.string().max(300).trim().optional(),
-  consultor: z.string().max(200).trim().optional(),
+  consultor: sanitizedString({ max: 200 }).optional(),
   data_primeira_visita: z.string().optional().nullable(),
   data_previsao_retorno: z.string().optional().nullable(),
   data_retorno_real: z.string().optional().nullable(),
@@ -33,7 +34,7 @@ const companySchema = z.object({
   inscritos_real: z.coerce.number().int().min(0).default(0),
   financeira_real: z.coerce.number().int().min(0).default(0),
   academica_real: z.coerce.number().int().min(0).default(0),
-  comentarios: z.string().max(2000).trim().optional(),
+  comentarios: sanitizedString({ max: 2000 }).optional(),
 });
 
 export async function getCompanies(tenantId: string): Promise<Company[]> {

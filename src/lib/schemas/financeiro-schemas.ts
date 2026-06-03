@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FORMAS_PAGAMENTO } from "@/types/financeiro";
+import { sanitizedString } from "@/lib/validation/sanitize";
 
 /**
  * Schemas zod do módulo financeiro. Importados pelas server actions e pelos
@@ -10,11 +11,12 @@ import { FORMAS_PAGAMENTO } from "@/types/financeiro";
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 export const categoriaDespesaSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(80, "Nome deve ter no máximo 80 caracteres."),
+  name: sanitizedString({
+    min: 2,
+    max: 80,
+    minMsg: "Nome deve ter pelo menos 2 caracteres.",
+    maxMsg: "Nome deve ter no máximo 80 caracteres.",
+  }),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });
@@ -33,12 +35,13 @@ export const contaPagarSchema = z
     categoria_id: z.string().uuid().nullable(),
     plan_id: z.string().uuid().nullable(),
     item_id: z.string().uuid().nullable(),
-    descricao: z
-      .string()
-      .trim()
-      .min(2, "Descrição deve ter pelo menos 2 caracteres.")
-      .max(200, "Descrição deve ter no máximo 200 caracteres."),
-    documento: z.string().trim().max(60).optional().default(""),
+    descricao: sanitizedString({
+      min: 2,
+      max: 200,
+      minMsg: "Descrição deve ter pelo menos 2 caracteres.",
+      maxMsg: "Descrição deve ter no máximo 200 caracteres.",
+    }),
+    documento: sanitizedString({ max: 60 }).optional().default(""),
     emissao: z
       .string()
       .regex(dateRegex)
@@ -48,7 +51,7 @@ export const contaPagarSchema = z
     valor_total: z.coerce
       .number()
       .positive("Valor total deve ser maior que zero."),
-    observacoes: z.string().trim().max(2000).optional().default(""),
+    observacoes: sanitizedString({ max: 2000 }).optional().default(""),
     parcelas: z
       .array(parcelaInputSchema)
       .min(1, "Pelo menos uma parcela.")
@@ -82,7 +85,7 @@ export const pagamentoSchema = z.object({
     .regex(dateRegex, "Data de pagamento inválida (use AAAA-MM-DD)."),
   valor_pago: z.coerce.number().positive("Valor pago deve ser maior que zero."),
   forma_pagamento: z.enum(FORMAS_PAGAMENTO),
-  observacoes: z.string().trim().max(500).optional().default(""),
+  observacoes: sanitizedString({ max: 500 }).optional().default(""),
 });
 
 export type ContaPagarFormValues = z.infer<typeof contaPagarSchema>;

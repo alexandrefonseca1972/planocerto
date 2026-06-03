@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { sanitizedString } from "@/lib/validation/sanitize";
 
 export const createTenantSchema = z.object({
-  name: z
-    .string()
-    .min(2, "Nome deve ter pelo menos 2 caracteres.")
-    .max(100, "Nome deve ter no máximo 100 caracteres.")
-    .trim(),
+  name: sanitizedString({
+    min: 2,
+    max: 100,
+    minMsg: "Nome deve ter pelo menos 2 caracteres.",
+    maxMsg: "Nome deve ter no máximo 100 caracteres.",
+  }),
   slug: z
     .string()
     .min(2, "Slug deve ter pelo menos 2 caracteres.")
