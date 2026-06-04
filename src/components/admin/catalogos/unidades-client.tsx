@@ -261,7 +261,6 @@ export function UnidadesClient({
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 dark:bg-zinc-800/50">
               <tr className="text-left text-xs font-medium uppercase text-zinc-500">
-                <th className="px-3 py-2 w-16">Ordem</th>
                 <th className="px-3 py-2">Nome</th>
                 <th className="px-3 py-2">Área</th>
                 <th className="px-3 py-2 w-16">UF</th>
@@ -277,9 +276,6 @@ export function UnidadesClient({
                     !item.active ? "opacity-60" : ""
                   }`}
                 >
-                  <td className="px-3 py-2 text-zinc-500 tabular-nums">
-                    {item.sort_order}
-                  </td>
                   <td className="px-3 py-2 font-medium">
                     <div className="flex items-center gap-2">
                       {item.name}
@@ -415,7 +411,6 @@ interface UnitFormValues {
   responsavel: string;
   email: string;
   fone: string;
-  sort_order: number;
   active: boolean;
 }
 
@@ -443,7 +438,6 @@ function UnitForm({
       email: item?.email || "",
       // telefone é exibido formatado; persistido em dígitos.
       fone: formatPhone(item?.fone || ""),
-      sort_order: item?.sort_order ?? 0,
       active: item ? item.active : true,
     }),
     [item],
@@ -471,7 +465,6 @@ function UnitForm({
     fd.set("responsavel", values.responsavel);
     fd.set("email", values.email);
     fd.set("fone", stripFormat(values.fone));
-    fd.set("sort_order", String(values.sort_order));
     if (values.active) fd.set("active", "on");
     action(fd);
   }
@@ -599,36 +592,16 @@ function UnitForm({
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field
-          id="unit-order"
-          label="Ordem de exibição"
-          helpText="Menor número aparece primeiro."
-          error={errors.sort_order}
-        >
-          <Input
-            id="unit-order"
-            name="sort_order"
-            type="number"
-            min="0"
-            max="9999"
-            value={String(values.sort_order)}
-            onChange={(ev) => setValue("sort_order", Number(ev.target.value) || 0)}
-            onBlur={() => markTouched("sort_order")}
-          />
-        </Field>
-
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-800/30">
-          <Switch
-            id="unit-active"
-            checked={values.active}
-            onChange={(ev) => setValue("active", ev.currentTarget.checked)}
-            label={values.active ? "Ativa" : "Inativa"}
-          />
-          <p className="mt-1 pl-11 text-xs text-zinc-500">
-            Unidades inativas ficam ocultas nos dropdowns.
-          </p>
-        </div>
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-800/30">
+        <Switch
+          id="unit-active"
+          checked={values.active}
+          onChange={(ev) => setValue("active", ev.currentTarget.checked)}
+          label={values.active ? "Ativa" : "Inativa"}
+        />
+        <p className="mt-1 pl-11 text-xs text-zinc-500">
+          Unidades inativas ficam ocultas nos dropdowns.
+        </p>
       </div>
     </FormDialog>
   );
