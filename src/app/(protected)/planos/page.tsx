@@ -236,6 +236,7 @@ export default function PlanosPage() {
         )}
         {showUploadDialog && (
           <UploadPlanosDialog
+            catalogUnits={filterCatalogByAccess(data.catalogUnits, data.userUnitIds)}
             onClose={() => setShowUploadDialog(false)}
             onSuccess={() => {
               setShowUploadDialog(false);

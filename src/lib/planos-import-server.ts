@@ -15,6 +15,7 @@ import {
   parseStatus,
   parseDate,
   parseNum,
+  parsePreco,
   trimStr,
 } from "@/lib/planos-import";
 
@@ -112,6 +113,7 @@ export async function importPlanItems(
         where: where.slice(0, 500),
         responsible: responsible.slice(0, 200),
         cost: cost.slice(0, 100),
+        preco: parsePreco(row[COL.QUANTO]),
         tipo_pa: tipo_pa.slice(0, 100),
         area: area.slice(0, 100),
         prioridade: prioridade.slice(0, 100),

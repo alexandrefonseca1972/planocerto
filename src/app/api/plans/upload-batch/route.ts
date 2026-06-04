@@ -5,10 +5,11 @@ import { getCurrentTenant } from "@/app/actions/tenant";
 import { PERMISSIONS } from "@/lib/permissions";
 import { sanitizeText } from "@/app/actions/_catalog-utils";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
+import { isValidUuid } from "@/lib/validations/uuid";
 import {
   COL, trimStr,
-  ACCEPTED_EXTS, MAX_FILE_BYTES,
-  validatePlanoHeaders,
+  ACCEPTED_EXTS, MAX_FILE_BYTES, MAX_IMPORT_ITEMS,
+  validatePlanoHeaders, findPlanoSheet,
 } from "@/lib/planos-import";
 import { importPlanItems } from "@/lib/planos-import-server";
 
@@ -36,6 +37,25 @@ export async function POST(req: NextRequest) {
 
     if (!files.length) return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
     if (files.length > 10) return NextResponse.json({ error: "Máximo de 10 arquivos por upload." }, { status: 400 });
+
+    // Novo fluxo: a unidade é selecionada pelo usuário antes do upload e deve
+    // existir no catálogo da empresa ativa — todos os planos do lote vão para ela.
+    const requestedUnitId = String(formData.get("unitId") || "").trim();
+    if (!requestedUnitId || !isValidUuid(requestedUnitId)) {
+      return NextResponse.json({ error: "Selecione uma unidade cadastrada antes de importar." }, { status: 400 });
+    }
+    const resolvedUnit = await resolvePlanUnitReference(supabase, {
+      tenantId,
+      unitId: requestedUnitId || null,
+      requireMatch: true,
+    });
+    if (!resolvedUnit.unitId) {
+      return NextResponse.json(
+        { error: resolvedUnit.error ?? "Selecione uma unidade cadastrada antes de importar." },
+        { status: 400 },
+      );
+    }
+    const finalUnit = resolvedUnit.unitName;
 
     const XLSX = await import("xlsx");
 
@@ -69,15 +89,11 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
         const wb = XLSX.read(buffer, { type: "buffer", cellDates: false });
 
-        // Localiza a aba correta
-        const sheetName = wb.SheetNames.find((n) =>
-          n.trim().toUpperCase().includes("PLANO DE AÇÃO") ||
-          n.trim().toUpperCase().includes("PLANO DE ACAO"),
-        ) ?? wb.SheetNames[0];
-
-        const ws = wb.Sheets[sheetName];
-        if (!ws) {
-          results.push({ filename, planTitle: "", planUnit: "", created: 0, skipped: 0, errors: [], status: "error", errorMessage: "Aba 'PLANO DE AÇÃO' não encontrada." });
+        // Localiza a aba correta — com múltiplas abas, exige "PLANO DE AÇÃO"
+        const sheetName = findPlanoSheet(wb.SheetNames);
+        const ws = sheetName ? wb.Sheets[sheetName] : undefined;
+        if (!sheetName || !ws) {
+          results.push({ filename, planTitle: "", planUnit: "", created: 0, skipped: 0, errors: [], status: "error", errorMessage: `Aba "PLANO DE AÇÃO" não encontrada (abas do arquivo: ${wb.SheetNames.join(", ")}).` });
           continue;
         }
 
@@ -88,30 +104,25 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Extrai título e unidade do cabeçalho do plano (linha 0 do modelo)
+        // Extrai título do cabeçalho do plano (linha 0 do modelo)
         const titleRow = rows[0] as string[];
-        const rawTitle = trimStr(titleRow?.[0]).replace(/PLANO DE AÇÃO\s*\|?\s*/i, "").trim();
-        const rawUnit  = trimStr(titleRow?.[1]);
+        const rawTitle = trimStr(titleRow?.[0]).replace(/PLANO DE A[ÇC][ÃA]O\s*\|?\s*/i, "").trim();
 
         const dataRows = rows.slice(headerRow + 1);
 
         // Verifica se há dados
         const rowsWithAcao = dataRows.filter((r) => trimStr((r as unknown[])[COL.ACAO]).length > 0);
         if (rowsWithAcao.length === 0) {
-          results.push({ filename, planTitle: rawTitle || filename, planUnit: rawUnit, created: 0, skipped: 0, errors: ["Arquivo não contém linhas de ação preenchidas."], status: "error", errorMessage: "Nenhuma ação encontrada." });
+          results.push({ filename, planTitle: rawTitle || filename, planUnit: finalUnit, created: 0, skipped: 0, errors: ["Arquivo não contém linhas de ação preenchidas."], status: "error", errorMessage: "Nenhuma ação encontrada." });
+          continue;
+        }
+        if (rowsWithAcao.length > MAX_IMPORT_ITEMS) {
+          results.push({ filename, planTitle: rawTitle || filename, planUnit: finalUnit, created: 0, skipped: rowsWithAcao.length, errors: [], status: "error", errorMessage: `Arquivo com ${rowsWithAcao.length} ações — máximo de ${MAX_IMPORT_ITEMS} por arquivo.` });
           continue;
         }
 
-        // Deriva título a partir da coluna UNIDADE se necessário
-        const firstUnit = trimStr(rowsWithAcao[0]?.[COL.UNIDADE]);
-        const finalTitle = (await sanitizeText(rawTitle.length >= 2 ? rawTitle : (firstUnit || filename.replace(/\.[^.]+$/, "")))).slice(0, 200) || "Plano importado";
-        const requestedUnitName = (await sanitizeText(rawUnit || firstUnit)).slice(0, 200);
-        const resolvedUnit = await resolvePlanUnitReference(supabase, {
-          tenantId,
-          unitName: requestedUnitName,
-          requireMatch: false,
-        });
-        const finalUnit = resolvedUnit.unitName;
+        // Deriva título: cabeçalho do arquivo → unidade selecionada → nome do arquivo
+        const finalTitle = (await sanitizeText(rawTitle.length >= 2 ? rawTitle : (finalUnit || filename.replace(/\.[^.]+$/, "")))).slice(0, 200) || "Plano importado";
 
         // Cria o plano
         const { data: plan, error: planErr } = await supabase
@@ -121,7 +132,8 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (planErr || !plan) {
-          results.push({ filename, planTitle: finalTitle, planUnit: finalUnit, created: 0, skipped: 0, errors: [], status: "error", errorMessage: "Erro ao criar plano." });
+          console.error(`[upload-batch] Erro ao criar plano de "${filename}":`, planErr);
+          results.push({ filename, planTitle: finalTitle, planUnit: finalUnit, created: 0, skipped: 0, errors: [], status: "error", errorMessage: "Erro ao criar plano. Tente novamente; se persistir, contate o suporte." });
           continue;
         }
 

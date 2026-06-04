@@ -13,9 +13,11 @@ export const FAROL_MAP: Record<string, number> = {
   "PENDENTE": 2,
   "EM ANDAMENTO (ATRASO)": 3,
   "ATRASADO": 3,
+  "INICIADO COM ATRASO": 3,
   "EM ANDAMENTO": 4,
   "CONCLUÍDO": 5,      "CONCLUIDO": 5,
   "CONCLUÍDO NO PRAZO": 5, "CONCLUIDO NO PRAZO": 5,
+  "CONCLUÍDO COM ATRASO": 5, "CONCLUIDO COM ATRASO": 5,
 };
 
 export function parseStatus(raw: string): number {
@@ -58,30 +60,78 @@ export const REQUIRED_HEADERS: Record<number, string> = {
 
 // ─── Parsers ──────────────────────────────────────────────────────────────
 
+/** Valida que ano/mês/dia formam uma data real (rejeita 31/02 etc.). */
+function toValidIso(y: string, mo: string, d: string): string | null {
+  const yy = Number(y), mm = Number(mo), dd = Number(d);
+  const dt = new Date(Date.UTC(yy, mm - 1, dd));
+  const ok =
+    dt.getUTCFullYear() === yy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
+  return ok ? `${y}-${mo}-${d}` : null;
+}
+
 export function parseDate(raw: unknown): string | null {
   if (!raw) return null;
   if (typeof raw === "number") {
-    // Serial date do Excel
-    return new Date(Math.round((raw - 25569) * 86400 * 1000)).toISOString().slice(0, 10);
+    // Serial date do Excel — guarda contra valores absurdos que estourariam
+    // o construtor de Date (toISOString lança em Invalid Date).
+    if (!Number.isFinite(raw) || raw < 1 || raw > 2958465) return null; // 2958465 = 31/12/9999
+    const d = new Date(Math.round((raw - 25569) * 86400 * 1000));
+    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
   }
   const s = String(raw).trim();
   if (!s) return null;
   // DD/MM/YYYY
   const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  if (m) return toValidIso(m[3], m[2], m[1]);
   // ISO
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return toValidIso(iso[1], iso[2], iso[3]);
   return null;
 }
+
+/** Teto dos contadores (int4 no banco; valores acima disso são lixo de input). */
+const MAX_COUNT = 999999999;
 
 export function parseNum(raw: unknown): number {
   if (raw === null || raw === undefined || raw === "") return 0;
   const n = Number(raw);
-  return isNaN(n) ? 0 : Math.max(0, Math.round(n));
+  return isNaN(n) ? 0 : Math.min(Math.max(0, Math.round(n)), MAX_COUNT);
 }
 
 export function trimStr(raw: unknown): string {
   return raw == null ? "" : String(raw).trim();
+}
+
+/** Teto de preco (NUMERIC(12,2) no banco). */
+const MAX_PRECO = 9999999999.99;
+
+/**
+ * Converte a coluna QUANTO (R$) em valor numérico para `action_items.preco`.
+ * Tolera número puro do Excel, "R$ 1.000,50" (pt-BR), "1000.50" e vazio → 0.
+ */
+export function parsePreco(raw: unknown): number {
+  if (raw === null || raw === undefined || raw === "") return 0;
+  if (typeof raw === "number") {
+    return isNaN(raw) ? 0 : Math.min(Math.max(0, Math.round(raw * 100) / 100), MAX_PRECO);
+  }
+  let s = String(raw).trim().replace(/R\$/gi, "").replace(/\s/g, "");
+  if (!s) return 0;
+  const hasDot = s.includes(".");
+  const hasComma = s.includes(",");
+  if (hasDot && hasComma) {
+    // O último separador é o decimal; o outro é milhar.
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      s = s.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (hasDot && /^\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, ""); // só pontos em grupos de 3 → milhar pt-BR
+  }
+  const n = Number(s);
+  return isNaN(n) ? 0 : Math.min(Math.max(0, Math.round(n * 100) / 100), MAX_PRECO);
 }
 
 // ─── Detecção de linha de header ──────────────────────────────────────────
@@ -108,10 +158,26 @@ export function normHeader(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 }
 
+// \u2500\u2500\u2500 Sele\u00e7\u00e3o da aba do plano \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+/**
+ * Seleciona a aba a importar. Com m\u00faltiplas abas, considera SEMPRE a aba cujo
+ * nome cont\u00e9m "PLANO DE A\u00c7\u00c3O" (tolerante a acentos/caixa/espa\u00e7os) \u2014 nunca cai
+ * em outra aba. Arquivo com aba \u00fanica \u00e9 aceito (a valida\u00e7\u00e3o de estrutura
+ * decide). Retorna null quando h\u00e1 m\u00faltiplas abas e nenhuma corresponde.
+ */
+export function findPlanoSheet(sheetNames: string[]): string | null {
+  const match = sheetNames.find((n) => normHeader(n).includes("PLANO DE ACAO"));
+  if (match) return match;
+  return sheetNames.length === 1 ? sheetNames[0] : null;
+}
+
 // \u2500\u2500\u2500 Valida\u00e7\u00e3o de arquivo (compartilhada cliente/servidor) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 export const ACCEPTED_EXTS = new Set([".xlsx", ".xlsb", ".xls"]);
 export const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+/** Máximo de linhas de ação por arquivo (o modelo tem ~586 linhas). */
+export const MAX_IMPORT_ITEMS = 2000;
 
 /**
  * Valida que a linha de header bate com o modelo padr\u00e3o (REQUIRED_HEADERS).

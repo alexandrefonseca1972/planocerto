@@ -4,10 +4,11 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { FAROL_MAP, COL, REQUIRED_HEADERS, normHeader, detectHeaderRow } from "@/lib/planos-import";
+import { FAROL_MAP, COL, REQUIRED_HEADERS, MAX_IMPORT_ITEMS, normHeader, detectHeaderRow, findPlanoSheet } from "@/lib/planos-import";
 import {
   UploadCloud, FileSpreadsheet, X, CheckCircle2, AlertCircle,
   AlertTriangle, Loader2, ChevronRight, RotateCcw, FolderOpen, Download,
+  Building2,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────
@@ -47,26 +48,25 @@ type Step = "select" | "validate" | "upload" | "done";
 
 function strTrim(raw: unknown): string { return raw == null ? "" : String(raw).trim(); }
 
+/** Lê o body como JSON sem quebrar com respostas não-JSON (proxy/erro 5xx). */
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  try { return await res.json(); } catch { return {}; }
+}
+
 async function validateFile(file: File): Promise<Omit<FileValidation, "file" | "status">> {
   const XLSX = await import("xlsx");
   const buffer = await file.arrayBuffer();
   const wb = XLSX.read(buffer, { type: "array", cellDates: false });
 
-  const sheetName = wb.SheetNames.find((n) =>
-    n.trim().toUpperCase().includes("PLANO DE AÇÃO") ||
-    n.trim().toUpperCase().includes("PLANO DE ACAO"),
-  ) ?? wb.SheetNames[0];
+  // Com múltiplas abas, considera SEMPRE a aba "PLANO DE AÇÃO" — nunca outra.
+  const sheetName = findPlanoSheet(wb.SheetNames);
 
   const errors: ValidationError[] = [];
   const warnings: string[] = [];
 
-  if (!sheetName) {
-    return { planTitle: "", planUnit: "", itemCount: 0, groupCount: 0, errors: [{ row: 0, col: "—", message: "Nenhuma aba encontrada no arquivo." }], warnings };
-  }
-
-  const ws = wb.Sheets[sheetName];
-  if (!ws) {
-    return { planTitle: "", planUnit: "", itemCount: 0, groupCount: 0, errors: [{ row: 0, col: "—", message: `Aba "${sheetName}" não encontrada.` }], warnings };
+  const ws = sheetName ? wb.Sheets[sheetName] : undefined;
+  if (!sheetName || !ws) {
+    return { planTitle: "", planUnit: "", itemCount: 0, groupCount: 0, errors: [{ row: 0, col: "—", message: `Aba "PLANO DE AÇÃO" não encontrada no arquivo${wb.SheetNames.length ? ` (abas: ${wb.SheetNames.join(", ")})` : ""}.` }], warnings };
   }
 
   const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
@@ -146,6 +146,9 @@ async function validateFile(file: File): Promise<Omit<FileValidation, "file" | "
   if (itemCount === 0) {
     errors.push({ row: 0, col: "—", message: "Nenhuma linha de ação encontrada no arquivo." });
   }
+  if (itemCount > MAX_IMPORT_ITEMS) {
+    errors.push({ row: 0, col: "—", message: `Arquivo com ${itemCount} ações — máximo de ${MAX_IMPORT_ITEMS} por arquivo.` });
+  }
 
   return { planTitle, planUnit, itemCount, groupCount: groups.size, errors, warnings };
 }
@@ -157,12 +160,15 @@ export function UploadPlanosDialog({
   onSuccess,
   planId,
   planTitle,
+  catalogUnits = [],
 }: {
   onClose: () => void;
   onSuccess: () => void;
   /** Se fornecido, importa os itens do arquivo para este plano em vez de criar novos planos. */
   planId?: string;
   planTitle?: string;
+  /** Unidades disponíveis para o usuário (obrigatório no modo de criação de planos). */
+  catalogUnits?: { id: string; name: string }[];
 }) {
   const isImportMode = Boolean(planId);
   const { toast } = useToast();
@@ -171,6 +177,14 @@ export function UploadPlanosDialog({
   const [files, setFiles] = useState<FileValidation[]>([]);
   const [uploadResults, setUploadResults] = useState<UploadResult[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedUnitId, setSelectedUnitId] = useState("");
+
+  // Novo fluxo: no modo de criação a unidade é selecionada ANTES do upload e o
+  // fluxo só fica ativo quando existe unidade cadastrada para o usuário.
+  const needsUnit = !isImportMode;
+  const noUnits = needsUnit && catalogUnits.length === 0;
+  const selectedUnit = catalogUnits.find((u) => u.id === selectedUnitId) ?? null;
+  const sortedUnits = [...catalogUnits].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 
   // ── File selection ───────────────────────────────────────────────────────
 
@@ -226,9 +240,16 @@ export function UploadPlanosDialog({
       setFiles([...updated]);
       try {
         const result = await validateFile(updated[i].file);
+        // Alerta quando o arquivo indica uma unidade diferente da selecionada
+        if (needsUnit && selectedUnit && result.planUnit &&
+            result.planUnit.trim().toLowerCase() !== selectedUnit.name.trim().toLowerCase()) {
+          result.warnings.push(
+            `O arquivo indica a unidade "${result.planUnit}", mas será importado na unidade selecionada "${selectedUnit.name}".`,
+          );
+        }
         updated[i] = { ...updated[i], ...result, status: result.errors.length > 0 ? "invalid" : "valid" };
       } catch {
-        updated[i] = { ...updated[i], status: "invalid", errors: [{ row: 0, col: "—", message: "Erro ao ler o arquivo." }] };
+        updated[i] = { ...updated[i], status: "invalid", errors: [{ row: 0, col: "—", message: "Erro ao ler o arquivo — verifique se é um Excel válido e não protegido por senha." }] };
       }
       setFiles([...updated]);
     }
@@ -250,26 +271,28 @@ export function UploadPlanosDialog({
           const fd = new FormData();
           fd.append("file", fv.file);
           const res = await fetch(`/api/plans/${planId}/import`, { method: "POST", body: fd });
-          const data = await res.json();
+          const data = await safeJson(res);
           if (!res.ok) {
-            results.push({ filename: fv.file.name, planTitle: planTitle ?? "", planUnit: "", created: 0, skipped: 0, errors: [data.error ?? "Erro ao importar"], status: "error", errorMessage: data.error });
+            const msg = typeof data.error === "string" ? data.error : `Erro ao importar (HTTP ${res.status}).`;
+            results.push({ filename: fv.file.name, planTitle: planTitle ?? "", planUnit: "", created: 0, skipped: 0, errors: [msg], status: "error", errorMessage: msg });
           } else {
-            results.push({ filename: fv.file.name, planTitle: planTitle ?? "", planUnit: "", created: data.created ?? 0, skipped: data.skipped ?? 0, errors: data.errors ?? [], status: "success" });
+            results.push({ filename: fv.file.name, planTitle: planTitle ?? "", planUnit: "", created: Number(data.created) || 0, skipped: Number(data.skipped) || 0, errors: Array.isArray(data.errors) ? data.errors : [], status: "success" });
           }
         }
         setUploadResults(results);
       } else {
-        // Cria novos planos — usa o batch
+        // Cria novos planos — usa o batch (todos na unidade selecionada)
         const fd = new FormData();
+        fd.append("unitId", selectedUnitId);
         for (const fv of validFiles) fd.append("files", fv.file);
         const res = await fetch("/api/plans/upload-batch", { method: "POST", body: fd });
-        const data = await res.json();
+        const data = await safeJson(res);
         if (!res.ok) {
-          toast(data.error ?? "Erro no upload.", "error");
+          toast(typeof data.error === "string" ? data.error : `Erro no upload (HTTP ${res.status}).`, "error");
           setStep("validate");
           return;
         }
-        setUploadResults(data.results ?? []);
+        setUploadResults(Array.isArray(data.results) ? (data.results as UploadResult[]) : []);
       }
       setStep("done");
     } catch {
@@ -302,10 +325,10 @@ export function UploadPlanosDialog({
             <p className="text-xs text-zinc-500 mt-0.5">
               {step === "select"   && (isImportMode
                 ? `Selecione até ${MAX_FILES} arquivos para importar ações para "${planTitle ?? "este plano"}".`
-                : `Selecione até ${MAX_FILES} arquivos Excel — cada arquivo cria um novo plano.`)}
-              {step === "validate" && "Validando estrutura e dados dos arquivos..."}
-              {step === "upload"   && (isImportMode ? "Importando ações..." : "Criando planos...")}
-              {step === "done"     && `${successResults.length} arquivo${successResults.length !== 1 ? "s" : ""} importado${successResults.length !== 1 ? "s" : ""} com sucesso.`}
+                : `Selecione a unidade de destino e até ${MAX_FILES} arquivos Excel — cada arquivo cria um novo plano.`)}
+              {step === "validate" && `Validação da estrutura e dos dados dos arquivos.${selectedUnit ? ` Unidade de destino: ${selectedUnit.name}.` : ""}`}
+              {step === "upload"   && (isImportMode ? "Importando ações..." : `Criando planos${selectedUnit ? ` na unidade ${selectedUnit.name}` : ""}...`)}
+              {step === "done"     && `${successResults.length} arquivo${successResults.length !== 1 ? "s" : ""} importado${successResults.length !== 1 ? "s" : ""} com sucesso${!isImportMode && selectedUnit ? ` na unidade ${selectedUnit.name}` : ""}.`}
             </p>
           </div>
           {step !== "upload" && (
@@ -344,8 +367,43 @@ export function UploadPlanosDialog({
           {/* ── STEP: SELECT ── */}
           {(step === "select" || (step === "validate" && files.some((f) => f.status === "pending"))) && (
             <>
+              {/* Unidade de destino — obrigatória no modo de criação */}
+              {needsUnit && noUnits && (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                  <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Nenhuma unidade cadastrada</p>
+                    <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+                      A importação de planos exige uma unidade de destino. Cadastre uma unidade em
+                      {" "}<span className="font-medium">Admin → Catálogos → Unidades</span> e volte aqui.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {needsUnit && !noUnits && step === "select" && (
+                <div>
+                  <label htmlFor="upload-unit" className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    Unidade de destino <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="upload-unit"
+                    value={selectedUnitId}
+                    onChange={(e) => setSelectedUnitId(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 focus:border-accent-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                  >
+                    <option value="">Selecione a unidade...</option>
+                    {sortedUnits.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    Todos os planos deste upload serão vinculados à unidade selecionada.
+                  </p>
+                </div>
+              )}
+
               {/* Drop zone */}
-              {files.length < MAX_FILES && (
+              {!noUnits && files.length < MAX_FILES && (
                 <div
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
@@ -456,7 +514,11 @@ export function UploadPlanosDialog({
                   </Button>
                 </a>
                 <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                <Button onClick={runValidation} disabled={files.length === 0}>
+                <Button
+                  onClick={runValidation}
+                  disabled={files.length === 0 || (needsUnit && !selectedUnitId)}
+                  title={needsUnit && !selectedUnitId ? "Selecione a unidade de destino" : undefined}
+                >
                   Validar arquivos <ChevronRight className="ml-1 h-4 w-4" />
                 </Button>
               </>

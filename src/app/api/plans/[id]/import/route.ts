@@ -6,7 +6,11 @@ import { isValidUuid } from "@/lib/validations/uuid";
 import {
   ACCEPTED_EXTS,
   MAX_FILE_BYTES,
+  MAX_IMPORT_ITEMS,
+  COL,
+  trimStr,
   validatePlanoHeaders,
+  findPlanoSheet,
 } from "@/lib/planos-import";
 import { importPlanItems } from "@/lib/planos-import-server";
 
@@ -55,13 +59,15 @@ export async function POST(
     const XLSX = await import("xlsx");
     const wb = XLSX.read(buffer, { type: "buffer", cellDates: false });
 
-    const sheetName = wb.SheetNames.find((n) =>
-      n.trim().toUpperCase().includes("PLANO DE AÇÃO") ||
-      n.trim().toUpperCase().includes("PLANO DE ACAO"),
-    ) ?? wb.SheetNames[0];
-
-    const ws = wb.Sheets[sheetName];
-    if (!ws) return NextResponse.json({ error: "Aba 'PLANO DE AÇÃO' não encontrada." }, { status: 422 });
+    // Com múltiplas abas, considera SEMPRE a aba "PLANO DE AÇÃO" — nunca outra.
+    const sheetName = findPlanoSheet(wb.SheetNames);
+    const ws = sheetName ? wb.Sheets[sheetName] : undefined;
+    if (!sheetName || !ws) {
+      return NextResponse.json(
+        { error: `Aba "PLANO DE AÇÃO" não encontrada (abas do arquivo: ${wb.SheetNames.join(", ")}).` },
+        { status: 422 },
+      );
+    }
 
     const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
@@ -75,6 +81,14 @@ export async function POST(
     }
 
     const dataRows = rows.slice(headerRow + 1);
+
+    const actionRows = dataRows.filter((r) => trimStr((r as unknown[])[COL.ACAO]).length > 0).length;
+    if (actionRows > MAX_IMPORT_ITEMS) {
+      return NextResponse.json(
+        { error: `Arquivo com ${actionRows} ações — máximo de ${MAX_IMPORT_ITEMS} por arquivo.` },
+        { status: 422 },
+      );
+    }
 
     // Anexa após os itens existentes para não colidir o sort_order.
     const { data: maxRow } = await supabase

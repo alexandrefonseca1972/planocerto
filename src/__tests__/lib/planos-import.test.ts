@@ -3,6 +3,10 @@ import {
   parsePlanRows,
   validatePlanoHeaders,
   parseStatus,
+  parsePreco,
+  parseDate,
+  parseNum,
+  findPlanoSheet,
   COL,
   REQUIRED_HEADERS,
 } from "@/lib/planos-import";
@@ -74,6 +78,17 @@ describe("parseStatus", () => {
     expect(parseStatus("CONCLUÍDO")).toBe(5);
   });
 
+  it("mapeia os 7 valores da fórmula do FAROL do MODELO.xlsb", () => {
+    expect(parseStatus("NÃO PROGRAMADO")).toBe(1);
+    expect(parseStatus("A INICIAR")).toBe(1);
+    expect(parseStatus("ATRASADO")).toBe(3);
+    expect(parseStatus("INICIADO COM ATRASO")).toBe(3);
+    expect(parseStatus("EM ANDAMENTO")).toBe(4);
+    expect(parseStatus("CONCLUÍDO NO PRAZO")).toBe(5);
+    expect(parseStatus("CONCLUÍDO COM ATRASO")).toBe(5);
+    expect(parseStatus("CONCLUIDO COM ATRASO")).toBe(5);
+  });
+
   it("mapeia o vocabulário alternativo das planilhas de clientes", () => {
     expect(parseStatus("A INICIAR")).toBe(1);
     expect(parseStatus("ATRASADO")).toBe(3);
@@ -85,6 +100,90 @@ describe("parseStatus", () => {
     expect(parseStatus("  atrasado  ")).toBe(3);
     expect(parseStatus("QUALQUER COISA")).toBe(1);
     expect(parseStatus("")).toBe(1);
+  });
+});
+
+describe("parseDate", () => {
+  it("converte serial do Excel e formatos DD/MM/AAAA e ISO", () => {
+    expect(parseDate(45762)).toBe("2025-04-15");
+    expect(parseDate("20/04/2026")).toBe("2026-04-20");
+    expect(parseDate("2026-04-20")).toBe("2026-04-20");
+  });
+
+  it("rejeita serial absurdo sem lançar exceção", () => {
+    expect(parseDate(1e15)).toBeNull();
+    expect(parseDate(-5)).toBeNull();
+    expect(parseDate(NaN)).toBeNull();
+  });
+
+  it("rejeita datas de calendário inválidas (31/02 etc.)", () => {
+    expect(parseDate("31/02/2026")).toBeNull();
+    expect(parseDate("2026-02-31")).toBeNull();
+    expect(parseDate("00/13/2026")).toBeNull();
+    expect(parseDate("texto")).toBeNull();
+  });
+});
+
+describe("parseNum", () => {
+  it("converte, arredonda e descarta inválidos", () => {
+    expect(parseNum("42")).toBe(42);
+    expect(parseNum(3.7)).toBe(4);
+    expect(parseNum("abc")).toBe(0);
+    expect(parseNum(-10)).toBe(0);
+  });
+
+  it("aplica teto para não estourar int4 no banco", () => {
+    expect(parseNum(1e15)).toBe(999999999);
+  });
+});
+
+describe("findPlanoSheet", () => {
+  it("com múltiplas abas, seleciona SEMPRE a aba 'PLANO DE AÇÃO' (nunca a primeira)", () => {
+    // Ordem das abas do MODELO.xlsb: a do plano não é a primeira
+    expect(findPlanoSheet(["APOIO", "SIMULADOR", "PLANO DE AÇÃO", "ESCOLA", "EMPRESA"])).toBe("PLANO DE AÇÃO");
+  });
+
+  it("é tolerante a acentos, caixa e espaços no nome da aba", () => {
+    expect(findPlanoSheet(["Apoio", "plano de acao"])).toBe("plano de acao");
+    expect(findPlanoSheet(["APOIO", "  Plano de Ação 2026  "])).toBe("  Plano de Ação 2026  ");
+  });
+
+  it("com múltiplas abas e nenhuma correspondente, retorna null (não cai na primeira)", () => {
+    expect(findPlanoSheet(["APOIO", "SIMULADOR", "ESCOLA"])).toBeNull();
+  });
+
+  it("aceita arquivo de aba única (a validação de estrutura decide)", () => {
+    expect(findPlanoSheet(["Planilha1"])).toBe("Planilha1");
+    expect(findPlanoSheet([])).toBeNull();
+  });
+});
+
+describe("parsePreco", () => {
+  it("aceita número puro do Excel", () => {
+    expect(parsePreco(8000)).toBe(8000);
+    expect(parsePreco(1234.567)).toBe(1234.57);
+  });
+
+  it("converte formato pt-BR com R$, milhar e vírgula decimal", () => {
+    expect(parsePreco("R$ 1.000,50")).toBe(1000.5);
+    expect(parsePreco("1.000")).toBe(1000); // pontos em grupos de 3 → milhar
+    expect(parsePreco("1,5")).toBe(1.5);
+  });
+
+  it("aceita formato com ponto decimal", () => {
+    expect(parsePreco("1000.50")).toBe(1000.5);
+    expect(parsePreco("1,000.50")).toBe(1000.5); // milhar com vírgula (en-US)
+  });
+
+  it("vazio, inválido ou negativo → 0", () => {
+    expect(parsePreco("")).toBe(0);
+    expect(parsePreco(null)).toBe(0);
+    expect(parsePreco("abc")).toBe(0);
+    expect(parsePreco(-50)).toBe(0);
+  });
+
+  it("aplica teto para não estourar NUMERIC(12,2) no banco", () => {
+    expect(parsePreco(1e15)).toBe(9999999999.99);
   });
 });
 
