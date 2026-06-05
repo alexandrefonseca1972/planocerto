@@ -84,12 +84,14 @@ export function AreaUnitFilter({
 
   // Agrupa unidades por área (e ordena por nome)
   const groups = useMemo(() => {
-    const map = new Map<string, { area: FilterArea | null; units: FilterUnit[] }>();
+    const map = new Map<string, { areaKey: string; area: FilterArea | null; units: FilterUnit[] }>();
     for (const u of units) {
-      const k = u.area_id ?? "_none";
+      const resolvedArea = u.area_id ? (areas.find((a) => a.id === u.area_id) ?? null) : null;
+      const k = resolvedArea?.id ?? "_none";
       if (!map.has(k)) {
         map.set(k, {
-          area: u.area_id ? areas.find((a) => a.id === u.area_id) ?? null : null,
+          areaKey: k,
+          area: resolvedArea,
           units: [],
         });
       }
@@ -323,7 +325,7 @@ export function AreaUnitFilter({
               </p>
             ) : (
               filteredGroups.map((g) => {
-                const areaKey = g.area?.id ?? "_none";
+                const areaKey = g.areaKey;
                 const collapsed = collapsedAreas.has(areaKey);
                 const state = areaState(g);
                 const areaName = g.area?.name ?? "Sem área";

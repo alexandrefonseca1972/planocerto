@@ -156,7 +156,10 @@ export default async function DashboardPage() {
       { data: tiposPaRows },
       { data: macroAcoesRows },
     ] = await Promise.all([
-      supabase.from("areas").select("id,name,tenant_id").in("tenant_id", tenantIds),
+      supabase
+        .from("areas")
+        .select("id,name,tenant_id")
+        .or(`tenant_id.in.(${tenantIds.join(",")}),tenant_id.is.null`),
       supabase
         .from("units")
         .select("id,name,uf,area_id,tenant_id,active")

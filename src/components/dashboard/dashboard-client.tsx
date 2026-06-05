@@ -295,7 +295,9 @@ export function DashboardClient({
 
   const tenantScopedAreas = useMemo(
     () =>
-      areas.filter((a) => a.tenant_id && selectedTenantIds.includes(a.tenant_id)),
+      areas.filter(
+        (a) => !a.tenant_id || selectedTenantIds.includes(a.tenant_id),
+      ),
     [areas, selectedTenantIds],
   );
 
