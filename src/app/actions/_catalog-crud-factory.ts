@@ -67,8 +67,7 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
   async function getAll(): Promise<T[]> {
     try {
       const supabase = await createClient();
-      const { data } = await supabase
-        .from(table)
+      const { data } = await db(supabase, table)
         .select("*")
         .order("sort_order")
         .order("name");

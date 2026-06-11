@@ -10,7 +10,6 @@ import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState, ActionIte
 import { notifyPlanAction } from "@/lib/teams";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { deriveActionItemStatus } from "@/lib/action-item-status";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 import { getCurrentTenantId } from "@/app/actions/_helpers";
@@ -85,10 +84,9 @@ export async function getCurrentUserPlanScope(): Promise<{ areaIds: string[]; un
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { areaIds: [], unitIds: [] };
 
-    const adminClient = createAdminClient();
     const [{ data: areaRows }, { data: unitRows }] = await Promise.all([
-      adminClient.from("user_areas").select("area_id").eq("user_id", user.id),
-      adminClient.from("user_units").select("unit_id").eq("user_id", user.id),
+      supabase.from("user_areas").select("area_id").eq("user_id", user.id),
+      supabase.from("user_units").select("unit_id").eq("user_id", user.id),
     ]);
 
     return {

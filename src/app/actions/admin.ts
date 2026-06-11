@@ -298,56 +298,29 @@ export async function createUser(
     }
 
     if (data.user) {
-      const { error: profileError } = await adminClient
-        .from("profiles")
-        .update({
-          name: validated.data.name,
-          role: validated.data.role,
-          // Define a empresa ativa inicial — sem isso o usuário nasce com
-          // active_tenant_id null e as APIs respondem "Nenhuma empresa ativa".
-          active_tenant_id: scopedTenantIds[0] ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", data.user.id);
+      // Profile + tenant_members + user_areas + user_units num único transaction
+      // PostgreSQL. Se qualquer passo falhar, tudo é revertido pelo banco.
+      const newAreaIds = (formData.getAll("areaIds") as string[]).filter((id) => UUID_RE.test(id));
+      const newUnitIds = (formData.getAll("unitIds") as string[]).filter((id) => UUID_RE.test(id));
 
-      if (profileError) {
-        console.error("[createUser] Erro ao atualizar perfil:", profileError.message);
+      const { error: setupErr } = await adminClient.rpc("setup_new_user", {
+        p_user_id: data.user.id,
+        p_name: validated.data.name,
+        p_role: validated.data.role,
+        p_active_tenant_id: scopedTenantIds[0] ?? null,
+        p_tenant_members: scopedTenantIds.map((tenantId) => ({
+          tenant_id: tenantId,
+          role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
+        })),
+        p_area_ids: newAreaIds,
+        p_unit_ids: newUnitIds,
+      });
+
+      if (setupErr) {
+        console.error("[createUser] Erro no setup atômico:", setupErr.message);
         const { error: delErr } = await adminClient.auth.admin.deleteUser(data.user.id);
         if (delErr) console.error("[createUser] Falha ao remover auth user no rollback:", delErr.message);
-        return { message: "Erro ao configurar perfil. O usuário foi removido. Tente novamente." };
-      }
-
-      if (scopedTenantIds.length > 0) {
-        const { error: membErr } = await adminClient.from("tenant_members").insert(
-          scopedTenantIds.map((tenantId) => ({
-            user_id: data.user!.id,
-            tenant_id: tenantId,
-            role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
-          }))
-        );
-        if (membErr) {
-          console.error("[createUser] Erro ao associar empresas:", membErr.message);
-          const { error: delErr } = await adminClient.auth.admin.deleteUser(data.user.id);
-          if (delErr) console.error("[createUser] Falha ao remover auth user no rollback:", delErr.message);
-          return { message: "Erro ao associar empresas ao usuário. O cadastro foi cancelado. Tente novamente." };
-        }
-      }
-
-      const UUID_RE_INNER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const newAreaIds = (formData.getAll("areaIds") as string[]).filter((id) => UUID_RE_INNER.test(id));
-      if (newAreaIds.length > 0) {
-        const { error: areaErr } = await adminClient.from("user_areas").insert(
-          newAreaIds.map((areaId) => ({ user_id: data.user!.id, area_id: areaId }))
-        );
-        if (areaErr) console.error("[createUser] Erro ao associar áreas:", areaErr.message);
-      }
-
-      const newUnitIds = (formData.getAll("unitIds") as string[]).filter((id) => UUID_RE_INNER.test(id));
-      if (newUnitIds.length > 0) {
-        const { error: unitErr } = await adminClient.from("user_units").insert(
-          newUnitIds.map((unitId) => ({ user_id: data.user!.id, unit_id: unitId }))
-        );
-        if (unitErr) console.error("[createUser] Erro ao associar unidades:", unitErr.message);
+        return { message: "Erro ao configurar o usuário. O cadastro foi cancelado. Tente novamente." };
       }
 
       await auditLog(adminCheck.currentUserId!, data.user.id, "create_user", {
@@ -537,11 +510,19 @@ export async function updateUser(
       const areaIds = Array.from(
         new Set((formData.getAll("areaIds") as string[]).filter(Boolean))
       );
-      await adminClient.from("user_areas").delete().eq("user_id", userId);
+      const { error: delAreaErr } = await adminClient.from("user_areas").delete().eq("user_id", userId);
+      if (delAreaErr) {
+        console.error("[updateUser] Erro ao remover áreas:", delAreaErr.message);
+        return { message: "Erro ao atualizar áreas do usuário. Tente novamente." };
+      }
       if (areaIds.length > 0) {
-        await adminClient.from("user_areas").insert(
+        const { error: insAreaErr } = await adminClient.from("user_areas").insert(
           areaIds.map((areaId) => ({ user_id: userId, area_id: areaId }))
         );
+        if (insAreaErr) {
+          console.error("[updateUser] Erro ao inserir áreas:", insAreaErr.message);
+          return { message: "Erro ao atualizar áreas do usuário. Tente novamente." };
+        }
       }
     }
 
@@ -550,11 +531,19 @@ export async function updateUser(
       const unitIds = Array.from(
         new Set((formData.getAll("unitIds") as string[]).filter(Boolean))
       );
-      await adminClient.from("user_units").delete().eq("user_id", userId);
+      const { error: delUnitErr } = await adminClient.from("user_units").delete().eq("user_id", userId);
+      if (delUnitErr) {
+        console.error("[updateUser] Erro ao remover unidades:", delUnitErr.message);
+        return { message: "Erro ao atualizar unidades do usuário. Tente novamente." };
+      }
       if (unitIds.length > 0) {
-        await adminClient.from("user_units").insert(
+        const { error: insUnitErr } = await adminClient.from("user_units").insert(
           unitIds.map((unitId) => ({ user_id: userId, unit_id: unitId }))
         );
+        if (insUnitErr) {
+          console.error("[updateUser] Erro ao inserir unidades:", insUnitErr.message);
+          return { message: "Erro ao atualizar unidades do usuário. Tente novamente." };
+        }
       }
     }
 

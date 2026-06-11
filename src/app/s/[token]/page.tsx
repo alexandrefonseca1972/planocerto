@@ -26,7 +26,7 @@ export default async function PublicDashboard({ params }: Params) {
 
   let planTitle = "";
   let total = 0, completed = 0, inProgress = 0, overdue = 0;
-  const items: { id: string; number: string; action: string; responsible: string; status: number; planned_end: string | null }[] = [];
+  const items: { id: string; number: string; action: string; responsible: string | null; status: number; planned_end: string | null }[] = [];
   let error = "";
 
   // Rate-limit por IP (best-effort): barreira contra scraping/enumeração de links.
