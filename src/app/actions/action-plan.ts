@@ -701,7 +701,8 @@ export async function recalculateAndGetItems(planId: string): Promise<ActionItem
       .from("action_items")
       .select("*")
       .eq("plan_id", planId)
-      .order("sort_order");
+      .order("sort_order")
+      .limit(2000);
 
     const rows = (updatedItems || []) as ActionItem[];
     const map = new Map<string, ActionItem>();

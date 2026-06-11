@@ -15,7 +15,7 @@ const createNotificationSchema = z.object({
   target_type: z.enum(["all", "user", "tenant"]).default("all"),
   target_id: z.string().uuid("ID de destino inválido.").nullable().optional(),
   is_fixed: z.boolean().default(false),
-  expires_at: z.string().datetime({ message: "Data de expiração inválida." }).nullable().optional(),
+  expires_at: z.string().datetime({ local: true, message: "Data de expiração inválida." }).nullable().optional(),
 });
 
 export interface NotificationItem {

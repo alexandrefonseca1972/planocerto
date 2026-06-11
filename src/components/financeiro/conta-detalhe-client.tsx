@@ -172,9 +172,12 @@ export function ContaDetalheClient({
     }
     startTransition(async () => {
       const res = await pagarParcelasEmLote(ids, batchData, batchForma);
-      if (res.success) {
+      if (res.success && !res.failedIds?.length) {
         toast(res.message || "Parcelas pagas.");
         setShowBatchPay(false);
+        refresh();
+      } else if (res.success && res.failedIds?.length) {
+        toast(res.message || "Pagamento parcial — algumas parcelas falharam.", "error");
         refresh();
       } else {
         toast(res.message || "Erro ao processar pagamentos.", "error");

@@ -55,7 +55,7 @@ export default async function PublicDashboard({ params }: Params) {
 
     // Get items
     const today = new Date().toISOString().split("T")[0];
-    const { data: allItems } = await db.from("action_items").select("id,number,action,responsible,status,planned_end").eq("plan_id", link.plan_id).order("sort_order");
+    const { data: allItems } = await db.from("action_items").select("id,number,action,responsible,status,planned_end").eq("plan_id", link.plan_id).order("sort_order").limit(2000);
 
     for (const item of allItems || []) {
       items.push(item);

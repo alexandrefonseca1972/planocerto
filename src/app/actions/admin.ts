@@ -524,7 +524,11 @@ export async function updateUser(
         role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
       }));
       if (toUpsert.length > 0) {
-        await adminClient.from("tenant_members").upsert(toUpsert, { onConflict: "user_id,tenant_id" });
+        const { error: upsertErr } = await adminClient.from("tenant_members").upsert(toUpsert, { onConflict: "user_id,tenant_id" });
+        if (upsertErr) {
+          console.error("[updateUser] Erro ao atualizar memberships:", upsertErr.message);
+          return { message: "Erro ao atualizar empresas do usuário. Tente novamente." };
+        }
       }
     }
 
