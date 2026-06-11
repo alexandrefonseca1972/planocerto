@@ -18,7 +18,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default("placeholder-key"),
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
   SUPABASE_SERVICE_ROLE_KEY: secret("placeholder-key"),
-  OPENROUTER_API_KEY: secret("placeholder-key"),
+  OPENROUTER_API_KEY: z.string().optional().default(""),
   RESEND_API_KEY: secret("placeholder-key"),
   AUTH_EMAIL_FROM: z.string().min(1).default("PlanoCerto <acesso@planocerto.app>"),
   AUTH_EMAIL_REPLY_TO: z.string().email().optional().default("suporte@planocerto.app"),

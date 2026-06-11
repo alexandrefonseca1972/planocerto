@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS } from "@/lib/permissions";
-import { Users, Building2, Bell, Shield, ListChecks, LayoutDashboard } from "lucide-react";
+import { Users, Building2, Bell, Shield, ListChecks, LayoutDashboard, Sparkles } from "lucide-react";
 
 interface NavLink {
   href: string;
@@ -22,6 +22,7 @@ const allLinks: NavLink[] = [
   { href: "/admin/roles", label: "Papéis", icon: Shield, permission: PERMISSIONS.ROLES_MANAGE },
   { href: "/admin/catalogos", label: "Catálogos", icon: ListChecks, permission: PERMISSIONS.ADMIN_ACCESS },
   { href: "/admin/notifications", label: "Notificações", icon: Bell, permission: PERMISSIONS.NOTIFICATIONS_CREATE },
+  { href: "/admin/ia", label: "IA / Modelos", icon: Sparkles, superOnly: true },
 ];
 
 export function AdminNav({

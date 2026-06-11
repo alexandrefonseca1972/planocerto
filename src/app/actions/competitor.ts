@@ -177,7 +177,8 @@ export async function upsertInstituicao(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: id ? "Instituição atualizada!" : "Instituição criada!" };
-  } catch {
+  } catch (error) {
+    console.error("[upsertInstituicao]", error);
     return { message: "Serviço indisponível." };
   }
 }
@@ -202,7 +203,8 @@ export async function deleteInstituicao(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: "Instituição excluída!" };
-  } catch {
+  } catch (error) {
+    console.error("[deleteInstituicao]", error);
     return { message: "Serviço indisponível." };
   }
 }
@@ -271,7 +273,8 @@ export async function upsertCursoInstituicao(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: id ? "Curso atualizado!" : "Curso adicionado!" };
-  } catch {
+  } catch (error) {
+    console.error("[upsertCursoInstituicao]", error);
     return { message: "Serviço indisponível." };
   }
 }
@@ -296,7 +299,8 @@ export async function deleteCursoInstituicao(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: "Curso removido!" };
-  } catch {
+  } catch (error) {
+    console.error("[deleteCursoInstituicao]", error);
     return { message: "Serviço indisponível." };
   }
 }
@@ -365,7 +369,8 @@ export async function upsertCorpoDocente(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: id ? "Professor atualizado!" : "Professor adicionado!" };
-  } catch {
+  } catch (error) {
+    console.error("[upsertCorpoDocente]", error);
     return { message: "Serviço indisponível." };
   }
 }
@@ -390,7 +395,8 @@ export async function deleteCorpoDocente(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: "Professor removido!" };
-  } catch {
+  } catch (error) {
+    console.error("[deleteCorpoDocente]", error);
     return { message: "Serviço indisponível." };
   }
 }
@@ -467,7 +473,8 @@ export async function upsertMensalidade(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: id ? "Mensalidade atualizada!" : "Mensalidade registrada!" };
-  } catch {
+  } catch (error) {
+    console.error("[upsertMensalidade]", error);
     return { message: "Serviço indisponível." };
   }
 }
@@ -492,7 +499,8 @@ export async function deleteMensalidade(
 
     revalidatePath(REVALIDATE_PATH);
     return { success: true, message: "Mensalidade removida!" };
-  } catch {
+  } catch (error) {
+    console.error("[deleteMensalidade]", error);
     return { message: "Serviço indisponível." };
   }
 }

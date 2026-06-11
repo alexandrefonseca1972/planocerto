@@ -116,11 +116,10 @@ export default async function DashboardPage() {
   let catalogTiposPa: { id: string; name: string }[] = [];
   let catalogMacroAcoes: { id: string; name: string }[] = [];
 
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
     userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "Usuário";
 
     if (user) {
@@ -146,7 +145,7 @@ export default async function DashboardPage() {
     }
 
     const tenants = await getUserTenants();
-    if (!tenants.length) throw null;
+    if (!tenants.length) return <DashboardClient userName={userName} userPermissions={userPermissions} unitSummaries={[]} areas={[]} deadlines={[]} sparklineData={[]} catalogTiposPa={[]} catalogMacroAcoes={[]} myTasks={[]} />;
     const tenantIds = tenants.map((t) => t.id);
 
     // Áreas e Unidades dos tenants do usuário (catálogo)
@@ -488,9 +487,6 @@ export default async function DashboardPage() {
       if (ka !== kb) return ka - kb;
       return (a.planned_end || "").localeCompare(b.planned_end || "");
     });
-  } catch {
-    /* fallback */
-  }
 
   return (
     <DashboardClient

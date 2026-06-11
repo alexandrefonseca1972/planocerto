@@ -15,6 +15,7 @@ import {
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
 import { getRequesterScope, manageableUserIds, type RequesterScope } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
+import { isValidUuid } from "@/lib/validations/uuid";
 import { generateSecurePassword } from "@/lib/security/password";
 import type { FormState } from "@/types/auth";
 
@@ -238,8 +239,7 @@ export async function createUser(
           : undefined,
     };
 
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const tenantIds = (formData.getAll("tenantIds") as string[]).filter((id) => UUID_RE.test(id));
+    const tenantIds = (formData.getAll("tenantIds") as string[]).filter(isValidUuid);
 
     const validated = createUserSchema.safeParse(rawData);
 
@@ -300,8 +300,8 @@ export async function createUser(
     if (data.user) {
       // Profile + tenant_members + user_areas + user_units num único transaction
       // PostgreSQL. Se qualquer passo falhar, tudo é revertido pelo banco.
-      const newAreaIds = (formData.getAll("areaIds") as string[]).filter((id) => UUID_RE.test(id));
-      const newUnitIds = (formData.getAll("unitIds") as string[]).filter((id) => UUID_RE.test(id));
+      const newAreaIds = (formData.getAll("areaIds") as string[]).filter(isValidUuid);
+      const newUnitIds = (formData.getAll("unitIds") as string[]).filter(isValidUuid);
 
       const { error: setupErr } = await adminClient.rpc("setup_new_user", {
         p_user_id: data.user.id,
@@ -406,9 +406,8 @@ export async function updateUser(
     }
 
     const isActive = formData.get("is_active") === "true";
-    const UUID_RE_UPD = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const tenantIdsRaw = formData.getAll("tenantIds") as string[];
-    const tenantIds = Array.from(new Set(tenantIdsRaw.filter((id) => UUID_RE_UPD.test(id))));
+    const tenantIds = Array.from(new Set(tenantIdsRaw.filter(isValidUuid)));
     const tenantsTouched = formData.has("tenantIds") || formData.has("tenantsTouched");
 
     let parsedPermissions: Record<string, boolean> | null = null;

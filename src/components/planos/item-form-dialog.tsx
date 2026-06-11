@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { X, Check, ClipboardList, Paperclip, MessageSquare, CircleHelp, History, GraduationCap, Layers, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ import {
 import { getItemAuditLog } from "@/app/actions/action-plan";
 import { formatAuditEntryDate, getAuditEntryMarker, getAuditEntrySummary, getAuditEntryTone } from "@/components/planos/item-history-helpers";
 import { Sparkles } from "lucide-react";
+import { suggest5W2H, getAiModelsForPlan } from "@/app/actions/action-plan-ai";
 
 interface ItemFormDialogProps {
   item: ActionItem | null;
@@ -70,6 +71,10 @@ export function ItemFormDialog({
   const [parentId, setParentId] = useState(item?.parent_id || "");
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [isAiPending, startAiTransition] = useTransition();
+  const [aiModels, setAiModels] = useState<string[]>([]);
+  const [aiModel, setAiModel] = useState("");
 
   const allItems = flattenItems(items);
   const groups = orderParentGroupsByMacroCatalog(
@@ -124,6 +129,19 @@ export function ItemFormDialog({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedArea(derivedArea);
   }, [derivedArea]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAiModelsForPlan(planId).then((cfg) => {
+      if (cancelled || !cfg) return;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAiModels(cfg.models);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAiModel(cfg.currentModel);
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId]);
 
   useEffect(() => {
     if (tab !== "historico" || !item?.id) return;
@@ -429,15 +447,24 @@ export function ItemFormDialog({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        disabled
-                        className="h-6 gap-1 px-1.5 text-[10px] font-bold text-zinc-400 cursor-not-allowed opacity-50"
+                        disabled={isAiPending || actionText.trim().length < 20}
+                        onClick={() => {
+                          setAiError(null);
+                          startAiTransition(async () => {
+                            const result = await suggest5W2H(actionText, planId, aiModel || undefined);
+                            if (result.error) {
+                              setAiError(result.error);
+                            } else {
+                              if (result.why) setWhyText(result.why);
+                              if (result.how) setComoText(result.how);
+                            }
+                          });
+                        }}
+                        className="h-6 gap-1 px-1.5 text-[10px] font-bold text-accent-600 hover:text-accent-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <Sparkles className="h-3 w-3" />
-                        SUGERIR COM IA
+                        <Sparkles className={cn("h-3 w-3", isAiPending && "animate-pulse")} />
+                        {isAiPending ? "GERANDO..." : "SUGERIR COM IA"}
                       </Button>
-                      <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
-                        Em breve
-                      </span>
                     </span>
                   </div>
                   <span
@@ -474,6 +501,14 @@ export function ItemFormDialog({
                 />
                 {actionText.length > 0 && actionText.length < 3 && (
                   <p className="text-[11px] text-red-500 animate-[slideDown_150ms_ease-out]">Mínimo 3 caracteres</p>
+                )}
+                {actionText.trim().length > 0 && actionText.trim().length < 20 && (
+                  <p className="text-[11px] text-zinc-400">
+                    {actionText.trim().length}/20 caracteres mínimos para sugestão de IA
+                  </p>
+                )}
+                {aiError && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">{aiError}</p>
                 )}
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">

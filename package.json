@@ -1,11 +1,11 @@
 {
   "name": "planocerto",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_OPTIONS='--max-http-header-size=65536' next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_OPTIONS='--max-http-header-size=65536' next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

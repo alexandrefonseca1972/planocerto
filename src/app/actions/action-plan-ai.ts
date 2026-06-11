@@ -1,9 +1,9 @@
 "use server";
 
-import { env } from "@/lib/env";
 import { sanitizeText } from "@/lib/validation/sanitize";
-
 import { createClient } from "@/lib/supabase/server";
+import { callLlm } from "@/lib/llm-client";
+import { getActiveLlmConfig } from "@/app/actions/llm-settings";
 
 type RegionalContext = {
   perfil_persona?: string;
@@ -18,60 +18,102 @@ type UnitRegionalData = {
   area: { name: string; regional_context: RegionalContext | null } | null;
 };
 
+export async function getAiModelsForPlan(
+  planId: string,
+): Promise<{ provider: string; models: string[]; currentModel: string } | null> {
+  try {
+    const supabase = await createClient();
+    const { data: plan } = await supabase
+      .from("action_plans")
+      .select("tenant_id")
+      .eq("id", planId)
+      .single();
+
+    if (!plan?.tenant_id) return null;
+
+    const adminClient = (await import("@/lib/supabase/admin")).createAdminClient();
+    const { data } = await adminClient
+      .from("llm_settings")
+      .select("provider, model")
+      .eq("tenant_id", plan.tenant_id)
+      .maybeSingle();
+
+    if (!data) return null;
+
+    const { PROVIDER_MODELS } = await import("@/lib/llm-client");
+    const models = PROVIDER_MODELS[data.provider as keyof typeof PROVIDER_MODELS] ?? [data.model];
+
+    return { provider: data.provider, models, currentModel: data.model };
+  } catch (e) {
+    console.error("[getAiModelsForPlan]", e);
+    return null;
+  }
+}
+
 export async function suggest5W2H(
-  actionDescription: string, 
-  planId?: string
+  actionDescription: string,
+  planId?: string,
+  modelOverride?: string,
 ): Promise<{ why?: string; how?: string; error?: string }> {
-  if (!actionDescription || actionDescription.trim().length < 5) {
-    return { error: "A descrição da ação é muito curta para gerar sugestões." };
+  if (!actionDescription || actionDescription.trim().length < 20) {
+    return { error: "A descrição da ação precisa ter ao menos 20 caracteres para gerar sugestões." };
+  }
+
+  if (!planId) {
+    return { error: "Plano não identificado para uso da IA." };
+  }
+
+  // Busca o plano para obter tenant_id + unidade (contexto regional)
+  const supabase = await createClient();
+  const { data: plan } = await supabase
+    .from("action_plans")
+    .select("unit_id, unit, tenant_id")
+    .eq("id", planId)
+    .single();
+
+  if (!plan?.tenant_id) {
+    return { error: "Não foi possível identificar a empresa do plano." };
+  }
+
+  const config = await getActiveLlmConfig(plan.tenant_id);
+  if (!config) {
+    return { error: "Serviço de IA não configurado para esta empresa. Acesse Administração → IA / Modelos." };
   }
 
   let regionalContextPrompt = "";
 
-  // 1. Tentar buscar contexto regional se houver planId
-  if (planId) {
+  if (plan.unit_id || plan.unit) {
     try {
-      const supabase = await createClient();
-      const { data: plan } = await supabase
-        .from("action_plans")
-        .select("unit_id, unit, tenant_id")
-        .eq("id", planId)
-        .single();
+      let unitData: UnitRegionalData | null = null;
 
-      if (plan?.unit_id || plan?.unit) {
-        // Buscar metadados da unidade e da área
-        let unitData: UnitRegionalData | null = null;
+      if (plan.unit_id) {
+        const { data } = await supabase
+          .from("units")
+          .select("name, regional_context, area:areas(name, regional_context)")
+          .eq("id", plan.unit_id)
+          .eq("tenant_id", plan.tenant_id)
+          .maybeSingle();
+        unitData = data as UnitRegionalData | null;
+      } else if (plan.unit) {
+        const { data } = await supabase
+          .from("units")
+          .select("name, regional_context, area:areas(name, regional_context)")
+          .eq("name", plan.unit)
+          .eq("tenant_id", plan.tenant_id)
+          .maybeSingle();
+        unitData = data as UnitRegionalData | null;
+      }
 
-        if (plan.unit_id) {
-          const { data } = await supabase
-            .from("units")
-            .select("name, regional_context, area:areas(name, regional_context)")
-            .eq("id", plan.unit_id)
-            .eq("tenant_id", plan.tenant_id)
-            .maybeSingle();
-          unitData = data as UnitRegionalData | null;
-        } else if (plan.unit) {
-          const { data } = await supabase
-            .from("units")
-            .select("name, regional_context, area:areas(name, regional_context)")
-            .eq("name", plan.unit)
-            .eq("tenant_id", plan.tenant_id)
-            .maybeSingle();
-          unitData = data as UnitRegionalData | null;
-        }
-
-        if (unitData) {
-          const uCtx = unitData.regional_context || {};
-          const aCtx = unitData.area?.regional_context || {};
-          
-          regionalContextPrompt = `
+      if (unitData) {
+        const uCtx = unitData.regional_context || {};
+        const aCtx = unitData.area?.regional_context || {};
+        regionalContextPrompt = `
 CONTEXTO REGIONAL DA UNIDADE (${unitData.name}):
 - Perfil: ${uCtx.perfil_persona || "não especificado"}
 - Regionalidade/Cultura: ${uCtx.regionalidade || aCtx.regionalidade || "não especificada"}
 - Eventos/Calendário Local: ${uCtx.eventos_locais || "nenhum evento crítico mapeado"}
 - Concorrência/Mercado: ${uCtx.concorrentes || aCtx.concorrentes || "mercado padrão"}
 `.trim();
-        }
       }
     } catch (e) {
       console.error("[suggest5W2H] Regional Context Error:", e);
@@ -97,36 +139,19 @@ Responda APENAS no formato JSON:
 }
 `.trim();
 
+  const effectiveConfig = modelOverride ? { ...config, model: modelOverride } : config;
+
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "anthropic/claude-3-haiku-20240307",
-        max_tokens: 400,
-        temperature: 0.3,
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" }
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("[suggest5W2H] API Error:", response.status);
-      return { error: "Falha na comunicação com o serviço de IA." };
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    if (!content) return { error: "A IA não retornou uma sugestão válida." };
+    const content = await callLlm(
+      [{ role: "user", content: prompt }],
+      effectiveConfig,
+      { maxTokens: 400, temperature: 0.3, jsonMode: true },
+    );
 
     const parsed = JSON.parse(content);
     return {
-      why: await sanitizeText(parsed.why || ""),
-      how: await sanitizeText(parsed.how || ""),
+      why: sanitizeText(parsed.why || ""),
+      how: sanitizeText(parsed.how || ""),
     };
   } catch (error) {
     console.error("[suggest5W2H] Error:", error);
