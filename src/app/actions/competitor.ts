@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
-import { sanitizeText, mapPgError } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
+import { mapPgError } from "@/app/actions/_catalog-utils";
 import {
   instituicaoSchema,
   cursoInstituicaoSchema,

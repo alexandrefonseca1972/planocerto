@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkPermission } from "@/app/actions/admin";
 import { getCurrentTenant } from "@/app/actions/tenant";
 import { PERMISSIONS } from "@/lib/permissions";
-import { sanitizeText } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 import { isValidUuid } from "@/lib/validations/uuid";
 import {

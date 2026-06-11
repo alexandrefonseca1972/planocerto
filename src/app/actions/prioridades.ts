@@ -2,7 +2,7 @@
 
 import { prioridadeSchema } from "@/lib/schemas/catalog-schemas";
 import { createCatalogCrud } from "@/app/actions/_catalog-crud-factory";
-import { sanitizeText } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
 import type { PrioridadeRow } from "@/types/catalog";
 
 async function parsePayload(formData: FormData): Promise<Record<string, unknown>> {

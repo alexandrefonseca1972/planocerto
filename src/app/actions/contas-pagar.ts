@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSupabaseError } from "@/lib/errors";
 import { checkPermission } from "@/app/actions/admin";
-import { mapPgError, sanitizeText } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
+import { mapPgError } from "@/app/actions/_catalog-utils";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import {
   contaPagarSchema,

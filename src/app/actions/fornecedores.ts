@@ -2,11 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import {
-  sanitizeText,
-  mapPgError,
-  requireAdmin,
-} from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
+import { mapPgError, requireAdmin } from "@/app/actions/_catalog-utils";
 import { fornecedorSchema } from "@/lib/schemas/catalog-schemas";
 import { isValidCNPJ, stripFormat } from "@/lib/format-br";
 import { getCurrentTenantId } from "@/app/actions/_helpers";

@@ -2,11 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import {
-  sanitizeText,
-  mapPgError,
-  requireAdmin,
-} from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
+import { mapPgError, requireAdmin } from "@/app/actions/_catalog-utils";
 import { categoriaDespesaSchema } from "@/lib/schemas/financeiro-schemas";
 import type { CategoriaDespesa, FinanceFormState } from "@/types/financeiro";
 

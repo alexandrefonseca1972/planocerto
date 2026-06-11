@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSupabaseError } from "@/lib/errors";
 import { isValidUuid } from "@/lib/validations/uuid";
-import { sanitizeText } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
 import { planSchema, itemSchema } from "@/lib/schemas/action-plan-schemas";
 import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState, ActionItemStatus } from "@/types/action-plan";
 import { notifyPlanAction } from "@/lib/teams";

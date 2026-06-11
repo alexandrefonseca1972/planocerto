@@ -2,15 +2,6 @@
 
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
-import { sanitizeText as sanitizeStrict } from "@/lib/validation/sanitize";
-
-/**
- * Sanitiza texto para inputs de catálogo: remove HTML (DOMPurify, sem tags) e
- * caracteres de controle, normaliza espaços, trim e aplica limite de tamanho.
- */
-export async function sanitizeText(value: unknown, maxLen = 200): Promise<string> {
-  return sanitizeStrict(value).slice(0, maxLen);
-}
 
 /**
  * Converte erros do Postgres em mensagens amigáveis no contexto do catálogo.

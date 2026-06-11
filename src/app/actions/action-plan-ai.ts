@@ -1,7 +1,7 @@
 "use server";
 
 import { env } from "@/lib/env";
-import { sanitizeText } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
 
 import { createClient } from "@/lib/supabase/server";
 

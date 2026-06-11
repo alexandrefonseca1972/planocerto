@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { logSupabaseError } from "@/lib/errors";
 import { isValidUuid } from "@/lib/validations/uuid";
-import { sanitizeText } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
 import type { School, SchoolFormState } from "@/types/school";
 
 const schoolSchema = z.object({

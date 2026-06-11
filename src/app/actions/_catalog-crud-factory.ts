@@ -4,7 +4,8 @@
 // actions assíncronas resultantes com a diretiva "use server".
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { sanitizeText, mapPgError, requireAdmin } from "@/app/actions/_catalog-utils";
+import { sanitizeText } from "@/lib/validation/sanitize";
+import { mapPgError, requireAdmin } from "@/app/actions/_catalog-utils";
 import { logger } from "@/lib/logger";
 import type { CatalogFormState } from "@/types/catalog";
 import type { FinanceFormState } from "@/types/financeiro";

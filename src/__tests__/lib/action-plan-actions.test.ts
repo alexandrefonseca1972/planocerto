@@ -18,8 +18,9 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: createClientMock,
 }));
 
-vi.mock("@/app/actions/_catalog-utils", () => ({
-  sanitizeText: vi.fn(async (value: unknown) => String(value ?? "")),
+vi.mock("@/lib/validation/sanitize", () => ({
+  sanitizeText: vi.fn((value: unknown) => String(value ?? "")),
+  sanitizedString: vi.fn(),
 }));
 
 vi.mock("@/lib/errors", () => ({

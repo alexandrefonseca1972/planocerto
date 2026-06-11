@@ -17,16 +17,18 @@ const RAW_CONTENT_ELEMENTS =
  * reescapa na renderização, um strip puro-JS é suficiente como defesa em
  * profundidade — sem dependência de DOM em cliente ou servidor.
  */
-export function sanitizeText(input: unknown): string {
+export function sanitizeText(input: unknown, maxLen?: number): string {
   if (typeof input !== "string") return "";
 
-  return input
+  const result = input
     .replace(RAW_CONTENT_ELEMENTS, "")
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<\/?[a-zA-Z][^>]*>/g, "")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  return maxLen !== undefined ? result.slice(0, maxLen) : result;
 }
 
 /**
@@ -45,7 +47,7 @@ export function sanitizedString(
   let inner = z.string();
   if (opts.min != null) inner = inner.min(opts.min, opts.minMsg);
   if (opts.max != null) inner = inner.max(opts.max, opts.maxMsg);
-  return z.string().transform(sanitizeText).pipe(inner);
+  return z.string().transform((v) => sanitizeText(v)).pipe(inner);
 }
 
 export function normalizeName(name: string): string {

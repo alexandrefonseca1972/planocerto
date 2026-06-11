@@ -5,8 +5,9 @@ const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: createClientMock }));
 vi.mock("@/lib/errors", () => ({ logSupabaseError: vi.fn() }));
-vi.mock("@/app/actions/_catalog-utils", () => ({
-  sanitizeText: vi.fn(async (v: unknown) => String(v ?? "")),
+vi.mock("@/lib/validation/sanitize", () => ({
+  sanitizeText: vi.fn((v: unknown) => String(v ?? "")),
+  sanitizedString: vi.fn(),
 }));
 
 import { assignSchoolsToUnit } from "@/app/actions/schools";

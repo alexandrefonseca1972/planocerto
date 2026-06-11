@@ -6,8 +6,9 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
-vi.mock("@/app/actions/_catalog-utils", () => ({
-  sanitizeText: vi.fn(async (v) => String(v)),
+vi.mock("@/lib/validation/sanitize", () => ({
+  sanitizeText: vi.fn((v: unknown) => String(v ?? "")),
+  sanitizedString: vi.fn(),
 }));
 
 describe("suggest5W2H with Regional Context", () => {
