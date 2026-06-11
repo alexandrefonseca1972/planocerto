@@ -517,21 +517,14 @@ export async function updateUser(
           .in("tenant_id", toRemove);
       }
 
-      for (const tenantId of toKeep) {
-        await adminClient.from("tenant_members")
-          .update({ role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)) })
-          .eq("user_id", userId)
-          .eq("tenant_id", tenantId);
-      }
-
-      if (toAdd.length > 0) {
-        await adminClient.from("tenant_members").insert(
-          toAdd.map((tenantId) => ({
-            user_id: userId,
-            tenant_id: tenantId,
-            role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
-          }))
-        );
+      // toKeep (atualizar papel) + toAdd (inserir) resolvidos em um único upsert.
+      const toUpsert = [...toKeep, ...toAdd].map((tenantId) => ({
+        user_id: userId,
+        tenant_id: tenantId,
+        role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
+      }));
+      if (toUpsert.length > 0) {
+        await adminClient.from("tenant_members").upsert(toUpsert, { onConflict: "user_id,tenant_id" });
       }
     }
 

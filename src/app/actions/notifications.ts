@@ -1,11 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
 import { getCurrentTenantId } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
+
+const createNotificationSchema = z.object({
+  title: z.string().min(1, "Título obrigatório.").max(200),
+  message: z.string().max(2000).default(""),
+  type: z.enum(["info", "warning", "error", "success"]).default("info"),
+  target_type: z.enum(["all", "user", "tenant"]).default("all"),
+  target_id: z.string().uuid("ID de destino inválido.").nullable().optional(),
+  is_fixed: z.boolean().default(false),
+  expires_at: z.string().datetime({ message: "Data de expiração inválida." }).nullable().optional(),
+});
 
 export interface NotificationItem {
   id: string;
@@ -102,25 +113,39 @@ export async function createNotification(
     const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_CREATE);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
-    const title = sanitizeText(formData.get("title")).slice(0, 200);
-    const message = sanitizeText(formData.get("message")).slice(0, 2000);
-    const type = formData.get("type") as string || "info";
-    const targetType = formData.get("target_type") as string || "all";
-    const targetId = formData.get("target_id") as string || null;
-    const isFixed = formData.get("is_fixed") === "true";
-    const expiresAt = formData.get("expires_at") as string || null;
+    const raw = {
+      title: sanitizeText(formData.get("title")),
+      message: sanitizeText(formData.get("message")),
+      type: formData.get("type") || "info",
+      target_type: formData.get("target_type") || "all",
+      target_id: formData.get("target_id") || null,
+      is_fixed: formData.get("is_fixed") === "true",
+      expires_at: formData.get("expires_at") || null,
+    };
 
-    if (!title) return { message: "Título obrigatório." };
+    const validated = createNotificationSchema.safeParse(raw);
+    if (!validated.success) {
+      const fieldErrors = validated.error.flatten().fieldErrors;
+      const first = Object.values(fieldErrors).flat()[0];
+      return { message: first ?? "Verifique os campos e tente novamente.", errors: fieldErrors };
+    }
+
+    const { title, message, type, target_type, target_id, is_fixed, expires_at } = validated.data;
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    await supabase.from("notifications").insert({
+    const { error } = await supabase.from("notifications").insert({
       title, message, type,
-      target_type: targetType, target_id: targetId || null,
-      is_fixed: isFixed, expires_at: expiresAt || null,
+      target_type, target_id: target_id ?? null,
+      is_fixed, expires_at: expires_at ?? null,
       created_by: user?.id,
     });
+
+    if (error) {
+      console.error("[createNotification] Erro ao inserir:", error.message);
+      return { message: "Erro ao criar notificação. Tente novamente." };
+    }
 
     revalidatePath("/admin/notifications");
     return { success: true, message: "Notificação criada!" };

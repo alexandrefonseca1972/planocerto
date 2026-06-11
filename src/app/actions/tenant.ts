@@ -456,20 +456,14 @@ export async function setUserTenants(
     const toRemove = [...existingIds].filter((id) => !newIds.has(id));
     const toAdd = [...newIds].filter((id) => !existingIds.has(id));
 
-    for (const tenantId of toRemove) {
-      await adminClient
-        .from("tenant_members")
-        .delete()
-        .eq("user_id", userId)
-        .eq("tenant_id", tenantId);
+    if (toRemove.length > 0) {
+      await adminClient.from("tenant_members").delete().eq("user_id", userId).in("tenant_id", toRemove);
     }
 
-    for (const tenantId of toAdd) {
-      await adminClient.from("tenant_members").insert({
-        user_id: userId,
-        tenant_id: tenantId,
-        role: "member",
-      });
+    if (toAdd.length > 0) {
+      await adminClient.from("tenant_members").insert(
+        toAdd.map((tenantId) => ({ user_id: userId, tenant_id: tenantId, role: "member" as const }))
+      );
     }
 
     revalidatePath("/admin/users");

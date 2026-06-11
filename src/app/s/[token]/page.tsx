@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Clock, AlertTriangle, Play, Circle } from "lucide-react";
@@ -38,21 +38,24 @@ export default async function PublicDashboard({ params }: Params) {
 
   try {
     if (error) throw null;
-    const supabase = await createClient();
+    // Admin client: esta é uma rota pública server-side — o service role key
+    // nunca chega ao browser. A policy "Anyone can read by token" foi removida
+    // (057_public_links_rls_fix.sql); a validação do token é feita em código.
+    const db = createAdminClient();
 
     // Validate the token
-    const { data: link } = await supabase.from("public_links").select("plan_id, expires_at").eq("token", token).maybeSingle();
+    const { data: link } = await db.from("public_links").select("plan_id, expires_at").eq("token", token).maybeSingle();
     if (!link) { error = "Link inválido ou não encontrado."; throw null; }
     if (link.expires_at && new Date(link.expires_at) < new Date()) { error = "Este link expirou."; throw null; }
 
     // Get plan
-    const { data: plan } = await supabase.from("action_plans").select("title").eq("id", link.plan_id).single();
+    const { data: plan } = await db.from("action_plans").select("title").eq("id", link.plan_id).single();
     if (!plan) { error = "Plano não encontrado."; throw null; }
     planTitle = plan.title;
 
     // Get items
     const today = new Date().toISOString().split("T")[0];
-    const { data: allItems } = await supabase.from("action_items").select("id,number,action,responsible,status,planned_end").eq("plan_id", link.plan_id).order("sort_order");
+    const { data: allItems } = await db.from("action_items").select("id,number,action,responsible,status,planned_end").eq("plan_id", link.plan_id).order("sort_order");
 
     for (const item of allItems || []) {
       items.push(item);
