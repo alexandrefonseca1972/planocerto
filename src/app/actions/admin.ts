@@ -1085,7 +1085,8 @@ export async function getAllAreas(): Promise<AreaOption[]> {
       .from("areas")
       .select("id, name, tenant_id, active")
       .eq("active", true)
-      .order("name");
+      .order("name")
+      .limit(500);
     return (data || []).map((a) => ({
       id: a.id,
       name: a.name,
@@ -1103,7 +1104,8 @@ export async function getAllUnits(): Promise<UnitOption[]> {
       .from("units")
       .select("id, name, uf, area_id, tenant_id, active")
       .eq("active", true)
-      .order("name");
+      .order("name")
+      .limit(500);
     return (data || []).map((u) => ({
       id: u.id,
       name: u.name,

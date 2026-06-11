@@ -168,6 +168,7 @@ export interface FinanceFormState {
   errors?: Record<string, string[]>;
   success?: boolean;
   contaId?: string;
+  failedIds?: string[];
 }
 
 export interface ContaListFilters {

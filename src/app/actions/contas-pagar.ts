@@ -817,7 +817,7 @@ export async function pagarParcelasEmLote(
     // Busca parcelas pendentes do conjunto solicitado para preencher valor_pago = valor.
     const { data: parcelas } = await supabase
       .from("parcelas_pagar")
-      .select("id, conta_id, valor")
+      .select("id, conta_id, valor, numero")
       .in("id", parcelaIds)
       .eq("status", "pendente");
 
@@ -827,7 +827,7 @@ export async function pagarParcelasEmLote(
 
     // Atualiza uma a uma — Supabase não suporta UPDATE de múltiplos valores
     // diferentes (valor_pago varia por linha) numa única chamada sem RPC.
-    let okCount = 0;
+    const failedIds: string[] = [];
     for (const p of parcelas) {
       const { error } = await supabase
         .from("parcelas_pagar")
@@ -838,20 +838,27 @@ export async function pagarParcelasEmLote(
           forma_pagamento: forma,
         })
         .eq("id", p.id);
-      if (!error) okCount += 1;
+      if (error) failedIds.push(p.id);
     }
 
+    const okCount = parcelas.length - failedIds.length;
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/contas-a-pagar");
     const contaId = parcelas[0]?.conta_id;
     if (contaId) revalidatePath(`/financeiro/contas-a-pagar/${contaId}`);
 
+    if (failedIds.length === 0) {
+      return { success: true, message: `${okCount} parcela(s) marcadas como pagas.` };
+    }
+
+    const failedNums = parcelas
+      .filter((p) => failedIds.includes(p.id))
+      .map((p) => `#${p.numero}`)
+      .join(", ");
     return {
       success: okCount > 0,
-      message:
-        okCount === parcelas.length
-          ? `${okCount} parcela(s) marcadas como pagas.`
-          : `${okCount} de ${parcelas.length} parcelas pagas. Algumas falharam.`,
+      message: `${okCount} de ${parcelas.length} parcelas pagas. Falha nas parcelas: ${failedNums}.`,
+      failedIds,
     };
   } catch (error) {
     console.error("[pagarParcelasEmLote] Error:", error);

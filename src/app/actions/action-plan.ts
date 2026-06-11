@@ -129,7 +129,7 @@ export async function getItemAuditLog(itemId: string): Promise<AuditEntry[]> {
 export async function getPlans(tenantId: string): Promise<ActionPlan[]> {
   try {
     const supabase = await createClient();
-    const { data } = await supabase.from("action_plans").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false });
+    const { data } = await supabase.from("action_plans").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(200);
     return (data || []) as ActionPlan[];
   } catch (error) { console.error("[getPlans] Error:", error); return []; }
 }
@@ -137,7 +137,7 @@ export async function getPlans(tenantId: string): Promise<ActionPlan[]> {
 export async function getItems(planId: string): Promise<ActionItem[]> {
   try {
     const supabase = await createClient();
-    const { data } = await supabase.from("action_items").select("*").eq("plan_id", planId).order("sort_order");
+    const { data } = await supabase.from("action_items").select("*").eq("plan_id", planId).order("sort_order").limit(2000);
     const items = (data || []) as ActionItem[];
     const map = new Map<string, ActionItem>();
     const roots: ActionItem[] = [];
@@ -509,7 +509,7 @@ export async function clonePlanWithDateShift(planId: string, newStartDate: strin
     const { data: sourcePlan } = await supabase.from("action_plans").select("*").eq("id", planId).single();
     if (!sourcePlan) return { message: "Plano original não encontrado." };
 
-    const { data: sourceItems } = await supabase.from("action_items").select("*").eq("plan_id", planId).order("sort_order");
+    const { data: sourceItems } = await supabase.from("action_items").select("*").eq("plan_id", planId).order("sort_order").limit(2000);
     if (!sourceItems) return { message: "Erro ao buscar itens do plano original." };
 
     // 1. Criar novo cabeçalho
@@ -673,7 +673,8 @@ export async function recalculateAndGetItems(planId: string): Promise<ActionItem
       .from("action_items")
       .select("*")
       .eq("plan_id", planId)
-      .order("sort_order");
+      .order("sort_order")
+      .limit(2000);
 
     if (!items || items.length === 0) return [];
 
