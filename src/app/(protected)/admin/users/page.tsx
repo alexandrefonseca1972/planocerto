@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { UsersTable } from "@/app/(protected)/admin/users/users-table";
 import { getRequesterScope, manageableUserIds } from "@/app/actions/_helpers";
 import type { RoleRow } from "@/app/actions/admin";
+import { getAllTenants } from "@/app/actions/tenant";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { Profile } from "@/types/auth";
@@ -115,7 +116,10 @@ export default async function AdminUsersPage({
   const role = (params.role || "").slice(0, 50);
   const status: "all" | "active" | "inactive" =
     params.status === "active" || params.status === "inactive" ? params.status : "all";
-  const result = await fetchUsers(page, search, status, role);
+  const [result, initialTenants] = await Promise.all([
+    fetchUsers(page, search, status, role),
+    getAllTenants(),
+  ]);
 
   if (!result.success) {
     return (
@@ -143,6 +147,7 @@ export default async function AdminUsersPage({
       isSuperAdmin={result.isSuperAdmin}
       initialStatus={status}
       initialRole={role}
+      initialTenants={initialTenants}
     />
   );
 }

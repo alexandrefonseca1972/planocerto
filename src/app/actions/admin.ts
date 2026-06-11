@@ -271,6 +271,14 @@ export async function createUser(
     // Admin só associa o novo usuário às empresas das quais ele é membro.
     const scopedTenantIds = scopeTenantIds(tenantIds, scope);
 
+    // Admin que pertence a pelo menos uma empresa deve sempre associar o novo
+    // usuário a ao menos uma delas — caso contrário o usuário nasce órfão.
+    if (!scope.isSuperAdmin && scope.tenantIds.length > 0 && scopedTenantIds.length === 0) {
+      return {
+        message: "Selecione ao menos uma empresa para associar ao novo usuário.",
+      };
+    }
+
     const generatedPassword = validated.data.password || generateSecurePassword();
     const isGenerated = !validated.data.password;
 
@@ -304,7 +312,8 @@ export async function createUser(
 
       if (profileError) {
         console.error("[createUser] Erro ao atualizar perfil:", profileError.message);
-        await adminClient.auth.admin.deleteUser(data.user.id);
+        const { error: delErr } = await adminClient.auth.admin.deleteUser(data.user.id);
+        if (delErr) console.error("[createUser] Falha ao remover auth user no rollback:", delErr.message);
         return { message: "Erro ao configurar perfil. O usuário foi removido. Tente novamente." };
       }
 
@@ -316,7 +325,12 @@ export async function createUser(
             role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
           }))
         );
-        if (membErr) console.error("[createUser] Erro ao associar empresas:", membErr.message);
+        if (membErr) {
+          console.error("[createUser] Erro ao associar empresas:", membErr.message);
+          const { error: delErr } = await adminClient.auth.admin.deleteUser(data.user.id);
+          if (delErr) console.error("[createUser] Falha ao remover auth user no rollback:", delErr.message);
+          return { message: "Erro ao associar empresas ao usuário. O cadastro foi cancelado. Tente novamente." };
+        }
       }
 
       const UUID_RE_INNER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -24,7 +24,7 @@ import type {
   UnitOption,
   AuditLogEntry,
 } from "@/app/actions/admin";
-import { getAllTenants, getBulkUserTenantIds, getUserTenantMemberships } from "@/app/actions/tenant";
+import { getBulkUserTenantIds, getUserTenantMemberships } from "@/app/actions/tenant";
 import type { TenantMembership } from "@/app/actions/tenant";
 import { getPermissionsMap, PERMISSION_GROUPS, PERMISSION_LABELS, buildCustomRolesMap } from "@/lib/permissions";
 import type { RoleRow } from "@/app/actions/admin";
@@ -175,6 +175,7 @@ export function UsersTable({
   initialStatus = "all",
   initialRole = "",
   isSuperAdmin = false,
+  initialTenants = [],
 }: {
   users: Profile[];
   total: number;
@@ -185,6 +186,7 @@ export function UsersTable({
   initialStatus?: "all" | "active" | "inactive";
   initialRole?: string;
   isSuperAdmin?: boolean;
+  initialTenants?: Tenant[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -201,7 +203,7 @@ export function UsersTable({
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(initialStatus);
   const [sortKey, setSortKey] = useState<keyof Profile>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
+  const [allTenants, setAllTenants] = useState<Tenant[]>(initialTenants);
   const [allAreas, setAllAreas] = useState<AreaOption[]>([]);
   const [allUnits, setAllUnits] = useState<UnitOption[]>([]);
   const [editingUserTenantIds, setEditingUserTenantIds] = useState<string[]>([]);
@@ -268,8 +270,8 @@ export function UsersTable({
   }, [updateState]);
 
   useEffect(() => {
-    Promise.all([getAllTenants(), getAllAreas(), getAllUnits()])
-      .then(([t, a, u]) => { setAllTenants(t); setAllAreas(a); setAllUnits(u); })
+    Promise.all([getAllAreas(), getAllUnits()])
+      .then(([a, u]) => { setAllAreas(a); setAllUnits(u); })
       .catch(() => { /* dados de apoio indisponíveis — dialogs ficarão com listas vazias */ });
   }, []);
 
@@ -1398,9 +1400,6 @@ function EditUserDialog({
 
         <form action={action} className="flex flex-1 min-h-0 flex-col">
           <input type="hidden" name="userId" value={user.id} />
-          <input type="hidden" name="tenantsTouched" value="1" />
-          <input type="hidden" name="areasTouched" value="1" />
-          <input type="hidden" name="unitsTouched" value="1" />
 
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
 
@@ -1479,6 +1478,7 @@ function EditUserDialog({
 
           {tenants.length > 0 && (
             <div className="space-y-2">
+              <input type="hidden" name="tenantsTouched" value="1" />
               <Label className="flex items-center gap-1.5">
                 <Building2 className="h-3.5 w-3.5" />
                 Empresas
@@ -1507,6 +1507,7 @@ function EditUserDialog({
             selectedIds={selectedAreaIds}
             emptyMessage="Nenhuma área disponível."
             helperText="Restringe o acesso. Vazio = todas."
+            touchedFieldName="areasTouched"
           />
 
           <ScopePicker
@@ -1521,6 +1522,7 @@ function EditUserDialog({
             selectedIds={selectedUnitIds}
             emptyMessage="Nenhuma unidade disponível."
             helperText="Restringe o acesso. Vazio = todas."
+            touchedFieldName="unitsTouched"
           />
 
           <div className="space-y-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
@@ -1608,6 +1610,7 @@ function ScopePicker({
   selectedIds,
   emptyMessage,
   helperText,
+  touchedFieldName,
 }: {
   id: string;
   label: string;
@@ -1617,6 +1620,7 @@ function ScopePicker({
   selectedIds: string[];
   emptyMessage: string;
   helperText?: string;
+  touchedFieldName?: string;
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(
@@ -1671,6 +1675,7 @@ function ScopePicker({
         </p>
       ) : (
         <>
+          {touchedFieldName && <input type="hidden" name={touchedFieldName} value="1" />}
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-zinc-400" />
             <Input
