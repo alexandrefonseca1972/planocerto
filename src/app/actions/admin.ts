@@ -305,9 +305,13 @@ export async function createUser(
     // Admin só associa o novo usuário às empresas das quais ele é membro.
     const scopedTenantIds = scopeTenantIds(tenantIds, scope);
 
-    // Admin que pertence a pelo menos uma empresa deve sempre associar o novo
-    // usuário a ao menos uma delas — caso contrário o usuário nasce órfão.
-    if (!scope.isSuperAdmin && scope.tenantIds.length > 0 && scopedTenantIds.length === 0) {
+    // Todo usuário precisa pertencer a pelo menos uma empresa para ter acesso —
+    // a única exceção é super_admin, que enxerga todas (is_admin() na RLS).
+    // Sem empresa o usuário "nasce órfão" e cai na tela de aprovação pendente.
+    // A regra depende do papel do NOVO usuário, não de quem cria: antes o
+    // super_admin era isento e, como suas checkboxes de empresa vêm desmarcadas
+    // (ele vê todas), conseguia criar usuários comuns sem vínculo por engano.
+    if (validated.data.role !== "super_admin" && scopedTenantIds.length === 0) {
       return {
         message: "Selecione ao menos uma empresa para associar ao novo usuário.",
       };
@@ -543,6 +547,18 @@ export async function updateUser(
       const toRemove = existingInScope.filter((id) => !newIds.has(id));
       const toAdd = [...newIds].filter((id) => !existingIds.has(id));
       const toKeep = existingInScope.filter((id) => newIds.has(id));
+
+      // Não deixar o usuário órfão (mesma regra de createUser): se a
+      // reconciliação zerar TODAS as empresas — incluindo vínculos fora do
+      // escopo do admin, que são preservados — e o papel não for super_admin,
+      // bloquear. Sem nenhuma empresa o usuário cairia na tela de pendência.
+      const remainingTenants =
+        existingIds.size - existingInScope.length + newIds.size;
+      if (validated.data.role !== "super_admin" && remainingTenants === 0) {
+        return {
+          message: "O usuário precisa permanecer associado a ao menos uma empresa.",
+        };
+      }
 
       // toKeep (atualizar papel) + toAdd (inserir) resolvidos em um único upsert.
       const toUpsert = [...toKeep, ...toAdd].map((tenantId) => ({

@@ -235,9 +235,11 @@ export function CreateUserDialog({
                   ))}
                 </div>
                 <p className="text-[11px] text-zinc-400">
-                  {tenants.length === 1
+                  {selectedRole === "super_admin"
+                    ? "Super admins enxergam todas as empresas — associar é opcional."
+                    : tenants.length === 1
                     ? "Empresa já marcada. Ajuste o papel do usuário se necessário."
-                    : "Marque as empresas às quais o usuário terá acesso e o papel em cada uma."}
+                    : "Selecione ao menos uma empresa (obrigatório) e o papel do usuário em cada uma."}
                 </p>
               </div>
             )}
