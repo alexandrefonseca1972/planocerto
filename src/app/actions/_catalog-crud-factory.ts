@@ -6,6 +6,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { mapPgError, requireAdmin } from "@/app/actions/_catalog-utils";
+import { getCurrentTenantId } from "@/app/actions/_helpers";
 import { logger } from "@/lib/logger";
 import type { CatalogFormState } from "@/types/catalog";
 import type { FinanceFormState } from "@/types/financeiro";
@@ -33,6 +34,8 @@ export interface CatalogCrudConfig {
   beforeUpdate?: (data: Record<string, unknown>, id: string) => Promise<Record<string, unknown>>;
   insertFn?: (supabase: Awaited<ReturnType<typeof createClient>>, data: Record<string, unknown>) => Promise<{ error: unknown }>;
   stateType?: "catalog" | "finance";
+  /** Escopa update/delete/toggle pela empresa ativa (catálogos por tenant). */
+  tenantScoped?: boolean;
 }
 
 interface CrudResult<T> {
@@ -61,7 +64,16 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
     beforeInsert,
     beforeUpdate,
     insertFn,
+    tenantScoped = false,
   } = config;
+
+  /** Retorna o tenant ativo quando o catálogo é escopado; erro se ausente. */
+  async function requireScopeTenant(): Promise<{ tenantId?: string; error?: string }> {
+    if (!tenantScoped) return {};
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return { error: "Nenhuma empresa ativa." };
+    return { tenantId };
+  }
 
   const g = genderArticles[gender];
 
@@ -127,7 +139,11 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
       if (id) {
         let updateData: Record<string, unknown> = { ...data, updated_at: new Date().toISOString() };
         if (beforeUpdate) updateData = await beforeUpdate(updateData, id);
-        const { error } = await db(supabase, table).update(updateData).eq("id", id);
+        const scope = await requireScopeTenant();
+        if (scope.error) return { message: scope.error };
+        let q = db(supabase, table).update(updateData).eq("id", id);
+        if (scope.tenantId) q = q.eq("tenant_id", scope.tenantId);
+        const { error } = await q;
         if (error) return { message: await mapPgError(error, label) };
       } else {
         let insertData: Record<string, unknown> = { ...data };
@@ -163,7 +179,11 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
       if (!id) return { message: "ID obrigatório." };
 
       const supabase = await createClient();
-      const { error } = await db(supabase, table).delete().eq("id", id);
+      const scope = await requireScopeTenant();
+      if (scope.error) return { message: scope.error };
+      let q = db(supabase, table).delete().eq("id", id);
+      if (scope.tenantId) q = q.eq("tenant_id", scope.tenantId);
+      const { error } = await q;
       if (error) return { message: await mapPgError(error, label) };
 
       for (const p of revalidatePaths) revalidatePath(p);
@@ -185,9 +205,13 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
       if (guard) return { message: guard };
 
       const supabase = await createClient();
-      const { error } = await db(supabase, table)
+      const scope = await requireScopeTenant();
+      if (scope.error) return { message: scope.error };
+      let q = db(supabase, table)
         .update({ active, updated_at: new Date().toISOString() })
         .eq("id", id);
+      if (scope.tenantId) q = q.eq("tenant_id", scope.tenantId);
+      const { error } = await q;
       if (error) return { message: await mapPgError(error, label) };
 
       for (const p of revalidatePaths) revalidatePath(p);

@@ -13,7 +13,7 @@ import {
   sanitizePermissions,
 } from "@/lib/validations/admin";
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
-import { getRequesterScope, manageableUserIds, type RequesterScope } from "@/app/actions/_helpers";
+import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, type RequesterScope } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { isValidUuid } from "@/lib/validations/uuid";
 import { generateSecurePassword } from "@/lib/security/password";
@@ -47,6 +47,26 @@ function mapError(message: string): string {
   if (message.includes("not found")) return "Usuário não encontrado.";
   if (message.includes("permission")) return "Permissão insuficiente.";
   return "Erro ao processar a solicitação. Tente novamente.";
+}
+
+/**
+ * Gera um link de definição de senha (recovery) e envia por e-mail. Reutilizado
+ * pelo e-mail de boas-vindas (createUser) e pelo reset de senha (resetUserPassword).
+ */
+async function sendRecoveryEmail(
+  adminClient: ReturnType<typeof createAdminClient>,
+  email: string,
+  kind: "welcome" | "recovery",
+): Promise<"sent" | "no_link" | "send_failed"> {
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
+  });
+  if (error || !data.properties?.action_link) return "no_link";
+  const ec = buildAuthEmail(kind, data.properties.action_link, email);
+  const ok = await sendEmail(email, ec.subject, ec.html);
+  return ok ? "sent" : "send_failed";
 }
 
 async function auditLog(
@@ -351,20 +371,13 @@ export async function createUser(
     let welcomeNote = "";
     if (sendWelcome) {
       try {
-        const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-          type: "recovery",
-          email: validated.data.email,
-          options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
-        });
-        if (!linkErr && linkData.properties?.action_link) {
-          const ec = buildAuthEmail("welcome", linkData.properties.action_link, validated.data.email);
-          const ok = await sendEmail(validated.data.email, ec.subject, ec.html);
-          welcomeNote = ok
+        const r = await sendRecoveryEmail(adminClient, validated.data.email, "welcome");
+        welcomeNote =
+          r === "sent"
             ? " E-mail de acesso enviado ao usuário."
+            : r === "no_link"
+            ? " (não foi possível gerar o link de acesso — repasse a senha manualmente.)"
             : " (não foi possível enviar o e-mail de acesso — repasse a senha manualmente.)";
-        } else {
-          welcomeNote = " (não foi possível gerar o link de acesso — repasse a senha manualmente.)";
-        }
       } catch (e) {
         console.error("[createUser] Falha ao enviar e-mail de boas-vindas:", e);
         welcomeNote = " (não foi possível enviar o e-mail de acesso — repasse a senha manualmente.)";
@@ -550,16 +563,8 @@ export async function updateUser(
         }
       }
       if (losingOwner.length > 0) {
-        const { data: owners } = await adminClient
-          .from("tenant_members")
-          .select("tenant_id")
-          .in("tenant_id", losingOwner)
-          .eq("role", "owner");
-        const ownerCount = new Map<string, number>();
-        for (const o of owners || []) {
-          ownerCount.set(o.tenant_id, (ownerCount.get(o.tenant_id) || 0) + 1);
-        }
-        if (losingOwner.some((tid) => (ownerCount.get(tid) || 0) <= 1)) {
+        const blocked = await tenantsWithSingleOwner(losingOwner);
+        if (blocked.length > 0) {
           return {
             message: "Não é possível remover ou rebaixar o último proprietário de uma empresa. Defina outro proprietário antes.",
           };
@@ -905,22 +910,9 @@ export async function resetUserPassword(
       };
     }
 
-    const { data, error } = await adminClient.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
-    });
-
-    if (error || !data.properties?.action_link) {
-      return { message: mapError(error?.message ?? "Falha ao gerar link de redefinição.") };
-    }
-
-    const emailContent = buildAuthEmail("recovery", data.properties.action_link, email);
-    const sent = await sendEmail(email, emailContent.subject, emailContent.html);
-
-    if (!sent) {
-      return { message: "Erro ao enviar email de redefinição. Tente novamente." };
-    }
+    const r = await sendRecoveryEmail(adminClient, email, "recovery");
+    if (r === "no_link") return { message: mapError("Falha ao gerar link de redefinição.") };
+    if (r === "send_failed") return { message: "Erro ao enviar email de redefinição. Tente novamente." };
 
     await auditLog(adminCheck.currentUserId!, userId, "reset_password_email", {});
     return { success: true, message: "Email de redefinição de senha enviado ao usuário." };

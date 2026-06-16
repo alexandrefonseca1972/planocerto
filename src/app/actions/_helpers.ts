@@ -67,6 +67,33 @@ export async function manageableUserIds(tenantIds: string[]): Promise<Set<string
 }
 
 /**
+ * Dentre os tenantIds informados, retorna aqueles que têm no máximo 1
+ * proprietário (owner). Usado para impedir a remoção/rebaixamento do último
+ * owner de uma empresa. Em caso de erro, é conservador e retorna todos
+ * (bloqueia a operação).
+ */
+export async function tenantsWithSingleOwner(tenantIds: string[]): Promise<string[]> {
+  if (tenantIds.length === 0) return [];
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from("tenant_members")
+      .select("tenant_id")
+      .in("tenant_id", tenantIds)
+      .eq("role", "owner");
+    const count = new Map<string, number>();
+    for (const o of data ?? []) {
+      const tid = o.tenant_id as string;
+      count.set(tid, (count.get(tid) ?? 0) + 1);
+    }
+    return tenantIds.filter((t) => (count.get(t) ?? 0) <= 1);
+  } catch (error) {
+    log.error({ error }, "Erro ao contar owners");
+    return tenantIds;
+  }
+}
+
+/**
  * Obtém o ID do tenant ativo do usuário autenticado.
  * Quando `active_tenant_id` não está definido no profile, cai no primeiro
  * tenant visível ao usuário (mesma lógica do layout/getCurrentTenant), para

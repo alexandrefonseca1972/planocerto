@@ -351,6 +351,11 @@ export default async function DashboardPage() {
       ).length;
       const total = items.length;
 
+      // Itens que são "pai" (têm filhos) — pré-computado uma vez (evita O(n²)).
+      const parentIdsWithChildren = new Set(
+        items.filter((i) => i.parent_id).map((i) => i.parent_id as string),
+      );
+
       // Soma das métricas e breakdowns por Tipo PA / Macro Ação
       const tiposPaBreakdown: Record<string, SubTotals> = {};
       const macroAcoesBreakdown: Record<string, SubTotals> = {};
@@ -379,7 +384,7 @@ export default async function DashboardPage() {
             macroAcoesSet.add(parent.action);
             accBreakdown(macroAcoesBreakdown, parent.action, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
           }
-        } else if (items.some((child) => child.parent_id === it.id)) {
+        } else if (parentIdsWithChildren.has(it.id)) {
           macroAcoesSet.add(it.action);
           accBreakdown(macroAcoesBreakdown, it.action, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
         }
@@ -387,7 +392,7 @@ export default async function DashboardPage() {
         // Linha para a relação de ações (mesma bucketização dos cards/totais).
         const macroAcaoTag = it.parent_id
           ? parentItemsById.get(it.parent_id)?.action ?? null
-          : items.some((child) => child.parent_id === it.id)
+          : parentIdsWithChildren.has(it.id)
           ? it.action
           : null;
         actionRows.push({

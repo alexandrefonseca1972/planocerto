@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Check, Copy, Building2 } from "lucide-react";
 import { sanitize } from "@/lib/sanitize";
+import { generateSecurePassword } from "@/lib/security/password";
 import { cn } from "@/lib/utils";
 import type { AdminFormState, RoleRow } from "@/app/actions/admin";
 import type { Tenant } from "@/types/tenant";
@@ -65,33 +66,7 @@ export function CreateUserDialog({
   }, [passwordValue]);
 
   function handleGeneratePassword() {
-    const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const lower = "abcdefghijklmnopqrstuvwxyz";
-    const digits = "0123456789";
-    const special = "!@#$%&*";
-    const all = upper + lower + digits + special;
-
-    // Aleatoriedade criptográfica em todos os caracteres (sem Math.random).
-    const randInt = (max: number) =>
-      crypto.getRandomValues(new Uint32Array(1))[0] % max;
-    const pick = (set: string) => set[randInt(set.length)];
-
-    let password = pick(upper) + pick(lower) + pick(digits) + pick(special);
-
-    const array = new Uint32Array(12);
-    crypto.getRandomValues(array);
-    for (let i = 0; i < array.length; i++) {
-      password += all[array[i] % all.length];
-    }
-
-    const chars = password.split("");
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-
-    const generated = chars.join("");
-    setPasswordValue(generated);
+    setPasswordValue(generateSecurePassword());
     setShowPassword(true);
   }
 

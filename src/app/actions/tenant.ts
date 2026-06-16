@@ -7,7 +7,7 @@ import { isValidUrl } from "@/lib/sanitize";
 import { tenantFormSchema } from "@/lib/schemas/tenant-schemas";
 import { normalizeWebsite } from "@/lib/format-br";
 import { checkPermission } from "@/app/actions/admin";
-import { getRequesterScope } from "@/app/actions/_helpers";
+import { getRequesterScope, tenantsWithSingleOwner } from "@/app/actions/_helpers";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { TenantFormState } from "@/types/tenant";
 import type { Tenant, TenantMemberWithProfile } from "@/types/tenant";
@@ -302,11 +302,8 @@ export async function removeTenantMember(
 
     // Prevent removing the last owner
     const { data: target } = await adminClient.from("tenant_members").select("tenant_id,role").eq("id", memberId).maybeSingle();
-    if (target?.role === "owner") {
-      const { data: owners } = await adminClient.from("tenant_members").select("id").eq("tenant_id", target.tenant_id).eq("role", "owner");
-      if ((owners || []).length <= 1) {
-        return { message: "Não é possível remover o último proprietário da empresa." };
-      }
+    if (target?.role === "owner" && (await tenantsWithSingleOwner([target.tenant_id])).length > 0) {
+      return { message: "Não é possível remover o último proprietário da empresa." };
     }
 
     const { error } = await adminClient
@@ -345,11 +342,8 @@ export async function updateTenantMemberRole(
 
     // Prevent demoting the last owner
     const { data: target } = await adminClient.from("tenant_members").select("tenant_id,role").eq("id", memberId).maybeSingle();
-    if (target?.role === "owner" && role !== "owner") {
-      const { data: owners } = await adminClient.from("tenant_members").select("id").eq("tenant_id", target.tenant_id).eq("role", "owner");
-      if ((owners || []).length <= 1) {
-        return { message: "Não é possível remover o último proprietário da empresa." };
-      }
+    if (target?.role === "owner" && role !== "owner" && (await tenantsWithSingleOwner([target.tenant_id])).length > 0) {
+      return { message: "Não é possível remover o último proprietário da empresa." };
     }
 
     const { error } = await adminClient

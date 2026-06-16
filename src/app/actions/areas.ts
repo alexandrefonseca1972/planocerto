@@ -19,7 +19,10 @@ const crud = createCatalogCrud<Area>({
   gender: "f",
   revalidatePaths: ["/admin/catalogos/areas"],
   revalidateTags: [["catalog-areas", "max"]],
-  // Áreas são escopadas por empresa: toda nova área herda o tenant ativo.
+  // Áreas são escopadas por empresa: leitura/inserção herdam o tenant ativo e
+  // update/delete/toggle só afetam linhas do tenant ativo (impede edição
+  // cruzada por id).
+  tenantScoped: true,
   beforeInsert: async (data) => {
     const tenantId = await getCurrentTenantId();
     if (!tenantId) throw new Error("Nenhuma empresa ativa para vincular a área.");

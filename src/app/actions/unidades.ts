@@ -73,10 +73,13 @@ export async function upsertUnit(
     }
     const supabase = await createClient();
     if (id) {
+      const tenantId = await getCurrentTenantId();
+      if (!tenantId) return { message: "Nenhuma empresa ativa." };
       const { error } = await supabase
         .from("units")
         .update({ ...v.data, updated_at: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
       if (error) return { message: await mapPgError(error, "Unidade") };
     } else {
       const tenantId = await getCurrentTenantId();
@@ -135,8 +138,10 @@ export async function deleteUnit(
 
     const id = formData.get("id") as string;
     if (!id) return { message: "ID obrigatório." };
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return { message: "Nenhuma empresa ativa." };
     const supabase = await createClient();
-    const { error } = await supabase.from("units").delete().eq("id", id);
+    const { error } = await supabase.from("units").delete().eq("id", id).eq("tenant_id", tenantId);
     if (error) return { message: await mapPgError(error, "Unidade") };
     revalidatePath("/admin/catalogos/unidades");
     return { success: true, message: "Unidade excluída!" };
@@ -154,11 +159,14 @@ export async function updateUnitRegionalContext(
     const guard = await requireAdmin();
     if (guard) return { message: guard };
 
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return { message: "Nenhuma empresa ativa." };
     const supabase = await createClient();
     const { error } = await supabase
       .from("units")
       .update({ regional_context: context, updated_at: new Date().toISOString() })
-      .eq("id", unitId);
+      .eq("id", unitId)
+      .eq("tenant_id", tenantId);
 
     if (error) return { message: await mapPgError(error, "Unidade") };
 
@@ -178,11 +186,14 @@ export async function toggleUnitActive(
     const guard = await requireAdmin();
     if (guard) return { message: guard };
 
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return { message: "Nenhuma empresa ativa." };
     const supabase = await createClient();
     const { error } = await supabase
       .from("units")
       .update({ active, updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("tenant_id", tenantId);
     if (error) return { message: await mapPgError(error, "Unidade") };
     revalidatePath("/admin/catalogos/unidades");
     return {
