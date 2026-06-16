@@ -13,17 +13,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Check, Copy, Building2 } from "lucide-react";
 import { sanitize } from "@/lib/sanitize";
 import { cn } from "@/lib/utils";
 import type { AdminFormState, RoleRow } from "@/app/actions/admin";
 import type { Tenant } from "@/types/tenant";
-import { TENANT_ROLES, TenantRoleRow } from "./tenant-role-row";
+import { TenantRoleRow } from "./tenant-role-row";
 
-const TENANT_ROLE_VALUES = new Set(TENANT_ROLES.map((r) => r.value));
-
+// Default do papel de membership a partir do papel global escolhido.
 function toTenantRole(globalRole: string): string {
-  return TENANT_ROLE_VALUES.has(globalRole) ? globalRole : "user";
+  return globalRole === "admin" || globalRole === "manager" || globalRole === "super_admin"
+    ? "admin"
+    : "member";
 }
 
 export function CreateUserDialog({
@@ -69,11 +71,12 @@ export function CreateUserDialog({
     const special = "!@#$%&*";
     const all = upper + lower + digits + special;
 
-    let password = "";
-    password += upper[Math.floor(Math.random() * upper.length)];
-    password += lower[Math.floor(Math.random() * lower.length)];
-    password += digits[Math.floor(Math.random() * digits.length)];
-    password += special[Math.floor(Math.random() * special.length)];
+    // Aleatoriedade criptográfica em todos os caracteres (sem Math.random).
+    const randInt = (max: number) =>
+      crypto.getRandomValues(new Uint32Array(1))[0] % max;
+    const pick = (set: string) => set[randInt(set.length)];
+
+    let password = pick(upper) + pick(lower) + pick(digits) + pick(special);
 
     const array = new Uint32Array(12);
     crypto.getRandomValues(array);
@@ -83,7 +86,7 @@ export function CreateUserDialog({
 
     const chars = password.split("");
     for (let i = chars.length - 1; i > 0; i--) {
-      const j = Math.floor((crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000) * (i + 1));
+      const j = randInt(i + 1);
       [chars[i], chars[j]] = [chars[j], chars[i]];
     }
 
@@ -249,14 +252,26 @@ export function CreateUserDialog({
                       key={tenant.id}
                       tenant={tenant}
                       formPrefix="create"
-                      defaultChecked={true}
+                      defaultChecked={false}
                       defaultRole={toTenantRole(selectedRole)}
                     />
                   ))}
                 </div>
-                <p className="text-[11px] text-zinc-400">Todas as empresas são pré-selecionadas com o papel do usuário. Desmarque as que não se aplicam.</p>
+                <p className="text-[11px] text-zinc-400">Marque as empresas às quais o usuário terá acesso e o papel em cada uma.</p>
               </div>
             )}
+
+            <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
+              <Checkbox
+                id="create-send-welcome"
+                name="sendWelcome"
+                defaultChecked
+                label="Enviar e-mail de acesso ao usuário"
+              />
+              <p className="mt-1 pl-6 text-[11px] text-zinc-400">
+                O usuário recebe um link para definir a própria senha. Desmarque se preferir repassar a senha manualmente.
+              </p>
+            </div>
 
             {state.message && (
               <div

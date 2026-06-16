@@ -14,7 +14,7 @@ const brand = {
   accentSoft: "#e8f7f6",
 };
 
-type AuthEmailKind = "recovery" | "magic_link";
+type AuthEmailKind = "recovery" | "magic_link" | "welcome";
 
 function renderLayout(title: string, eyebrow: string, intro: string, ctaLabel: string, ctaHref: string) {
   return `
@@ -68,6 +68,19 @@ export function buildAuthEmail(kind: AuthEmailKind, actionLink: string, email: s
         "Recuperação de acesso",
         `Recebemos uma solicitação para redefinir a senha da conta <strong>${email}</strong>.`,
         "Criar nova senha",
+        actionLink
+      ),
+    };
+  }
+
+  if (kind === "welcome") {
+    return {
+      subject: "Bem-vindo(a) ao PlanoCerto — defina sua senha",
+      html: renderLayout(
+        "Bem-vindo(a) ao PlanoCerto",
+        "Sua conta foi criada",
+        `Sua conta <strong>${email}</strong> foi criada no PlanoCerto. Defina sua senha para começar a usar a plataforma.`,
+        "Definir minha senha",
         actionLink
       ),
     };

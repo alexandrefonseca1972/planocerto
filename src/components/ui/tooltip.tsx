@@ -8,9 +8,13 @@ interface TooltipProps {
   content: string;
   side?: "top" | "bottom" | "left" | "right";
   delay?: number;
+  /** Classe aplicada ao wrapper (ex.: "flex-1" para preservar layout flex). */
+  className?: string;
+  /** Permite quebra de linha + largura máxima (legendas mais longas). */
+  multiline?: boolean;
 }
 
-export function Tooltip({ children, content, side = "top", delay = 500 }: TooltipProps) {
+export function Tooltip({ children, content, side = "top", delay = 500, className, multiline = false }: TooltipProps) {
   const [show, setShow] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -31,12 +35,13 @@ export function Tooltip({ children, content, side = "top", delay = 500 }: Toolti
   };
 
   return (
-    <div className="relative inline-flex" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+    <div className={cn("relative inline-flex", className)} onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
       {children}
       {show && (
         <div className={cn(
-          "pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-brand-600 px-2.5 py-1.5 text-xs text-white shadow-lg dark:bg-brand-200 dark:text-brand-900",
+          "pointer-events-none absolute z-50 rounded-md bg-brand-600 px-2.5 py-1.5 text-xs text-white shadow-lg dark:bg-brand-200 dark:text-brand-900",
           "animate-[fadeIn_150ms_ease-out]",
+          multiline ? "w-max max-w-[240px] whitespace-normal text-center" : "whitespace-nowrap",
           sideClass[side]
         )}>
           {content}

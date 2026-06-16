@@ -12,7 +12,6 @@ import {
 import { History } from "lucide-react";
 import type { AuditLogEntry } from "@/app/actions/admin";
 import type { Profile } from "@/types/auth";
-import { formatDate } from "@/lib/utils";
 
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   create_user: "Criou usuário",
@@ -21,6 +20,8 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   deactivate_user: "Desativou usuário",
   activate_user: "Reativou usuário",
   bulk_delete_user: "Excluiu em lote",
+  reset_password_email: "Enviou redefinição de senha",
+  reset_password_temp: "Definiu senha temporária",
 };
 
 export function AuditLogDialog({

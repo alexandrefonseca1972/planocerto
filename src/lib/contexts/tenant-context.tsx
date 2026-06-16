@@ -96,6 +96,13 @@ export function TenantProvider({
 
   const setSelectedTenantIds = useCallback(
     (ids: string[]) => {
+      const previous = selectedTenantIds;
+      const rollback = () => {
+        setSelectedTenantIdsState(previous);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(previous));
+        toast("Não foi possível trocar a empresa. Tente novamente.", "error");
+      };
+
       setSelectedTenantIdsState(ids);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
 
@@ -105,14 +112,12 @@ export function TenantProvider({
             setActiveTenantId(ids[0]);
             router.refresh();
           } else {
-            toast("Não foi possível trocar a empresa. Tente novamente.", "error");
+            rollback();
           }
-        }).catch(() => {
-          toast("Não foi possível trocar a empresa. Tente novamente.", "error");
-        });
+        }).catch(rollback);
       }
     },
-    [activeTenantId, router, toast]
+    [activeTenantId, selectedTenantIds, router, toast]
   );
 
   const currentTenant = useMemo(() => {

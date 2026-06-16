@@ -4,7 +4,10 @@ import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { DistributionCard } from "@/components/dashboard/distribution-card";
@@ -47,12 +50,27 @@ import {
   Users,
   GripVertical,
   X,
+  Search,
   UserCheck,
   Tag,
   Layers,
 } from "lucide-react";
 
 const DASHBOARD_STORAGE_VERSION = "v1";
+
+const STATUS_MODAL_LABEL: Record<string, string> = {
+  total: "Todas as ações",
+  completed: "Concluídas",
+  progress: "Em andamento",
+  pending: "Pendentes",
+  overdue: "Atrasadas",
+};
+const BUCKET_DOT: Record<string, string> = {
+  completed: "bg-emerald-500",
+  progress: "bg-amber-500",
+  pending: "bg-blue-500",
+  overdue: "bg-red-500",
+};
 
 interface SubTotals {
   total: number; completed: number; inProgress: number; pending: number; overdue: number;
@@ -120,12 +138,31 @@ interface MyTaskItem {
   kind: "overdue" | "near" | "future" | "completed";
 }
 
+type StatusBucket = "completed" | "overdue" | "progress" | "pending";
+
+export interface DashboardActionRow {
+  id: string;
+  number: string;
+  title: string;
+  responsible: string | null;
+  planned_end: string | null;
+  status: number;
+  bucket: StatusBucket;
+  unitId: string;
+  unitName: string;
+  tenantId: string | null;
+  tipoPa: string | null;
+  macroAcao: string | null;
+  planId: string;
+}
+
 interface DashboardClientProps {
   userName: string;
   userPermissions?: Record<string, boolean>;
   unitSummaries: UnitSummary[];
   areas: AreaInfo[];
   deadlines: DeadlineItem[];
+  actionRows?: DashboardActionRow[];
   sparklineData: number[];
   catalogTiposPa?: { id: string; name: string }[];
   catalogMacroAcoes?: { id: string; name: string }[];
@@ -137,6 +174,7 @@ export function DashboardClient({
   unitSummaries,
   areas,
   deadlines: allDeadlines,
+  actionRows = [],
   myTasks = [],
 }: DashboardClientProps) {
   const { selectedTenantIds, currentTenant, selectedUnitIds, setSelectedUnitIds } = useTenant();
@@ -147,6 +185,8 @@ export function DashboardClient({
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [kpiOrder, setKpiOrder] = useState<string[]>(["price", "inscripts", "matfin", "matacad"]);
   const [statusOrder, setStatusOrder] = useState<string[]>(["total", "completed", "progress", "pending", "overdue"]);
+  const [statusModal, setStatusModal] = useState<"total" | StatusBucket | null>(null);
+  const [modalSearch, setModalSearch] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -385,6 +425,34 @@ export function DashboardClient({
   const pct = (n: number) =>
     totals.total > 0 ? Math.round((n / totals.total) * 100) : 0;
 
+  // Relação de ações do card clicado — aplica EXATAMENTE os mesmos filtros dos
+  // totais (empresa, unidades, Tipo PA / Macro Ação) e o bucket de status.
+  const modalActions = useMemo(() => {
+    if (!statusModal) return [];
+    const unitSet = selectedUnitIds.length ? new Set(selectedUnitIds) : null;
+    return actionRows
+      .filter((r) => {
+        if (!r.tenantId || !selectedTenantIds.includes(r.tenantId)) return false;
+        if (unitSet && !unitSet.has(r.unitId)) return false;
+        if (effectiveTipoPa) {
+          if (r.tipoPa !== effectiveTipoPa) return false;
+        } else if (effectiveMacroAcao) {
+          if (r.macroAcao !== effectiveMacroAcao) return false;
+        }
+        if (statusModal !== "total" && r.bucket !== statusModal) return false;
+        return true;
+      })
+      .sort((a, b) => (a.planned_end || "9999-99-99").localeCompare(b.planned_end || "9999-99-99"));
+  }, [statusModal, actionRows, selectedTenantIds, selectedUnitIds, effectiveTipoPa, effectiveMacroAcao]);
+
+  const visibleModalActions = useMemo(() => {
+    const q = modalSearch.trim().toLowerCase();
+    if (!q) return modalActions;
+    return modalActions.filter((r) =>
+      `${r.number} ${r.title} ${r.unitName} ${r.responsible ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [modalActions, modalSearch]);
+
   // Create position map for O(1) lookups (avoid indexOf)
   const unitOrderMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -595,6 +663,7 @@ export function DashboardClient({
                           subtitle={`${filteredUnits.length} unidades`}
                           color="text-zinc-700 dark:text-zinc-300"
                           accent="bg-zinc-500"
+                          onClick={() => setStatusModal("total")}
                         />
                       </SortableStatusWrapper>
                     );
@@ -608,6 +677,7 @@ export function DashboardClient({
                           percent={pct(totals.completed)}
                           color="text-emerald-600 dark:text-emerald-400"
                           accent="bg-emerald-500"
+                          onClick={() => setStatusModal("completed")}
                         />
                       </SortableStatusWrapper>
                     );
@@ -621,6 +691,7 @@ export function DashboardClient({
                           percent={pct(totals.progress)}
                           color="text-amber-600 dark:text-amber-400"
                           accent="bg-amber-500"
+                          onClick={() => setStatusModal("progress")}
                         />
                       </SortableStatusWrapper>
                     );
@@ -634,6 +705,7 @@ export function DashboardClient({
                           percent={pct(totals.pending)}
                           color="text-blue-600 dark:text-blue-400"
                           accent="bg-blue-500"
+                          onClick={() => setStatusModal("pending")}
                         />
                       </SortableStatusWrapper>
                     );
@@ -647,6 +719,7 @@ export function DashboardClient({
                           percent={pct(totals.overdue)}
                           color="text-red-600 dark:text-red-400"
                           accent="bg-red-500"
+                          onClick={() => setStatusModal("overdue")}
                         />
                       </SortableStatusWrapper>
                     );
@@ -655,6 +728,62 @@ export function DashboardClient({
               </div>
             </SortableContext>
           </DndContext>
+
+          {/* Modal: relação de ações do status clicado */}
+          <Dialog open={!!statusModal} onOpenChange={(o) => { if (!o) { setStatusModal(null); setModalSearch(""); } }}>
+            <DialogContent className="flex max-h-[80vh] max-w-2xl flex-col">
+              <DialogHeader>
+                <DialogTitle>
+                  {STATUS_MODAL_LABEL[statusModal ?? "total"]}
+                  <span className="ml-2 text-sm font-normal text-zinc-400">
+                    {modalSearch.trim() ? `${visibleModalActions.length} de ${modalActions.length}` : modalActions.length}
+                  </span>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="relative shrink-0">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <Input
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  placeholder="Buscar por nº, ação, unidade ou responsável..."
+                  className="h-9 pl-8"
+                  autoFocus
+                />
+              </div>
+              <div className="-mx-2 overflow-y-auto px-2">
+                {visibleModalActions.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-zinc-500">
+                    {modalActions.length === 0 ? "Nenhuma ação encontrada para este filtro." : "Nenhuma ação para a busca."}
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {visibleModalActions.map((r) => (
+                      <li key={r.id}>
+                        <Link
+                          href={`/planos?plan=${r.planId}&item=${r.id}`}
+                          onClick={() => setStatusModal(null)}
+                          className="flex items-start gap-2 rounded px-2 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
+                        >
+                          <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", BUCKET_DOT[r.bucket])} />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                              {r.number && <span className="text-zinc-400">{r.number} </span>}
+                              {r.title || "—"}
+                            </p>
+                            <p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+                              {r.unitName}
+                              {r.responsible ? ` · ${r.responsible}` : ""}
+                              {r.planned_end ? ` · ${new Date(r.planned_end + "T00:00:00").toLocaleDateString("pt-BR")}` : ""}
+                            </p>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Distribuição + Prazos */}
           <div className="grid gap-3 lg:grid-cols-2">
@@ -1074,30 +1203,51 @@ function DeadlinesCard({ deadlines }: { deadlines: DeadlineItem[] }) {
       <CardContent className="space-y-3 pt-0">
         {/* Tabs */}
         <div className="flex gap-1 rounded-md bg-zinc-100 p-1 dark:bg-zinc-800/40">
-          <TabPill
-            active={tab === "overdue"}
-            onClick={() => setTab("overdue")}
-            label="Atrasadas"
-            icon={<AlertTriangle className="h-3.5 w-3.5" />}
-            count={overdue.length}
-            tone="red"
-          />
-          <TabPill
-            active={tab === "near"}
-            onClick={() => setTab("near")}
-            label="Próximas"
-            icon={<Clock className="h-3.5 w-3.5" />}
-            count={near.length}
-            tone="amber"
-          />
-          <TabPill
-            active={tab === "future"}
-            onClick={() => setTab("future")}
-            label="Futuras"
-            icon={<Calendar className="h-3.5 w-3.5" />}
-            count={future.length}
-            tone="zinc"
-          />
+          <Tooltip
+            content="Ações com prazo vencido que ainda não foram concluídas."
+            delay={3000}
+            multiline
+            className="flex-1"
+          >
+            <TabPill
+              active={tab === "overdue"}
+              onClick={() => setTab("overdue")}
+              label="Atrasadas"
+              icon={<AlertTriangle className="h-3.5 w-3.5" />}
+              count={overdue.length}
+              tone="red"
+            />
+          </Tooltip>
+          <Tooltip
+            content="Ações a vencer nos próximos 7 dias (ainda não concluídas)."
+            delay={3000}
+            multiline
+            className="flex-1"
+          >
+            <TabPill
+              active={tab === "near"}
+              onClick={() => setTab("near")}
+              label="Próximas"
+              icon={<Clock className="h-3.5 w-3.5" />}
+              count={near.length}
+              tone="amber"
+            />
+          </Tooltip>
+          <Tooltip
+            content="Ações com prazo a mais de 7 dias (ainda não concluídas)."
+            delay={3000}
+            multiline
+            className="flex-1"
+          >
+            <TabPill
+              active={tab === "future"}
+              onClick={() => setTab("future")}
+              label="Futuras"
+              icon={<Calendar className="h-3.5 w-3.5" />}
+              count={future.length}
+              tone="zinc"
+            />
+          </Tooltip>
         </div>
 
         {/* Lista */}
@@ -1220,7 +1370,7 @@ function DeadlineRow({ d }: { d: DeadlineItem }) {
 
   return (
     <Link
-      href="/planos"
+      href={`/planos?plan=${d.planId}&item=${d.id}`}
       className="flex items-start gap-2 rounded-md p-1.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
     >
       <span className="mt-0.5">{badge}</span>
@@ -1508,6 +1658,7 @@ function StatusCard({
   subtitle,
   color,
   accent,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -1516,9 +1667,19 @@ function StatusCard({
   subtitle?: string;
   color: string;
   accent: string;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+    <Card
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      className={cn(
+        "transition-all duration-200 hover:shadow-md hover:-translate-y-0.5",
+        onClick && "cursor-pointer",
+      )}
+    >
       <CardContent className="p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -1624,7 +1785,7 @@ function MyTaskRow({ task }: { task: MyTaskItem }) {
   const Icon = kindConfig.icon;
 
   return (
-    <Link href={`/planos?plan=${task.planId}`}>
+    <Link href={`/planos?plan=${task.planId}&item=${task.id}`}>
       <Card className={cn("border transition-shadow hover:shadow-md", kindConfig.color)}>
         <CardContent className="flex items-center gap-3 p-3">
           <Icon className="h-4 w-4 shrink-0" />

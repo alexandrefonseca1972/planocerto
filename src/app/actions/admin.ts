@@ -212,12 +212,26 @@ async function requirePermission(
   return { authorized: true, currentUserId: user.id, profile };
 }
 
-type TenantRole = "owner" | "admin" | "member" | "manager" | "user" | "viewer";
-const VALID_TENANT_ROLES = new Set<string>(["owner", "admin", "member", "manager", "user", "viewer"]);
+// O papel armazenado em tenant_members é de MEMBERSHIP (owner/admin/member) —
+// o único conjunto aceito pelo CHECK tenant_members_role_check. O dropdown por
+// empresa expõe papéis no estilo do papel global (viewer/user/manager/admin);
+// aqui mapeamos para o papel de membership correspondente. Sem este mapa, criar
+// um usuário com papel "Usuário"/"Visualizador"/"Gerente" numa empresa violava o
+// CHECK e o cadastro era revertido. O papel global (profiles.role) é gravado
+// separadamente em setup_new_user/updateUser e continua granular.
+type MembershipRole = "owner" | "admin" | "member";
+const TENANT_ROLE_MAP: Record<string, MembershipRole> = {
+  owner: "owner",
+  admin: "admin",
+  manager: "admin",
+  member: "member",
+  user: "member",
+  viewer: "member",
+};
 
-function resolveTenantRole(raw: FormDataEntryValue | null): TenantRole {
+function resolveTenantRole(raw: FormDataEntryValue | null): MembershipRole {
   const str = typeof raw === "string" ? raw : "";
-  return (VALID_TENANT_ROLES.has(str) ? str : "user") as TenantRole;
+  return TENANT_ROLE_MAP[str] ?? "member";
 }
 
 export async function createUser(
@@ -330,14 +344,45 @@ export async function createUser(
       });
     }
 
+    // E-mail de boas-vindas com link para o usuário definir a própria senha.
+    // Não-fatal: se o envio falhar, o usuário já foi criado com sucesso.
+    const sendWelcome =
+      formData.get("sendWelcome") === "on" || formData.get("sendWelcome") === "true";
+    let welcomeNote = "";
+    if (sendWelcome) {
+      try {
+        const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
+          type: "recovery",
+          email: validated.data.email,
+          options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
+        });
+        if (!linkErr && linkData.properties?.action_link) {
+          const ec = buildAuthEmail("welcome", linkData.properties.action_link, validated.data.email);
+          const ok = await sendEmail(validated.data.email, ec.subject, ec.html);
+          welcomeNote = ok
+            ? " E-mail de acesso enviado ao usuário."
+            : " (não foi possível enviar o e-mail de acesso — repasse a senha manualmente.)";
+        } else {
+          welcomeNote = " (não foi possível gerar o link de acesso — repasse a senha manualmente.)";
+        }
+      } catch (e) {
+        console.error("[createUser] Falha ao enviar e-mail de boas-vindas:", e);
+        welcomeNote = " (não foi possível enviar o e-mail de acesso — repasse a senha manualmente.)";
+      }
+    }
+
     revalidatePath("/admin/users");
     revalidatePath("/", "layout");
 
-    const message = isGenerated
+    const baseMessage = isGenerated
       ? "Usuário criado. Senha temporária exibida acima — copie e envie por canal seguro."
       : "Usuário criado com sucesso!";
 
-    return { success: true, message, data: isGenerated ? { password: generatedPassword } : undefined };
+    return {
+      success: true,
+      message: baseMessage + welcomeNote,
+      data: isGenerated ? { password: generatedPassword } : undefined,
+    };
   } catch (error) {
     console.error("[createUser] Erro:", error);
     return { message: "Serviço indisponível no momento. Tente novamente em alguns instantes." };
@@ -469,10 +514,13 @@ export async function updateUser(
     if (tenantsTouched) {
       const { data: existing } = await adminClient
         .from("tenant_members")
-        .select("tenant_id")
+        .select("tenant_id, role")
         .eq("user_id", userId);
 
       const existingIds = new Set((existing || []).map((m) => m.tenant_id));
+      const existingRoleById = new Map(
+        (existing || []).map((m) => [m.tenant_id as string, m.role as string])
+      );
       // Admin só reconcilia empresas do próprio escopo; vínculos fora do
       // escopo (ex.: outras empresas onde o usuário é membro) são preservados.
       const inScope = (id: string) => scope.isSuperAdmin || scope.tenantIds.includes(id);
@@ -483,24 +531,67 @@ export async function updateUser(
       const toAdd = [...newIds].filter((id) => !existingIds.has(id));
       const toKeep = existingInScope.filter((id) => newIds.has(id));
 
-      if (toRemove.length > 0) {
-        await adminClient.from("tenant_members").delete()
-          .eq("user_id", userId)
-          .in("tenant_id", toRemove);
-      }
-
       // toKeep (atualizar papel) + toAdd (inserir) resolvidos em um único upsert.
       const toUpsert = [...toKeep, ...toAdd].map((tenantId) => ({
         user_id: userId,
         tenant_id: tenantId,
         role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
       }));
+
+      // Proteção: não permitir remover/rebaixar o ÚLTIMO proprietário de uma
+      // empresa (mesma garantia de removeTenantMember/updateTenantMemberRole).
+      const losingOwner: string[] = [];
+      for (const tid of toRemove) {
+        if (existingRoleById.get(tid) === "owner") losingOwner.push(tid);
+      }
+      for (const row of toUpsert) {
+        if (existingRoleById.get(row.tenant_id) === "owner" && row.role !== "owner") {
+          losingOwner.push(row.tenant_id);
+        }
+      }
+      if (losingOwner.length > 0) {
+        const { data: owners } = await adminClient
+          .from("tenant_members")
+          .select("tenant_id")
+          .in("tenant_id", losingOwner)
+          .eq("role", "owner");
+        const ownerCount = new Map<string, number>();
+        for (const o of owners || []) {
+          ownerCount.set(o.tenant_id, (ownerCount.get(o.tenant_id) || 0) + 1);
+        }
+        if (losingOwner.some((tid) => (ownerCount.get(tid) || 0) <= 1)) {
+          return {
+            message: "Não é possível remover ou rebaixar o último proprietário de uma empresa. Defina outro proprietário antes.",
+          };
+        }
+      }
+
+      if (toRemove.length > 0) {
+        await adminClient.from("tenant_members").delete()
+          .eq("user_id", userId)
+          .in("tenant_id", toRemove);
+      }
+
       if (toUpsert.length > 0) {
         const { error: upsertErr } = await adminClient.from("tenant_members").upsert(toUpsert, { onConflict: "user_id,tenant_id" });
         if (upsertErr) {
           console.error("[updateUser] Erro ao atualizar memberships:", upsertErr.message);
           return { message: "Erro ao atualizar empresas do usuário. Tente novamente." };
         }
+      }
+
+      // Se a empresa ativa do usuário deixou de ser uma membership, repontar
+      // para uma empresa restante (ou nulo) — evita active_tenant_id órfão.
+      const { data: prof } = await adminClient
+        .from("profiles").select("active_tenant_id").eq("id", userId).maybeSingle();
+      const activeId = (prof?.active_tenant_id as string | null) ?? null;
+      const { data: mems } = await adminClient
+        .from("tenant_members").select("tenant_id").eq("user_id", userId);
+      const memberIds = (mems || []).map((m) => m.tenant_id as string);
+      if (!activeId || !memberIds.includes(activeId)) {
+        await adminClient.from("profiles")
+          .update({ active_tenant_id: memberIds[0] ?? null })
+          .eq("id", userId);
       }
     }
 
@@ -773,6 +864,72 @@ export async function resendConfirmation(
   }
 }
 
+/**
+ * Redefinição de senha iniciada pelo admin. Dois modos:
+ * - "email": gera link de recovery e envia ao usuário (ele define a própria senha).
+ * - "temp": define uma senha temporária e a devolve para o admin repassar.
+ * Escopo: admin só atua sobre usuários das suas empresas e nunca super_admins
+ * (garantido por assertCanManageUser).
+ */
+export async function resetUserPassword(
+  _prevState: AdminFormState,
+  formData: FormData
+): Promise<AdminFormState> {
+  try {
+    const adminCheck = await requirePermission(PERMISSIONS.USERS_UPDATE);
+    if (!adminCheck.authorized) return adminCheck.error!;
+
+    const userId = formData.get("userId") as string;
+    const email = formData.get("email") as string;
+    const mode = formData.get("mode") === "temp" ? "temp" : "email";
+    if (!userId || !isValidUuid(userId)) return { message: "Usuário inválido." };
+    if (!email) return { message: "Email é obrigatório." };
+
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return denied;
+
+    const adminClient = createAdminClient();
+
+    if (mode === "temp") {
+      const tempPassword = generateSecurePassword();
+      const { error } = await adminClient.auth.admin.updateUserById(userId, {
+        password: tempPassword,
+      });
+      if (error) return { message: mapError(error.message) };
+
+      await auditLog(adminCheck.currentUserId!, userId, "reset_password_temp", {});
+      return {
+        success: true,
+        message: "Senha temporária definida. Copie e repasse ao usuário com segurança.",
+        data: { password: tempPassword },
+      };
+    }
+
+    const { data, error } = await adminClient.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
+    });
+
+    if (error || !data.properties?.action_link) {
+      return { message: mapError(error?.message ?? "Falha ao gerar link de redefinição.") };
+    }
+
+    const emailContent = buildAuthEmail("recovery", data.properties.action_link, email);
+    const sent = await sendEmail(email, emailContent.subject, emailContent.html);
+
+    if (!sent) {
+      return { message: "Erro ao enviar email de redefinição. Tente novamente." };
+    }
+
+    await auditLog(adminCheck.currentUserId!, userId, "reset_password_email", {});
+    return { success: true, message: "Email de redefinição de senha enviado ao usuário." };
+  } catch (error) {
+    console.error("[resetUserPassword] Erro:", error);
+    return { message: "Serviço indisponível no momento." };
+  }
+}
+
 export async function bulkDeleteUsers(
   _prevState: AdminFormState,
   formData: FormData
@@ -868,6 +1025,9 @@ export async function getUserImpact(userId: string) {
   try {
     const hasPerm = await checkPermission(PERMISSIONS.USERS_READ);
     if (!hasPerm) return { tenantMemberships: 0, actionPlans: 0 };
+
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return { tenantMemberships: 0, actionPlans: 0 };
 
     const adminClient = createAdminClient();
 
@@ -1114,6 +1274,8 @@ export async function getUserAreaIds(userId: string): Promise<string[]> {
   try {
     const hasPerm = await checkPermission(PERMISSIONS.USERS_READ);
     if (!hasPerm) return [];
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return [];
     const adminClient = createAdminClient();
     const { data } = await adminClient
       .from("user_areas")
@@ -1129,6 +1291,8 @@ export async function getUserUnitIds(userId: string): Promise<string[]> {
   try {
     const hasPerm = await checkPermission(PERMISSIONS.USERS_READ);
     if (!hasPerm) return [];
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return [];
     const adminClient = createAdminClient();
     const { data } = await adminClient
       .from("user_units")
@@ -1187,6 +1351,9 @@ export async function getUserAuditLog(userId: string): Promise<AuditLogEntry[]> 
   try {
     const hasPerm = await checkPermission(PERMISSIONS.USERS_READ);
     if (!hasPerm) return [];
+
+    const { denied } = await assertCanManageUser(userId);
+    if (denied) return [];
 
     const adminClient = createAdminClient();
     const { data } = await adminClient

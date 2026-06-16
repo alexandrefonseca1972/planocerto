@@ -127,13 +127,19 @@ export async function switchTenant(tenantId: string): Promise<boolean> {
     } = await supabase.auth.getUser();
     if (!user) return false;
 
-    const { data: member } = await supabase
-      .from("tenant_members")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (!member) return false;
+    // super_admin enxerga e opera qualquer empresa (mesma premissa de
+    // getUserTenants/getAllTenants). Demais usuários só podem ativar empresas
+    // das quais são membros.
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin) {
+      const { data: member } = await supabase
+        .from("tenant_members")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!member) return false;
+    }
 
     const { error } = await supabase
       .from("profiles")
@@ -392,10 +398,10 @@ export interface TenantMembership {
   role: string;
 }
 
+// Papel de membership exibido = o próprio valor armazenado (owner/admin/member).
 function normalizeTenantRole(role: string | null): string {
-  if (!role || role === "member") return "user";
-  if (role === "owner") return "admin";
-  return role;
+  if (role === "owner" || role === "admin") return role;
+  return "member";
 }
 
 export async function getUserTenantMemberships(userId: string): Promise<TenantMembership[]> {

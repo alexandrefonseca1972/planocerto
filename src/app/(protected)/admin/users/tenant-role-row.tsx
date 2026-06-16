@@ -4,18 +4,19 @@ import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Tenant } from "@/types/tenant";
 
+// Papel de MEMBERSHIP do usuário dentro da empresa (espelha tenant_members.role).
+// Distinto do papel global (profiles.role), que dirige as permissões do sistema.
 export const TENANT_ROLES = [
-  { value: "viewer", label: "Visualizador" },
-  { value: "user", label: "Usuário" },
-  { value: "manager", label: "Gerente" },
+  { value: "member", label: "Membro" },
   { value: "admin", label: "Admin" },
+  { value: "owner", label: "Proprietário" },
 ];
 
 export function TenantRoleRow({
   tenant,
   formPrefix,
   defaultChecked = false,
-  defaultRole = "user",
+  defaultRole = "member",
 }: {
   tenant: Tenant;
   formPrefix: string;

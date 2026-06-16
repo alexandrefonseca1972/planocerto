@@ -11,7 +11,7 @@ import type { AdminFormState, AreaOption, UnitOption, RoleRow } from "@/app/acti
 import type { Profile } from "@/types/auth";
 import type { Tenant } from "@/types/tenant";
 import { PermissionManager } from "@/components/admin/permission-manager";
-import { TENANT_ROLES, TenantRoleRow } from "./tenant-role-row";
+import { TenantRoleRow } from "./tenant-role-row";
 import { ScopePicker } from "./scope-picker";
 import { EffectivePermissions } from "./effective-permissions";
 
@@ -175,7 +175,7 @@ export function EditUserDialog({
                     tenant={tenant}
                     formPrefix="edit"
                     defaultChecked={selectedTenantIds.includes(tenant.id)}
-                    defaultRole={selectedTenantRoles[tenant.id] || "user"}
+                    defaultRole={selectedTenantRoles[tenant.id] || "member"}
                   />
                 ))}
               </div>

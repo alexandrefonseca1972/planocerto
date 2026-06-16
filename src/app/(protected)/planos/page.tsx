@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect, useMemo } from "react";
+import { useActionState, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
@@ -107,6 +107,23 @@ export default function PlanosPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlanId]);
+
+  // Deep-link: ?item=<id> abre a ação diretamente assim que os itens carregam
+  // (usado pelos cards/listas do dashboard "ir direto para a ação").
+  const openedItemRef = useRef<string | null>(null);
+  useEffect(() => {
+    const itemId = url.requestedItemId;
+    if (!itemId || !plan || data.items.length === 0) return;
+    if (openedItemRef.current === itemId) return;
+    const found = flattenItems(data.items).find((i) => i.id === itemId);
+    if (found) {
+      openedItemRef.current = itemId;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditingItem(found);
+      setEditingItemTab("modelo");
+      setShowItemForm(true);
+    }
+  }, [url.requestedItemId, plan, data.items]);
 
   // Action success effects
   useEffect(() => {

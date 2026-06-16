@@ -67,6 +67,23 @@ interface DeadlineItem {
   kind: DeadlineKind;
 }
 
+/** Linha enxuta para a "relação de ações" exibida ao clicar nos cards de status. */
+export interface DashboardActionRow {
+  id: string;
+  number: string;
+  title: string;
+  responsible: string | null;
+  planned_end: string | null;
+  status: number;
+  bucket: "completed" | "overdue" | "progress" | "pending";
+  unitId: string;
+  unitName: string;
+  tenantId: string | null;
+  tipoPa: string | null;
+  macroAcao: string | null;
+  planId: string;
+}
+
 const norm = (s: string) =>
   s
     .normalize("NFD")
@@ -106,6 +123,7 @@ export default async function DashboardPage() {
   const unitSummaries: UnitSummary[] = [];
   const areas: AreaInfo[] = [];
   const deadlines: DeadlineItem[] = [];
+  const actionRows: DashboardActionRow[] = [];
   const myTasks: {
     id: string; planId: string; title: string; number: string;
     planned_end: string | null; status: number; unitName: string;
@@ -145,7 +163,7 @@ export default async function DashboardPage() {
     }
 
     const tenants = await getUserTenants();
-    if (!tenants.length) return <DashboardClient userName={userName} userPermissions={userPermissions} unitSummaries={[]} areas={[]} deadlines={[]} sparklineData={[]} catalogTiposPa={[]} catalogMacroAcoes={[]} myTasks={[]} />;
+    if (!tenants.length) return <DashboardClient userName={userName} userPermissions={userPermissions} unitSummaries={[]} areas={[]} deadlines={[]} actionRows={[]} sparklineData={[]} catalogTiposPa={[]} catalogMacroAcoes={[]} myTasks={[]} />;
     const tenantIds = tenants.map((t) => t.id);
 
     // Áreas e Unidades dos tenants do usuário (catálogo)
@@ -365,6 +383,35 @@ export default async function DashboardPage() {
           macroAcoesSet.add(it.action);
           accBreakdown(macroAcoesBreakdown, it.action, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
         }
+
+        // Linha para a relação de ações (mesma bucketização dos cards/totais).
+        const macroAcaoTag = it.parent_id
+          ? parentItemsById.get(it.parent_id)?.action ?? null
+          : items.some((child) => child.parent_id === it.id)
+          ? it.action
+          : null;
+        actionRows.push({
+          id: it.id,
+          number: it.number,
+          title: it.action,
+          responsible: it.responsible,
+          planned_end: it.planned_end,
+          status: it.status,
+          bucket:
+            it.status === 5
+              ? "completed"
+              : isOv
+              ? "overdue"
+              : it.status === 3 || it.status === 4
+              ? "progress"
+              : "pending",
+          unitId: u.id,
+          unitName: u.name,
+          tenantId: u.tenant_id,
+          tipoPa: it.tipo_pa,
+          macroAcao: macroAcaoTag,
+          planId: it.plan_id,
+        });
       }
 
       unitSummaries.push({
@@ -495,6 +542,7 @@ export default async function DashboardPage() {
       unitSummaries={unitSummaries}
       areas={areas}
       deadlines={deadlines}
+      actionRows={actionRows}
       sparklineData={sparklineData}
       catalogTiposPa={catalogTiposPa}
       catalogMacroAcoes={catalogMacroAcoes}

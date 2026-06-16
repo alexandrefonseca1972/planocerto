@@ -10,6 +10,7 @@ import {
   deactivateUser,
   activateUser,
   resendConfirmation,
+  resetUserPassword,
   bulkDeleteUsers,
   getUserImpact,
   getAllAreas,
@@ -69,6 +70,8 @@ import {
   Copy,
   CheckCheck,
   History,
+  KeyRound,
+  Mail,
 } from "lucide-react";
 
 const createInitialState: AdminFormState = { message: undefined, errors: {} };
@@ -180,12 +183,13 @@ export function UsersTable({
   const [deactivatingUser, setDeactivatingUser] = useState<Profile | null>(null);
   const [reactivatingUser, setReactivatingUser] = useState<Profile | null>(null);
   const [resendingUser, setResendingUser] = useState<Profile | null>(null);
+  const [resettingUser, setResettingUser] = useState<Profile | null>(null);
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const [search, setSearch] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(initialStatus);
   const [sortKey, setSortKey] = useState<keyof Profile>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [allTenants, setAllTenants] = useState<Tenant[]>(initialTenants);
+  const [allTenants] = useState<Tenant[]>(initialTenants);
   const [allAreas, setAllAreas] = useState<AreaOption[]>([]);
   const [allUnits, setAllUnits] = useState<UnitOption[]>([]);
   const [editingUserTenantIds, setEditingUserTenantIds] = useState<string[]>([]);
@@ -210,6 +214,7 @@ export function UsersTable({
   const [deactivateState, deactivateAction, isDeactivating] = useActionState(deactivateUser, createInitialState);
   const [activateState, activateAction, isActivating] = useActionState(activateUser, createInitialState);
   const [resendState, resendAction, isResending] = useActionState(resendConfirmation, createInitialState);
+  const [resetState, resetAction, isResetting] = useActionState(resetUserPassword, createInitialState);
   const [bulkDeleteState, bulkDeleteAction, isBulkDeleting] = useActionState(bulkDeleteUsers, createInitialState);
 
   useEffect(() => {
@@ -244,6 +249,16 @@ export function UsersTable({
     const t = setTimeout(() => setResendingUser(null), 0);
     return () => clearTimeout(t);
   }, [resendState]);
+
+  useEffect(() => {
+    if (!resetState.success) return;
+    const pw = resetState.data?.password ?? null;
+    const t = setTimeout(() => {
+      setResettingUser(null);
+      if (pw) setGeneratedPassword(pw);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [resetState]);
 
   useEffect(() => {
     if (!updateState.success) return;
@@ -711,8 +726,18 @@ export function UsersTable({
                           size="icon"
                           onClick={() => setResendingUser(user)}
                           aria-label={`Reenviar confirmação para ${user.name || user.email}`}
+                          title="Reenviar acesso (magic link)"
                         >
                           <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setResettingUser(user)}
+                          aria-label={`Redefinir senha de ${user.name || user.email}`}
+                          title="Redefinir senha"
+                        >
+                          <KeyRound className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -1040,6 +1065,74 @@ export function UsersTable({
                 </Button>
               </AlertDialogFooter>
             </form>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!resettingUser}
+        onOpenChange={(open) => {
+          if (!open) setResettingUser(null);
+        }}
+      >
+        {resettingUser && (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Redefinir senha</AlertDialogTitle>
+              <AlertDialogDescription>
+                Escolha como redefinir a senha de{" "}
+                <strong className="text-zinc-900 dark:text-zinc-50">
+                  {resettingUser.email}
+                </strong>
+                .
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            {statusMessage(resetState)}
+
+            <div className="space-y-3">
+              <form
+                action={resetAction}
+                className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700"
+              >
+                <input type="hidden" name="userId" value={resettingUser.id} />
+                <input type="hidden" name="email" value={resettingUser.email} />
+                <input type="hidden" name="mode" value="email" />
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                  Enviar e-mail de redefinição
+                </p>
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  O usuário recebe um link para criar a própria senha.
+                </p>
+                <Button type="submit" size="sm" isLoading={isResetting}>
+                  <Mail className="h-4 w-4" />
+                  Enviar e-mail
+                </Button>
+              </form>
+
+              <form
+                action={resetAction}
+                className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700"
+              >
+                <input type="hidden" name="userId" value={resettingUser.id} />
+                <input type="hidden" name="email" value={resettingUser.email} />
+                <input type="hidden" name="mode" value="temp" />
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                  Gerar senha temporária
+                </p>
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  O sistema define uma senha e a exibe para você repassar com segurança.
+                </p>
+                <Button type="submit" size="sm" variant="outline" isLoading={isResetting}>
+                  <KeyRound className="h-4 w-4" />
+                  Gerar senha
+                </Button>
+              </form>
+            </div>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel />
+            </AlertDialogFooter>
           </AlertDialogContent>
         )}
       </AlertDialog>

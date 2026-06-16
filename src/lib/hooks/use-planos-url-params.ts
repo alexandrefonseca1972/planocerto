@@ -15,6 +15,7 @@ export function usePlanosUrlParams() {
   const visibilityFilter = (searchParams.get("plan_visibility") as "public" | "restricted" | null) || null;
   const exercicioFilter = searchParams.get("plan_year") ? Number(searchParams.get("plan_year")) : null;
   const requestedPlanId = searchParams.get("plan");
+  const requestedItemId = searchParams.get("item");
 
   const createQueryString = useCallback(
     (params: Record<string, string | number | null>) => {
@@ -67,6 +68,7 @@ export function usePlanosUrlParams() {
     visibilityFilter,
     exercicioFilter,
     requestedPlanId,
+    requestedItemId,
     createQueryString,
     setSearchQuery,
     setStatusFilter,
