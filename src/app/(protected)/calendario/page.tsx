@@ -90,6 +90,7 @@ export default async function CalendarioPage({
         plan_id: string;
         number: string;
         action: string;
+        where: string | null;
         status: number;
         responsible: string | null;
         planned_end: string;
@@ -100,7 +101,7 @@ export default async function CalendarioPage({
           const { data: chunk, error } = await supabase
             .from("action_items")
             .select(
-              "id,plan_id,number,action,status,responsible,planned_end",
+              "id,plan_id,number,action,where,status,responsible,planned_end",
             )
             .not("planned_end", "is", null)
             .neq("status", 5)
@@ -146,6 +147,7 @@ export default async function CalendarioPage({
           planId: it.plan_id,
           title: it.action,
           number: it.number,
+          where: it.where || "",
           planned_end: it.planned_end,
           status: it.status,
           responsible: norm(it.responsible || ""),

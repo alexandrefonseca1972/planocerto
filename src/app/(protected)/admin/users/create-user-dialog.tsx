@@ -227,12 +227,18 @@ export function CreateUserDialog({
                       key={tenant.id}
                       tenant={tenant}
                       formPrefix="create"
-                      defaultChecked={false}
+                      // Empresa única (típico de admin de uma só empresa) já vem
+                      // marcada; com várias (super_admin) ficam desmarcadas.
+                      defaultChecked={tenants.length === 1}
                       defaultRole={toTenantRole(selectedRole)}
                     />
                   ))}
                 </div>
-                <p className="text-[11px] text-zinc-400">Marque as empresas às quais o usuário terá acesso e o papel em cada uma.</p>
+                <p className="text-[11px] text-zinc-400">
+                  {tenants.length === 1
+                    ? "Empresa já marcada. Ajuste o papel do usuário se necessário."
+                    : "Marque as empresas às quais o usuário terá acesso e o papel em cada uma."}
+                </p>
               </div>
             )}
 

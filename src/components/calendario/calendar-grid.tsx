@@ -25,6 +25,7 @@ export interface CalendarDeadlineItem {
   planId: string;
   title: string;
   number: string;
+  where: string;
   planned_end: string;
   status: number;
   responsible: string;
@@ -488,17 +489,23 @@ function ItemRow({ item }: { item: CalendarDeadlineItem }) {
   return (
     <li>
       <Link
-        href={`/planos?plan=${item.planId}`}
+        href={`/planos?plan=${item.planId}&item=${item.id}`}
         className={cn(
-          "flex items-start gap-1.5 rounded border px-2 py-1 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800",
+          "group/item flex items-start gap-1.5 rounded border px-2 py-1 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800",
           tone,
         )}
       >
         <span className="mt-0.5 shrink-0">{icon}</span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-medium">{item.title}</p>
-          <p className="truncate text-[10px] text-zinc-500">
-            {item.planTitle || item.tenant}
+          <p
+            className="truncate text-[11px] font-medium group-hover/item:whitespace-normal"
+            title={`${item.number} ${item.title}${item.where ? " — " + item.where : ""}`}
+          >
+            {item.number && <span className="text-zinc-400">{item.number} </span>}
+            {item.title}
+          </p>
+          <p className="truncate text-[10px] text-zinc-500 group-hover/item:whitespace-normal">
+            {item.where || item.planTitle || item.tenant}
             {item.responsible && ` · ${item.responsible}`}
           </p>
         </div>
@@ -616,8 +623,8 @@ function CalendarListView({
               {list.map((it) => (
                 <li key={it.id}>
                   <Link
-                    href={`/planos?plan=${it.planId}`}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                    href={`/planos?plan=${it.planId}&item=${it.id}`}
+                    className="group/item flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                   >
                     <span
                       className={cn(
@@ -632,10 +639,16 @@ function CalendarListView({
                       {it.kind === "overdue" ? "!" : it.number.slice(0, 2)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium">{it.title}</p>
-                      <p className="truncate text-[11px] text-zinc-500">
+                      <p
+                        className="truncate text-[13px] font-medium group-hover/item:whitespace-normal"
+                        title={`${it.number} ${it.title}${it.where ? " — " + it.where : ""}`}
+                      >
+                        {it.number && <span className="text-zinc-400">{it.number} </span>}
+                        {it.title}
+                      </p>
+                      <p className="truncate text-[11px] text-zinc-500 group-hover/item:whitespace-normal">
                         <Building2 className="-mt-0.5 mr-1 inline h-3 w-3" />
-                        {it.planTitle || it.tenant}
+                        {it.where || it.planTitle || it.tenant}
                         {it.responsible && ` · ${it.responsible}`}
                       </p>
                     </div>

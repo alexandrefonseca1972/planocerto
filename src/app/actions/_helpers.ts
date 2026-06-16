@@ -67,6 +67,36 @@ export async function manageableUserIds(tenantIds: string[]): Promise<Set<string
 }
 
 /**
+ * Garante que profiles.active_tenant_id do usuário aponta para uma empresa da
+ * qual ele é membro. Se estiver nulo ou órfão (empresa não é mais membership),
+ * repointa para a primeira membership (ou nulo, se não houver nenhuma).
+ */
+export async function repointActiveTenant(userId: string): Promise<void> {
+  try {
+    const adminClient = createAdminClient();
+    const { data: prof } = await adminClient
+      .from("profiles")
+      .select("active_tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
+    const activeId = (prof?.active_tenant_id as string | null) ?? null;
+    const { data: mems } = await adminClient
+      .from("tenant_members")
+      .select("tenant_id")
+      .eq("user_id", userId);
+    const memberIds = (mems ?? []).map((m) => m.tenant_id as string);
+    if (!activeId || !memberIds.includes(activeId)) {
+      await adminClient
+        .from("profiles")
+        .update({ active_tenant_id: memberIds[0] ?? null })
+        .eq("id", userId);
+    }
+  } catch (error) {
+    log.error({ error }, "Erro ao repontar active_tenant_id");
+  }
+}
+
+/**
  * Dentre os tenantIds informados, retorna aqueles que têm no máximo 1
  * proprietário (owner). Usado para impedir a remoção/rebaixamento do último
  * owner de uma empresa. Em caso de erro, é conservador e retorna todos

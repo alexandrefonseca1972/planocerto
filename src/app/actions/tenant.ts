@@ -7,7 +7,7 @@ import { isValidUrl } from "@/lib/sanitize";
 import { tenantFormSchema } from "@/lib/schemas/tenant-schemas";
 import { normalizeWebsite } from "@/lib/format-br";
 import { checkPermission } from "@/app/actions/admin";
-import { getRequesterScope, tenantsWithSingleOwner } from "@/app/actions/_helpers";
+import { getRequesterScope, tenantsWithSingleOwner, repointActiveTenant } from "@/app/actions/_helpers";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { TenantFormState } from "@/types/tenant";
 import type { Tenant, TenantMemberWithProfile } from "@/types/tenant";
@@ -217,6 +217,8 @@ export async function createTenant(
         user_id: user.id,
         role: "owner",
       });
+      // Criador cai direto na empresa recém-criada se ainda não tinha empresa ativa.
+      await repointActiveTenant(user.id);
     }
 
     revalidatePath("/admin/tenants");
@@ -300,9 +302,17 @@ export async function removeTenantMember(
 
     const adminClient = createAdminClient();
 
+    const { data: target } = await adminClient.from("tenant_members").select("tenant_id,user_id,role").eq("id", memberId).maybeSingle();
+    if (!target) return { message: "Membro não encontrado." };
+
+    // Escopo: admin/manager não-super só gerencia membros das suas empresas.
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin && !scope.tenantIds.includes(target.tenant_id)) {
+      return { message: "Acesso negado. Empresa fora do seu escopo." };
+    }
+
     // Prevent removing the last owner
-    const { data: target } = await adminClient.from("tenant_members").select("tenant_id,role").eq("id", memberId).maybeSingle();
-    if (target?.role === "owner" && (await tenantsWithSingleOwner([target.tenant_id])).length > 0) {
+    if (target.role === "owner" && (await tenantsWithSingleOwner([target.tenant_id])).length > 0) {
       return { message: "Não é possível remover o último proprietário da empresa." };
     }
 
@@ -312,6 +322,9 @@ export async function removeTenantMember(
       .eq("id", memberId);
 
     if (error) return { message: "Erro ao remover membro." };
+
+    // Repointa/limpa a empresa ativa do usuário removido.
+    await repointActiveTenant(target.user_id);
 
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
@@ -340,9 +353,17 @@ export async function updateTenantMemberRole(
 
     const adminClient = createAdminClient();
 
-    // Prevent demoting the last owner
     const { data: target } = await adminClient.from("tenant_members").select("tenant_id,role").eq("id", memberId).maybeSingle();
-    if (target?.role === "owner" && role !== "owner" && (await tenantsWithSingleOwner([target.tenant_id])).length > 0) {
+    if (!target) return { message: "Membro não encontrado." };
+
+    // Escopo: admin/manager não-super só gerencia membros das suas empresas.
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin && !scope.tenantIds.includes(target.tenant_id)) {
+      return { message: "Acesso negado. Empresa fora do seu escopo." };
+    }
+
+    // Prevent demoting the last owner
+    if (target.role === "owner" && role !== "owner" && (await tenantsWithSingleOwner([target.tenant_id])).length > 0) {
       return { message: "Não é possível remover o último proprietário da empresa." };
     }
 
@@ -443,6 +464,11 @@ export async function setUserTenants(
 
     const tenantIds = formData.getAll("tenantIds") as string[];
 
+    // Escopo: admin/manager não-super só reconcilia empresas das quais é membro;
+    // vínculos do usuário fora do escopo são preservados.
+    const scope = await getRequesterScope();
+    const inScope = (id: string) => scope.isSuperAdmin || scope.tenantIds.includes(id);
+
     const adminClient = createAdminClient();
 
     const { data: existing } = await adminClient
@@ -451,9 +477,10 @@ export async function setUserTenants(
       .eq("user_id", userId);
 
     const existingIds = new Set((existing || []).map((m) => m.tenant_id));
-    const newIds = new Set(tenantIds);
+    const newIds = new Set(tenantIds.filter(inScope));
+    const existingInScope = [...existingIds].filter(inScope);
 
-    const toRemove = [...existingIds].filter((id) => !newIds.has(id));
+    const toRemove = existingInScope.filter((id) => !newIds.has(id));
     const toAdd = [...newIds].filter((id) => !existingIds.has(id));
 
     if (toRemove.length > 0) {
@@ -465,6 +492,9 @@ export async function setUserTenants(
         toAdd.map((tenantId) => ({ user_id: userId, tenant_id: tenantId, role: "member" as const }))
       );
     }
+
+    // Mantém a empresa ativa do usuário coerente após a reconciliação.
+    await repointActiveTenant(userId);
 
     revalidatePath("/admin/users");
     revalidatePath("/", "layout");
@@ -500,6 +530,11 @@ export async function addTenantMember(
     const tenantId = formData.get("tenantId") as string;
     const email = (formData.get("email") as string)?.trim().toLowerCase();
     if (!tenantId || !email) return { message: "ID da empresa e email são obrigatórios." };
+    // Escopo: admin/manager não-super só gerencia membros das suas empresas.
+    const scope = await getRequesterScope();
+    if (!scope.isSuperAdmin && !scope.tenantIds.includes(tenantId)) {
+      return { message: "Acesso negado. Empresa fora do seu escopo." };
+    }
     const adminClient = createAdminClient();
     const { data: profiles } = await adminClient.from("profiles").select("id, name").eq("email", email);
     if (!profiles?.length) return { message: "Usuário não encontrado." };
@@ -510,6 +545,8 @@ export async function addTenantMember(
       if (error.message.includes("duplicate")) return { message: "Usuário já é membro." };
       return { message: "Erro ao adicionar." };
     }
+    // Associa a empresa ativa do usuário se ele estava sem nenhuma (ex.: pendente).
+    await repointActiveTenant(profiles[0].id);
     revalidatePath("/admin/tenants");
     revalidatePath("/", "layout");
     return { success: true, message: `${userName} adicionado!` };

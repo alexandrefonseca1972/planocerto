@@ -13,7 +13,7 @@ import {
   sanitizePermissions,
 } from "@/lib/validations/admin";
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
-import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, type RequesterScope } from "@/app/actions/_helpers";
+import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, repointActiveTenant, type RequesterScope } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { isValidUuid } from "@/lib/validations/uuid";
 import { generateSecurePassword } from "@/lib/security/password";
@@ -587,17 +587,7 @@ export async function updateUser(
 
       // Se a empresa ativa do usuário deixou de ser uma membership, repontar
       // para uma empresa restante (ou nulo) — evita active_tenant_id órfão.
-      const { data: prof } = await adminClient
-        .from("profiles").select("active_tenant_id").eq("id", userId).maybeSingle();
-      const activeId = (prof?.active_tenant_id as string | null) ?? null;
-      const { data: mems } = await adminClient
-        .from("tenant_members").select("tenant_id").eq("user_id", userId);
-      const memberIds = (mems || []).map((m) => m.tenant_id as string);
-      if (!activeId || !memberIds.includes(activeId)) {
-        await adminClient.from("profiles")
-          .update({ active_tenant_id: memberIds[0] ?? null })
-          .eq("id", userId);
-      }
+      await repointActiveTenant(userId);
     }
 
     // Áreas (escopo por usuário) — substitui o conjunto inteiro só se a seção foi renderizada
