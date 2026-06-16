@@ -75,12 +75,14 @@ export async function upsertUnit(
     if (id) {
       const tenantId = await getCurrentTenantId();
       if (!tenantId) return { message: "Nenhuma empresa ativa." };
-      const { error } = await supabase
+      const { data: rows, error } = await supabase
         .from("units")
         .update({ ...v.data, updated_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", tenantId)
+        .select("id");
       if (error) return { message: await mapPgError(error, "Unidade") };
+      if (!rows?.length) return { message: "Registro não encontrado nesta empresa." };
     } else {
       const tenantId = await getCurrentTenantId();
       if (!tenantId) return { message: "Nenhuma empresa ativa para vincular a unidade." };
@@ -141,8 +143,9 @@ export async function deleteUnit(
     const tenantId = await getCurrentTenantId();
     if (!tenantId) return { message: "Nenhuma empresa ativa." };
     const supabase = await createClient();
-    const { error } = await supabase.from("units").delete().eq("id", id).eq("tenant_id", tenantId);
+    const { data: rows, error } = await supabase.from("units").delete().eq("id", id).eq("tenant_id", tenantId).select("id");
     if (error) return { message: await mapPgError(error, "Unidade") };
+    if (!rows?.length) return { message: "Registro não encontrado nesta empresa." };
     revalidatePath("/admin/catalogos/unidades");
     return { success: true, message: "Unidade excluída!" };
   } catch (error) {
@@ -162,13 +165,14 @@ export async function updateUnitRegionalContext(
     const tenantId = await getCurrentTenantId();
     if (!tenantId) return { message: "Nenhuma empresa ativa." };
     const supabase = await createClient();
-    const { error } = await supabase
+    const { data: rows, error } = await supabase
       .from("units")
       .update({ regional_context: context, updated_at: new Date().toISOString() })
       .eq("id", unitId)
-      .eq("tenant_id", tenantId);
-
+      .eq("tenant_id", tenantId)
+      .select("id");
     if (error) return { message: await mapPgError(error, "Unidade") };
+    if (!rows?.length) return { message: "Registro não encontrado nesta empresa." };
 
     revalidatePath("/admin/catalogos/unidades");
     return { success: true, message: "Contexto regional atualizado!" };
@@ -189,12 +193,14 @@ export async function toggleUnitActive(
     const tenantId = await getCurrentTenantId();
     if (!tenantId) return { message: "Nenhuma empresa ativa." };
     const supabase = await createClient();
-    const { error } = await supabase
+    const { data: rows, error } = await supabase
       .from("units")
       .update({ active, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("tenant_id", tenantId);
+      .eq("tenant_id", tenantId)
+      .select("id");
     if (error) return { message: await mapPgError(error, "Unidade") };
+    if (!rows?.length) return { message: "Registro não encontrado nesta empresa." };
     revalidatePath("/admin/catalogos/unidades");
     return {
       success: true,

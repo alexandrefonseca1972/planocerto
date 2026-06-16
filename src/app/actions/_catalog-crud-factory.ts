@@ -142,9 +142,15 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
         const scope = await requireScopeTenant();
         if (scope.error) return { message: scope.error };
         let q = db(supabase, table).update(updateData).eq("id", id);
-        if (scope.tenantId) q = q.eq("tenant_id", scope.tenantId);
-        const { error } = await q;
-        if (error) return { message: await mapPgError(error, label) };
+        if (scope.tenantId) {
+          q = q.eq("tenant_id", scope.tenantId);
+          const { data: rows, error } = await q.select("id");
+          if (error) return { message: await mapPgError(error, label) };
+          if (!rows?.length) return { message: "Registro não encontrado nesta empresa." };
+        } else {
+          const { error } = await q;
+          if (error) return { message: await mapPgError(error, label) };
+        }
       } else {
         let insertData: Record<string, unknown> = { ...data };
         if (beforeInsert) insertData = await beforeInsert(insertData);
@@ -182,9 +188,15 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
       const scope = await requireScopeTenant();
       if (scope.error) return { message: scope.error };
       let q = db(supabase, table).delete().eq("id", id);
-      if (scope.tenantId) q = q.eq("tenant_id", scope.tenantId);
-      const { error } = await q;
-      if (error) return { message: await mapPgError(error, label) };
+      if (scope.tenantId) {
+        q = q.eq("tenant_id", scope.tenantId);
+        const { data: rows, error } = await q.select("id");
+        if (error) return { message: await mapPgError(error, label) };
+        if (!rows?.length) return { message: "Registro não encontrado nesta empresa." };
+      } else {
+        const { error } = await q;
+        if (error) return { message: await mapPgError(error, label) };
+      }
 
       for (const p of revalidatePaths) revalidatePath(p);
       for (const [tag, profile] of revalidateTags || []) revalidateTag(tag, profile);
@@ -210,9 +222,15 @@ export function createCatalogCrud<T>(config: CatalogCrudConfig): CrudResult<T> {
       let q = db(supabase, table)
         .update({ active, updated_at: new Date().toISOString() })
         .eq("id", id);
-      if (scope.tenantId) q = q.eq("tenant_id", scope.tenantId);
-      const { error } = await q;
-      if (error) return { message: await mapPgError(error, label) };
+      if (scope.tenantId) {
+        q = q.eq("tenant_id", scope.tenantId);
+        const { data: rows, error } = await q.select("id");
+        if (error) return { message: await mapPgError(error, label) };
+        if (!rows?.length) return { message: "Registro não encontrado nesta empresa." };
+      } else {
+        const { error } = await q;
+        if (error) return { message: await mapPgError(error, label) };
+      }
 
       for (const p of revalidatePaths) revalidatePath(p);
       for (const [tag, profile] of revalidateTags || []) revalidateTag(tag, profile);
