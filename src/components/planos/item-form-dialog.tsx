@@ -73,7 +73,6 @@ export function ItemFormDialog({
   const [auditLoading, setAuditLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [isAiPending, startAiTransition] = useTransition();
-  const [aiModels, setAiModels] = useState<string[]>([]);
   const [aiModel, setAiModel] = useState("");
 
   const allItems = flattenItems(items);
@@ -134,13 +133,9 @@ export function ItemFormDialog({
     let cancelled = false;
     getAiModelsForPlan(planId).then((cfg) => {
       if (cancelled || !cfg) return;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAiModels(cfg.models);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAiModel(cfg.currentModel);
     });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId]);
 
   useEffect(() => {

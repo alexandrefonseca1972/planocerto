@@ -67,32 +67,22 @@ export function IaConfigClient({
     }
 
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingSettings(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTestResult(null);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setApiKey("");
 
     getLlmSettings(selectedTenantId).then((s) => {
       if (cancelled) return;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSettings(s);
       const newProvider = (s?.provider as ProviderKey) ?? "openrouter";
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProvider(newProvider);
       const newSuggested = PROVIDER_MODELS[newProvider] ?? [];
       const newModel = s?.model ?? newSuggested[0] ?? "";
       const isCustom = Boolean(newModel && !newSuggested.includes(newModel));
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setModelSelect(isCustom ? CUSTOM_MODEL_SENTINEL : newModel);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setModelCustom(isCustom ? newModel : "");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBaseUrl(s?.base_url ?? "");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowBaseUrl(Boolean(s?.base_url));
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingSettings(false);
     });
 
