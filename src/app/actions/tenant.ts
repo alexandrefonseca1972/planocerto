@@ -362,6 +362,11 @@ export async function updateTenantMemberRole(
       return { message: "Acesso negado. Empresa fora do seu escopo." };
     }
 
+    // Apenas super_admin concede papel Admin/Proprietário numa empresa.
+    if (!scope.isSuperAdmin && (role === "admin" || role === "owner")) {
+      return { message: "Apenas super admins podem definir papel Admin ou Proprietário na empresa." };
+    }
+
     // Prevent demoting the last owner
     if (target.role === "owner" && role !== "owner" && (await tenantsWithSingleOwner([target.tenant_id])).length > 0) {
       return { message: "Não é possível remover o último proprietário da empresa." };

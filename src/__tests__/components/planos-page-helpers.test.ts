@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { buildMacroActionOptions, filterCatalogByAccess, filterPlansByGovernance, getAvailablePlanExercises, isValidActionText, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
+import { buildMacroActionOptions, filterCatalogByAccess, filterItemTree, filterPlansByGovernance, getAvailablePlanExercises, isValidActionText, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
+import { isWithinRange } from "@/lib/date-range";
+import type { ActionItem } from "@/types/action-plan";
 import type { ActionPlan } from "@/types/action-plan";
+
+// Fábrica mínima — filterItemTree só usa id/children; o predicado de teste usa
+// planned_end/status. Demais campos são preenchidos por completude de tipo.
+function item(partial: Partial<ActionItem> & { id: string }): ActionItem {
+  return {
+    plan_id: "p", parent_id: null, number: "", sort_order: 0,
+    tipo_pa: "", area: "", prioridade: "", subacao: "", como: "",
+    action: "", why: "", where: "", responsible: "",
+    planned_start: null, planned_end: null, actual_start: null, actual_end: null,
+    cost: "", expected_result: "", actual_result: "",
+    status: 1, observations: "",
+    preco: 0, inscritos_esperado: 0, inscritos_real: 0,
+    mat_fin_esperado: 0, mat_fin_real: 0, mat_acad_esperado: 0, mat_acad_real: 0,
+    created_at: "", updated_at: "",
+    ...partial,
+  };
+}
 
 describe("resolveSelectedPlanId", () => {
   const plans = [
@@ -124,5 +143,52 @@ describe("getAvailablePlanExercises", () => {
     ];
 
     expect(getAvailablePlanExercises(plans)).toEqual([2026, 2025, 2024]);
+  });
+});
+
+describe("filterItemTree", () => {
+  const tree: ActionItem[] = [
+    item({
+      id: "g1", action: "EMPRESA - AÇÃO", status: 2, // grupo sem prazo
+      children: [
+        item({ id: "c1", planned_end: "2026-02-10", status: 4 }),
+        item({ id: "c2", planned_end: "2026-05-20", status: 1 }),
+      ],
+    }),
+    item({ id: "leaf", planned_end: "2026-02-15", status: 5 }),
+    item({ id: "g2", action: "TRADE", status: 1, children: [
+      item({ id: "c3", planned_end: "2026-09-01", status: 1 }),
+    ] }),
+  ];
+
+  it("predicado sempre-verdadeiro mantém a árvore inteira", () => {
+    expect(filterItemTree(tree, () => true)).toEqual(tree);
+  });
+
+  it("mantém o grupo só com os filhos que casam (poda os demais)", () => {
+    const from = "2026-01-01", to = "2026-03-01";
+    const result = filterItemTree(tree, (i) => isWithinRange(i.planned_end, from, to));
+    // g1 mantido com apenas c1; leaf mantido; g2 podado (c3 fora do intervalo).
+    expect(result.map((i) => i.id)).toEqual(["g1", "leaf"]);
+    expect(result[0].children?.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  it("descarta grupo quando nenhum filho casa", () => {
+    const result = filterItemTree(tree, (i) => isWithinRange(i.planned_end, "2026-08-01", "2026-12-31"));
+    // só g2/c3 estão nesse intervalo.
+    expect(result.map((i) => i.id)).toEqual(["g2"]);
+    expect(result[0].children?.map((c) => c.id)).toEqual(["c3"]);
+  });
+
+  it("quando o nó casa, preserva a subárvore inteira", () => {
+    // status===2 casa só g1; como g1 casa, mantém seus dois filhos.
+    const result = filterItemTree(tree, (i) => i.status === 2);
+    expect(result.map((i) => i.id)).toEqual(["g1"]);
+    expect(result[0].children?.map((c) => c.id)).toEqual(["c1", "c2"]);
+  });
+
+  it("filtra folhas de topo por status", () => {
+    const result = filterItemTree(tree, (i) => i.status === 5);
+    expect(result.map((i) => i.id)).toEqual(["leaf"]);
   });
 });

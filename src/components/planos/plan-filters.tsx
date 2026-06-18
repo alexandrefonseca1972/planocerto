@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { sanitize } from "@/lib/sanitize";
 import { STATUS_FAROL } from "@/types/action-plan";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 interface PlanFiltersProps {
   searchQuery: string;
@@ -18,6 +19,9 @@ interface PlanFiltersProps {
   setVisibilityFilter: (visibility: "public" | "restricted" | null) => void;
   exercicioFilter: number | null;
   setExercicioFilter: (exercicio: number | null) => void;
+  dateFrom: string;
+  dateTo: string;
+  setDateRange: (from: string, to: string) => void;
   availableExercises: number[];
   filteredCount: number;
   totalCount: number;
@@ -80,13 +84,17 @@ export function PlanFilters({
   setVisibilityFilter,
   exercicioFilter,
   setExercicioFilter,
+  dateFrom,
+  dateTo,
+  setDateRange,
   availableExercises,
   filteredCount,
   totalCount,
   filteredPlanCount,
   totalPlanCount,
 }: PlanFiltersProps) {
-  const hasItemFilters = searchQuery || statusFilter !== null;
+  const hasDateRange = Boolean(dateFrom && dateTo);
+  const hasItemFilters = Boolean(searchQuery) || statusFilter !== null || hasDateRange;
   const hasPlanFilters = planStatusFilter !== null || visibilityFilter !== null || exercicioFilter !== null;
 
   function clearAllPlanFilters() {
@@ -98,6 +106,7 @@ export function PlanFilters({
   function clearAllItemFilters() {
     setSearchQuery("");
     setStatusFilter(null);
+    setDateRange("", "");
   }
 
   return (
@@ -169,6 +178,7 @@ export function PlanFilters({
             </button>
           )}
         </div>
+        <DateRangePicker from={dateFrom} to={dateTo} onChange={setDateRange} />
         {hasItemFilters && (
           <Button
             variant="ghost"

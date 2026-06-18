@@ -24,7 +24,8 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { cn } from "@/lib/utils";
 import { flattenItems, calculatePlanFinancials } from "@/components/planos/plan-utils";
-import { resolveSelectedPlanId, filterCatalogByAccess, filterPlansByGovernance, getAvailablePlanExercises } from "@/components/planos/planos-page-helpers";
+import { resolveSelectedPlanId, filterCatalogByAccess, filterPlansByGovernance, getAvailablePlanExercises, filterItemTree } from "@/components/planos/planos-page-helpers";
+import { isWithinRange } from "@/lib/date-range";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { GanttChart } from "@/components/planos/plan-gantt";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
@@ -181,11 +182,26 @@ export default function PlanosPage() {
     () => calculatePlanFinancials(data.items, plan?.budget_limit),
     [data.items, plan?.budget_limit],
   );
-  const filteredItems = allItems.filter((i) => {
-    const matchesSearch = !url.searchQuery || i.action.toLowerCase().includes(url.searchQuery.toLowerCase()) || i.number.includes(url.searchQuery) || (i.responsible || "").toLowerCase().includes(url.searchQuery.toLowerCase());
-    const matchesStatus = url.statusFilter === null || i.status === url.statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+
+  // Filtros de item (busca + status + intervalo de prazo) aplicados à árvore,
+  // preservando a hierarquia pai/filho. As três views consomem `visibleItems`.
+  const hasItemFilters =
+    Boolean(url.searchQuery) || url.statusFilter !== null || Boolean(url.dateFrom && url.dateTo);
+  const visibleItems = useMemo(() => {
+    if (!hasItemFilters) return data.items;
+    const q = url.searchQuery.toLowerCase();
+    const matchesSearch = (i: ActionItem) =>
+      !url.searchQuery ||
+      i.action.toLowerCase().includes(q) ||
+      i.number.includes(url.searchQuery) ||
+      (i.responsible || "").toLowerCase().includes(q);
+    const matchesStatus = (i: ActionItem) => url.statusFilter === null || i.status === url.statusFilter;
+    return filterItemTree(
+      data.items,
+      (i) => matchesSearch(i) && matchesStatus(i) && isWithinRange(i.planned_end, url.dateFrom || null, url.dateTo || null),
+    );
+  }, [data.items, hasItemFilters, url.searchQuery, url.statusFilter, url.dateFrom, url.dateTo]);
+  const filteredCount = useMemo(() => flattenItems(visibleItems).length, [visibleItems]);
 
   const counts = {
     total: allItems.length,
@@ -388,7 +404,10 @@ export default function PlanosPage() {
           exercicioFilter={url.exercicioFilter}
           setExercicioFilter={url.setExercicioFilter}
           availableExercises={availableExercises}
-          filteredCount={filteredItems.length}
+          dateFrom={url.dateFrom}
+          dateTo={url.dateTo}
+          setDateRange={url.setDateRange}
+          filteredCount={filteredCount}
           totalCount={allItems.length}
           filteredPlanCount={filteredPlans.length}
           totalPlanCount={data.allPlans.length}
@@ -402,32 +421,32 @@ export default function PlanosPage() {
         )}
 
         {url.viewMode === "gantt" ? (
-          data.items.length === 0 ? (
+          visibleItems.length === 0 ? (
             <Card><CardContent className="flex flex-col items-center py-16 text-center"><p className="text-sm text-zinc-500">Nenhuma acao para exibir.</p></CardContent></Card>
           ) : (
-            <GanttChart items={data.items} />
+            <GanttChart items={visibleItems} />
           )
         ) : url.viewMode === "kanban" ? (
-          <KanbanBoard items={data.items} onEdit={setEditingItem} onShowForm={setShowItemForm}
+          <KanbanBoard items={visibleItems} onEdit={setEditingItem} onShowForm={setShowItemForm}
             onStatusChange={async (itemId, newStatus) => {
               await updateItemStatus(itemId, newStatus as 1 | 2 | 3 | 4 | 5);
               router.refresh();
               toast("Status atualizado!");
             }} />
         ) : (
-          data.items.length === 0 ? (
+          visibleItems.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center py-16 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
                   <ClipboardList className="h-7 w-7 text-zinc-400" />
                 </div>
                 <h3 className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                  {url.searchQuery || url.statusFilter !== null ? "Nenhum resultado" : "Nenhuma acao"}
+                  {hasItemFilters ? "Nenhum resultado" : "Nenhuma acao"}
                 </h3>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  {url.searchQuery || url.statusFilter !== null ? "Tente ajustar os filtros." : "Adicione acoes ao plano 5W2H."}
+                  {hasItemFilters ? "Tente ajustar os filtros." : "Adicione acoes ao plano 5W2H."}
                 </p>
-                {!url.searchQuery && url.statusFilter === null && (
+                {!hasItemFilters && (
                   <Button className="mt-4" onClick={() => { setEditingItem(null); setShowItemForm(true); }}>
                     <Plus className="h-4 w-4 mr-1" /> Adicionar primeira acao
                   </Button>
@@ -436,7 +455,7 @@ export default function PlanosPage() {
             </Card>
           ) : (
             <PlanTable
-              items={data.items}
+              items={visibleItems}
               contasSummary={data.contasSummary}
               onEdit={setEditingItem}
               onShowForm={setShowItemForm}

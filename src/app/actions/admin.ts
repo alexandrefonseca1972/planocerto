@@ -254,6 +254,20 @@ function resolveTenantRole(raw: FormDataEntryValue | null): MembershipRole {
   return TENANT_ROLE_MAP[str] ?? "member";
 }
 
+// Papel de membership efetivo aplicando a política: apenas super_admin pode
+// definir Admin/Proprietário numa empresa. Para não-super, vínculos novos
+// nascem como "member"; em edição, preserva o papel já existente (owner/admin)
+// para não rebaixar acidentalmente quem já o tinha.
+function membershipRoleFor(
+  isSuperAdmin: boolean,
+  raw: FormDataEntryValue | null,
+  existingRole?: string | null,
+): MembershipRole {
+  if (isSuperAdmin) return resolveTenantRole(raw);
+  if (existingRole === "owner" || existingRole === "admin") return existingRole;
+  return "member";
+}
+
 export async function createUser(
   _prevState: AdminFormState,
   formData: FormData
@@ -348,7 +362,7 @@ export async function createUser(
         p_active_tenant_id: scopedTenantIds[0] ?? null,
         p_tenant_members: scopedTenantIds.map((tenantId) => ({
           tenant_id: tenantId,
-          role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
+          role: membershipRoleFor(scope.isSuperAdmin, formData.get(`tenantRole-${tenantId}`)),
         })),
         p_area_ids: newAreaIds,
         p_unit_ids: newUnitIds,
@@ -564,7 +578,11 @@ export async function updateUser(
       const toUpsert = [...toKeep, ...toAdd].map((tenantId) => ({
         user_id: userId,
         tenant_id: tenantId,
-        role: resolveTenantRole(formData.get(`tenantRole-${tenantId}`)),
+        role: membershipRoleFor(
+          scope.isSuperAdmin,
+          formData.get(`tenantRole-${tenantId}`),
+          existingRoleById.get(tenantId),
+        ),
       }));
 
       // Proteção: não permitir remover/rebaixar o ÚLTIMO proprietário de uma

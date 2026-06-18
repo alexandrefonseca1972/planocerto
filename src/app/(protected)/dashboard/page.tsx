@@ -3,7 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { getUserTenants } from "@/app/actions/tenant";
+import { getCurrentUserPlanScope } from "@/app/actions/action-plan";
 import { getPermissionsMap, buildCustomRolesMap } from "@/lib/permissions";
+import { filterUnitsByScope, filterAreasByScope } from "@/components/dashboard/dashboard-access";
+import { isWithinRange } from "@/components/dashboard/dashboard-range";
 
 export const metadata: Metadata = {
   title: "Dashboard | PlanoCerto",
@@ -116,7 +119,21 @@ function accBreakdown(
   b.aE += maE; b.aR += maR;
 }
 
-export default async function DashboardPage() {
+/** Aceita apenas datas no formato YYYY-MM-DD; caso contrário, ignora. */
+function parseRangeDate(value: string | undefined): string | null {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ from?: string; to?: string }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const rangeFrom = parseRangeDate(params.from);
+  const rangeTo = parseRangeDate(params.to);
+  const hasRange = Boolean(rangeFrom && rangeTo);
+
   let userName = "Usuário";
   let userPermissions: Record<string, boolean> = {};
   let role = "user";
@@ -163,7 +180,7 @@ export default async function DashboardPage() {
     }
 
     const tenants = await getUserTenants();
-    if (!tenants.length) return <DashboardClient userName={userName} userPermissions={userPermissions} unitSummaries={[]} areas={[]} deadlines={[]} actionRows={[]} sparklineData={[]} catalogTiposPa={[]} catalogMacroAcoes={[]} myTasks={[]} />;
+    if (!tenants.length) return <DashboardClient userName={userName} userPermissions={userPermissions} unitSummaries={[]} areas={[]} deadlines={[]} actionRows={[]} sparklineData={[]} catalogTiposPa={[]} catalogMacroAcoes={[]} myTasks={[]} dateFrom="" dateTo="" />;
     const tenantIds = tenants.map((t) => t.id);
 
     // Áreas e Unidades dos tenants do usuário (catálogo)
@@ -172,6 +189,7 @@ export default async function DashboardPage() {
       { data: unitRows },
       { data: tiposPaRows },
       { data: macroAcoesRows },
+      scope,
     ] = await Promise.all([
       supabase
         .from("areas")
@@ -183,14 +201,11 @@ export default async function DashboardPage() {
         .in("tenant_id", tenantIds),
       supabase.from("tipos_pa").select("id,name,active").eq("active", true).order("sort_order"),
       supabase.from("macro_acoes").select("id,name,active").eq("active", true).order("sort_order"),
+      getCurrentUserPlanScope(),
     ]);
 
     catalogTiposPa = (tiposPaRows || []) as { id: string; name: string }[];
     catalogMacroAcoes = (macroAcoesRows || []) as { id: string; name: string }[];
-
-    for (const a of (areaRows || []) as AreaInfo[]) {
-      areas.push({ id: a.id, name: a.name, tenant_id: a.tenant_id });
-    }
 
     interface UnitRow {
       id: string;
@@ -201,7 +216,16 @@ export default async function DashboardPage() {
       active: boolean;
     }
 
-    const allUnits: UnitRow[] = (unitRows || []) as UnitRow[];
+    // Escopo de acesso do usuário: exibe apenas unidades/áreas liberadas
+    // (user_units / user_areas). Escopo vazio = sem restrição.
+    const allUnits: UnitRow[] = filterUnitsByScope(
+      (unitRows || []) as UnitRow[],
+      scope,
+    );
+
+    for (const a of filterAreasByScope((areaRows || []) as AreaInfo[], allUnits, scope)) {
+      areas.push({ id: a.id, name: a.name, tenant_id: a.tenant_id });
+    }
 
     // Plans + Items
     const { data: allPlans } = await supabase
@@ -269,8 +293,16 @@ export default async function DashboardPage() {
       }
     }
 
+    // Intervalo de datas (?from=&to=): restringe as ações ao período por
+    // planned_end. Ações sem prazo ficam fora quando há intervalo ativo. Todo o
+    // pipeline a jusante (itemsByUnit, unitSummaries, actionRows, deadlines)
+    // herda esse recorte; sparkline e Minhas Tarefas usam allItems (full).
+    const rangeItems = hasRange
+      ? allItems.filter((it) => isWithinRange(it.planned_end, rangeFrom, rangeTo))
+      : allItems;
+
     const itemsByPlan = new Map<string, ItemRow[]>();
-    for (const item of allItems) {
+    for (const item of rangeItems) {
       if (!itemsByPlan.has(item.plan_id)) itemsByPlan.set(item.plan_id, []);
       itemsByPlan.get(item.plan_id)!.push(item);
     }
@@ -552,6 +584,8 @@ export default async function DashboardPage() {
       catalogTiposPa={catalogTiposPa}
       catalogMacroAcoes={catalogMacroAcoes}
       myTasks={myTasks}
+      dateFrom={rangeFrom ?? ""}
+      dateTo={rangeTo ?? ""}
     />
   );
 }

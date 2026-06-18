@@ -231,6 +231,7 @@ export function CreateUserDialog({
                       // marcada; com várias (super_admin) ficam desmarcadas.
                       defaultChecked={tenants.length === 1}
                       defaultRole={toTenantRole(selectedRole)}
+                      isSuperAdmin={isSuperAdmin}
                     />
                   ))}
                 </div>

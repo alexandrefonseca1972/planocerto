@@ -17,13 +17,21 @@ export function TenantRoleRow({
   formPrefix,
   defaultChecked = false,
   defaultRole = "member",
+  isSuperAdmin = false,
 }: {
   tenant: Tenant;
   formPrefix: string;
   defaultChecked?: boolean;
   defaultRole?: string;
+  isSuperAdmin?: boolean;
 }) {
   const [checked, setChecked] = useState(defaultChecked);
+
+  // Apenas super_admin define papel de empresa Admin/Proprietário. Para os
+  // demais, o usuário só pode ser Membro — o servidor também impõe isso.
+  const roleOptions = isSuperAdmin
+    ? TENANT_ROLES
+    : TENANT_ROLES.filter((r) => r.value === "member");
 
   return (
     <div className="flex items-center gap-2">
@@ -43,11 +51,11 @@ export function TenantRoleRow({
       {checked && (
         <select
           name={`tenantRole-${tenant.id}`}
-          defaultValue={defaultRole}
+          defaultValue={isSuperAdmin ? defaultRole : "member"}
           className="h-7 rounded border border-zinc-200 bg-white px-1.5 text-xs text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
           onClick={(e) => e.stopPropagation()}
         >
-          {TENANT_ROLES.map((r) => (
+          {roleOptions.map((r) => (
             <option key={r.value} value={r.value}>{r.label}</option>
           ))}
         </select>

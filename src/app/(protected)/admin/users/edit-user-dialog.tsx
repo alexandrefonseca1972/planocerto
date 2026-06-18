@@ -176,6 +176,7 @@ export function EditUserDialog({
                     formPrefix="edit"
                     defaultChecked={selectedTenantIds.includes(tenant.id)}
                     defaultRole={selectedTenantRoles[tenant.id] || "member"}
+                    isSuperAdmin={isSuperAdmin}
                   />
                 ))}
               </div>

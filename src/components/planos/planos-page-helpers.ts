@@ -1,4 +1,30 @@
-import type { ActionPlan } from "@/types/action-plan";
+import type { ActionItem, ActionPlan } from "@/types/action-plan";
+
+/**
+ * Filtra a árvore de ações por um predicado, preservando a hierarquia pai/filho.
+ *
+ * Regra: mantém o nó se ele próprio casa (subárvore inteira preservada) OU se
+ * algum descendente casa — nesse caso o nó vira cabeçalho do grupo, com os
+ * filhos podados para apenas os que casam. Útil para que grupos (macro ações,
+ * sem prazo) só apareçam quando têm filhos dentro do filtro.
+ */
+export function filterItemTree(
+  items: ActionItem[],
+  pred: (item: ActionItem) => boolean,
+): ActionItem[] {
+  const out: ActionItem[] = [];
+  for (const item of items) {
+    if (pred(item)) {
+      out.push(item);
+      continue;
+    }
+    const keptChildren = item.children?.length ? filterItemTree(item.children, pred) : [];
+    if (keptChildren.length) {
+      out.push({ ...item, children: keptChildren });
+    }
+  }
+  return out;
+}
 
 export function resolveSelectedPlanId<T extends { id: string }>(
   plans: T[],

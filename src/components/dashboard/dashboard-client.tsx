@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { DistributionCard } from "@/components/dashboard/distribution-card";
 import { DetailTable } from "@/components/dashboard/detail-table";
 import { AreaUnitFilter } from "@/components/dashboard/area-unit-filter";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import {
   DndContext,
@@ -167,6 +168,8 @@ interface DashboardClientProps {
   catalogTiposPa?: { id: string; name: string }[];
   catalogMacroAcoes?: { id: string; name: string }[];
   myTasks?: MyTaskItem[];
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export function DashboardClient({
@@ -176,7 +179,10 @@ export function DashboardClient({
   deadlines: allDeadlines,
   actionRows = [],
   myTasks = [],
+  dateFrom = "",
+  dateTo = "",
 }: DashboardClientProps) {
+  const router = useRouter();
   const { selectedTenantIds, currentTenant, selectedUnitIds, setSelectedUnitIds } = useTenant();
   const [selectedTipoPa, setSelectedTipoPa] = useState<string>("");
   const [selectedMacroAcao, setSelectedMacroAcao] = useState<string>("");
@@ -187,6 +193,8 @@ export function DashboardClient({
   const [statusOrder, setStatusOrder] = useState<string[]>(["total", "completed", "progress", "pending", "overdue"]);
   const [statusModal, setStatusModal] = useState<"total" | StatusBucket | null>(null);
   const [modalSearch, setModalSearch] = useState("");
+  const [rangeFrom, setRangeFrom] = useState(dateFrom);
+  const [rangeTo, setRangeTo] = useState(dateTo);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -261,6 +269,28 @@ export function DashboardClient({
     }, 0);
     return () => clearTimeout(t);
   }, [unitSummaries, storageKeys]);
+
+  // Mantém os inputs de intervalo em sincronia com a URL (navegação/voltar).
+  // setTimeout p/ satisfazer react-hooks/set-state-in-effect (padrão do arquivo).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setRangeFrom(dateFrom);
+      setRangeTo(dateTo);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [dateFrom, dateTo]);
+
+  // Reflete o intervalo na URL (?from=&to=); só aplica com ambas as datas.
+  // O Server Component recalcula o cenário; sem ambas, remove os params.
+  function applyRange(nextFrom: string, nextTo: string) {
+    const qs = new URLSearchParams();
+    if (nextFrom && nextTo) {
+      qs.set("from", nextFrom);
+      qs.set("to", nextTo);
+    }
+    const query = qs.toString();
+    router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
+  }
 
   const handleDragStart = (id: string) => {
     setDraggedId(id);
@@ -576,6 +606,12 @@ export function DashboardClient({
             )}
           </div>
         )}
+        {/* Intervalo de datas (prazo): recalcula o cenário via ?from=&to= */}
+        <DateRangePicker
+          from={rangeFrom}
+          to={rangeTo}
+          onChange={(f, t) => { setRangeFrom(f); setRangeTo(t); applyRange(f, t); }}
+        />
       </div>
 
       <Tabs defaultValue="indicadores" className="space-y-4">

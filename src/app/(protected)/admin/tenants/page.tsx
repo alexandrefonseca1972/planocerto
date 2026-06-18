@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { useToast } from "@/components/ui/toast";
@@ -52,6 +52,7 @@ import {
   Crown,
   CheckCircle2,
   CircleSlash,
+  Loader2,
 } from "lucide-react";
 
 const initialState: TenantFormState = { message: undefined, errors: {} };
@@ -626,35 +627,109 @@ function MemberManager({
   tenant: Tenant;
   onClose: () => void;
 }) {
+  const { toast } = useToast();
+  const emailRef = useRef<HTMLInputElement>(null);
   const [members, setMembers] = useState<TenantMemberWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  // Nonce que força o remount das linhas após cada recarga, fazendo os <select>
+  // (não controlados) refletirem a verdade do servidor — inclusive revertendo
+  // uma seleção que o servidor rejeitou.
+  const [reloadKey, setReloadKey] = useState(0);
+  // Linha em ação no momento (troca de papel ou remoção) — pending por linha,
+  // em vez de um spinner global em todas.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [removingMember, setRemovingMember] =
+    useState<TenantMemberWithProfile | null>(null);
   const [addState, addAction, isAdding] = useActionState(addTenantMember, initialState);
-  const [, removeAction, isRemoving] = useActionState(removeTenantMember, initialState);
-  const [, roleAction, isChangingRole] = useActionState(updateTenantMemberRole, initialState);
+  const [removeState, removeAction] = useActionState(removeTenantMember, initialState);
+  const [roleState, roleAction] = useActionState(updateTenantMemberRole, initialState);
+
+  // Recarga silenciosa após ações (não mexe no estado de "carregando").
+  function reload() {
+    getTenantMembers(tenant.id).then((data) => {
+      setMembers(data);
+      setReloadKey((k) => k + 1);
+    });
+  }
+
+  // Carga com indicador + tratamento de erro (montagem inicial e "Tentar de novo").
+  function loadMembers() {
+    setLoading(true);
+    setLoadError(false);
+    return getTenantMembers(tenant.id)
+      .then((data) => {
+        setMembers(data);
+        setReloadKey((k) => k + 1);
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      setLoading(true);
-      const data = await getTenantMembers(tenant.id);
-      if (!cancelled) {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setLoading(true);
+    setLoadError(false);
+    getTenantMembers(tenant.id)
+      .then((data) => {
+        if (cancelled) return;
         setMembers(data);
-        setLoading(false);
-      }
-    }
-    load();
+        setReloadKey((k) => k + 1);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    /* eslint-enable react-hooks/set-state-in-effect */
     return () => {
       cancelled = true;
     };
   }, [tenant.id]);
 
-  // Re-carrega ao adicionar com sucesso
+  // Adicionar: recarrega, limpa o campo e mantém o foco para incluir vários.
   useEffect(() => {
     if (addState.success) {
-      getTenantMembers(tenant.id).then(setMembers);
+      if (emailRef.current) emailRef.current.value = "";
+      emailRef.current?.focus();
+      reload();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addState.success]);
+  }, [addState]);
+
+  // Trocar papel: feedback + recarrega (reverte seleção inválida) + libera a linha.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (roleState.success) {
+      toast(roleState.message || "Papel atualizado!");
+      reload();
+      setBusyId(null);
+    } else if (roleState.message) {
+      toast(roleState.message, "error");
+      reload();
+      setBusyId(null);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleState]);
+
+  // Remover: feedback + recarrega + fecha a confirmação.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (removeState.success) {
+      toast(removeState.message || "Membro removido.");
+      setRemovingMember(null);
+      reload();
+      setBusyId(null);
+    } else if (removeState.message) {
+      toast(removeState.message, "error");
+      setBusyId(null);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [removeState]);
 
   const roleLabel: Record<string, string> = {
     owner: "Dono",
@@ -673,127 +748,187 @@ function MemberManager({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-700">
-          <div>
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Membros
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">{tenant.name}</p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fechar">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="space-y-4 p-6">
-          <form action={addAction} className="flex gap-2">
-            <input type="hidden" name="tenantId" value={tenant.id} />
-            <Input
-              name="email"
-              type="email"
-              placeholder="email@usuário.com"
-              className="flex-1"
-              required
-            />
-            <Button type="submit" size="sm" isLoading={isAdding}>
-              <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Adicionar</span>
-            </Button>
-          </form>
-
-          {addState.message && (
-            <div
-              className={`rounded-md p-2 text-xs ${
-                addState.success
-                  ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
-                  : "border border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300"
-              }`}
-            >
-              {addState.message}
+    <>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-700">
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Membros
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">{tenant.name}</p>
             </div>
-          )}
+            <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fechar">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
-          <div className="max-h-80 overflow-y-auto">
-            {loading ? (
-              <p className="py-8 text-center text-sm text-zinc-400">Carregando...</p>
-            ) : members.length === 0 ? (
-              <p className="py-8 text-center text-sm text-zinc-400">
-                Nenhum membro nesta empresa.
-              </p>
-            ) : (
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {members.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between gap-2 py-2.5">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
-                        {(m.profiles?.name?.[0] || m.profiles?.email?.[0] || "?").toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                            {m.profiles?.name || "Sem nome"}
-                          </p>
-                          <Badge variant={roleVariant[m.role] || "muted"} className="gap-0.5">
-                            {roleIcon[m.role]}
-                            {roleLabel[m.role]}
-                          </Badge>
-                        </div>
-                        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {m.profiles?.email || "—"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <form action={roleAction} className="flex items-center gap-1">
-                        <input type="hidden" name="memberId" value={m.id} />
-                        <Select
-                          name="role"
-                          defaultValue={m.role}
-                          className="h-7 px-1.5 text-xs"
-                        >
-                          <option value="owner">Dono</option>
-                          <option value="admin">Admin</option>
-                          <option value="member">Membro</option>
-                        </Select>
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          isLoading={isChangingRole}
-                          aria-label="Salvar papel"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                      </form>
-                      <form action={removeAction}>
-                        <input type="hidden" name="memberId" value={m.id} />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                          isLoading={isRemoving}
-                          aria-label="Remover membro"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </form>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+          <div className="space-y-4 p-6">
+            <form action={addAction} className="flex gap-2">
+              <input type="hidden" name="tenantId" value={tenant.id} />
+              <Input
+                ref={emailRef}
+                name="email"
+                type="email"
+                placeholder="email@usuario.com"
+                className="flex-1"
+                required
+              />
+              <Button type="submit" size="sm" isLoading={isAdding}>
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Adicionar</span>
+              </Button>
+            </form>
+
+            {addState.message && (
+              <div
+                className={`rounded-md p-2 text-xs ${
+                  addState.success
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                    : "border border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300"
+                }`}
+              >
+                {addState.message}
+              </div>
             )}
+
+            <div className="max-h-80 overflow-y-auto">
+              {loading ? (
+                <p className="py-8 text-center text-sm text-zinc-400">Carregando...</p>
+              ) : loadError ? (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    Não foi possível carregar os membros.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="mt-3"
+                    onClick={() => loadMembers()}
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : members.length === 0 ? (
+                <p className="py-8 text-center text-sm text-zinc-400">
+                  Nenhum membro nesta empresa.
+                </p>
+              ) : (
+                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {members.map((m) => (
+                    <li
+                      key={`${m.id}-${reloadKey}`}
+                      className="flex items-center justify-between gap-2 py-2.5"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
+                          {(m.profiles?.name?.[0] || m.profiles?.email?.[0] || "?").toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                              {m.profiles?.name || "Sem nome"}
+                            </p>
+                            <Badge variant={roleVariant[m.role] || "muted"} className="gap-0.5">
+                              {roleIcon[m.role]}
+                              {roleLabel[m.role]}
+                            </Badge>
+                          </div>
+                          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                            {m.profiles?.email || "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {/* Troca de papel: salva direto ao escolher (sem botão extra). */}
+                        <form action={roleAction}>
+                          <input type="hidden" name="memberId" value={m.id} />
+                          <Select
+                            name="role"
+                            defaultValue={m.role}
+                            disabled={busyId === m.id}
+                            onChange={(e) => {
+                              setBusyId(m.id);
+                              e.currentTarget.form?.requestSubmit();
+                            }}
+                            className="h-8 w-[104px] py-1 pl-2.5 pr-8 text-xs"
+                            aria-label={`Papel de ${m.profiles?.name || "membro"}`}
+                          >
+                            <option value="owner">Dono</option>
+                            <option value="admin">Admin</option>
+                            <option value="member">Membro</option>
+                          </Select>
+                        </form>
+                        <span className="flex w-4 justify-center">
+                          {busyId === m.id && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
+                          )}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          onClick={() => setRemovingMember(m)}
+                          aria-label={`Remover ${m.profiles?.name || "membro"}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <AlertDialog
+        open={!!removingMember}
+        onOpenChange={(o) => {
+          if (!o) setRemovingMember(null);
+        }}
+      >
+        {removingMember && (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remover membro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Remover{" "}
+                <strong className="text-zinc-900 dark:text-zinc-50">
+                  {removingMember.profiles?.name || removingMember.profiles?.email}
+                </strong>{" "}
+                de {tenant.name}? O usuário perde o acesso a esta empresa (os
+                dados criados por ele são preservados).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form
+              action={removeAction}
+              onSubmit={() => {
+                if (removingMember) setBusyId(removingMember.id);
+              }}
+            >
+              <input type="hidden" name="memberId" value={removingMember.id} />
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  isLoading={busyId === removingMember.id}
+                >
+                  <Trash2 className="h-4 w-4" /> Remover
+                </Button>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
+    </>
   );
 }

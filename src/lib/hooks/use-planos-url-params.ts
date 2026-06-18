@@ -14,6 +14,8 @@ export function usePlanosUrlParams() {
   const planStatusFilter = (searchParams.get("plan_status") as "active" | "archived" | null) || null;
   const visibilityFilter = (searchParams.get("plan_visibility") as "public" | "restricted" | null) || null;
   const exercicioFilter = searchParams.get("plan_year") ? Number(searchParams.get("plan_year")) : null;
+  const dateFrom = searchParams.get("date_from") || "";
+  const dateTo = searchParams.get("date_to") || "";
   const requestedPlanId = searchParams.get("plan");
   const requestedItemId = searchParams.get("item");
 
@@ -56,6 +58,10 @@ export function usePlanosUrlParams() {
     router.replace(`${pathname}?${createQueryString({ plan_year: exercicio })}`, { scroll: false });
   };
 
+  const setDateRange = (from: string, to: string) => {
+    router.replace(`${pathname}?${createQueryString({ date_from: from || null, date_to: to || null })}`, { scroll: false });
+  };
+
   const clearFilters = () => {
     router.replace(`${pathname}?${createQueryString({ plan_status: null, plan_visibility: null, plan_year: null })}`, { scroll: false });
   };
@@ -67,6 +73,8 @@ export function usePlanosUrlParams() {
     planStatusFilter,
     visibilityFilter,
     exercicioFilter,
+    dateFrom,
+    dateTo,
     requestedPlanId,
     requestedItemId,
     createQueryString,
@@ -76,6 +84,7 @@ export function usePlanosUrlParams() {
     setPlanStatusFilter,
     setVisibilityFilter,
     setExercicioFilter,
+    setDateRange,
     clearFilters,
   };
 }
