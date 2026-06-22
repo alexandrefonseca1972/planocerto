@@ -32,6 +32,16 @@ import type { ItemContasSummary } from "@/app/actions/contas-pagar";
 
 const PAGE_SIZE = 20;
 
+// Soma recursiva dos custos dos filhos (subtotal exibido na linha do grupo).
+function sumCost(children?: ActionItem[]): number {
+  if (!children?.length) return 0;
+  return children.reduce((acc, child) => {
+    const n = Number(child.cost);
+    const own = !isNaN(n) && n > 0 ? n : 0;
+    return acc + own + sumCost(child.children);
+  }, 0);
+}
+
 type SortKey = "number" | "action" | "tipo_pa" | "prioridade" | "responsible" | "why" | "planned_end" | "where" | "planned_start" | "cost" | "status" | null;
 
 interface SortState {
@@ -451,6 +461,12 @@ function ViewRow({
       <td className="px-2 py-2.5 text-[12px] text-zinc-500 dark:text-zinc-400 align-top font-mono tabular-nums">
         <div className="flex flex-col gap-0.5">
           {((): React.ReactNode => {
+            if (isGroup) {
+              const subtotal = sumCost(item.children);
+              return subtotal > 0 ? (
+                <span className="font-semibold text-zinc-700 dark:text-zinc-200">{formatBRL(subtotal)}</span>
+              ) : "—";
+            }
             if (!item.cost) return "—";
             const n = Number(item.cost);
             return !isNaN(n) && n > 0 ? formatBRL(n) : item.cost;
