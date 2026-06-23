@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { getErrorMessage, isRetryable, withRetry } from "@/lib/errors";
+import { hardenCookieOptions } from "@/lib/supabase/cookie-options";
 import type { Database } from "@/lib/supabase/database.types";
 import { logger } from "@/lib/logger";
 
@@ -44,24 +46,34 @@ export async function checkAuth(
           );
           supabaseResponse = buildResponse();
           cookiesToSet.forEach(({ name, value, options }) => {
-            if (options) {
-              const { expires, maxAge, ...rest } = options;
-              void expires;
-              void maxAge;
-              supabaseResponse.cookies.set(name, value, rest);
-            } else {
-              supabaseResponse.cookies.set(name, value);
-            }
+            supabaseResponse.cookies.set(name, value, hardenCookieOptions(options));
           });
         },
       },
     }
   );
 
+  // Reexecuta o getUser em caso de erro transitório (503/timeout do Supabase),
+  // evitando que uma falha intermitente derrube a sessão / dispare o 503
+  // fail-closed do proxy. Erros não-transitórios (ex.: sessão ausente) seguem
+  // o fluxo normal abaixo; se as tentativas se esgotarem, trata como anônimo.
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser();
+  } = await withRetry(
+    async () => {
+      const res = await supabase.auth.getUser();
+      if (res.error && isRetryable(res.error)) throw res.error;
+      return res;
+    },
+    {
+      onRetry: (attempt, error) =>
+        log.warn(
+          { attempt, error: getErrorMessage(error) },
+          "Retentando auth.getUser após erro transitório"
+        ),
+    }
+  ).catch((error) => ({ data: { user: null }, error }));
 
   if (userError) {
     // Requisições anônimas (sem sessão) lançam AuthSessionMissingError — caso

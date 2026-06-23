@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { getErrorMessage, isRetryable, logSupabaseError } from "@/lib/errors";
+import { getErrorMessage, isRetryable, logSupabaseError, withRetry } from "@/lib/errors";
 
 describe("getErrorMessage()", () => {
   it("extracts message from Error instance", () => {
@@ -44,6 +44,51 @@ describe("isRetryable()", () => {
     expect(isRetryable("string")).toBe(false);
     expect(isRetryable(null)).toBe(false);
     expect(isRetryable(42)).toBe(false);
+  });
+
+  it("detects retryable object errors (Supabase/PostgREST shape)", () => {
+    expect(isRetryable({ status: 503, message: "Service Unavailable" })).toBe(true);
+    expect(isRetryable({ status: 429 })).toBe(true);
+    expect(isRetryable({ status: 500 })).toBe(true);
+    expect(isRetryable({ message: "fetch failed" })).toBe(true);
+  });
+
+  it("returns false for non-retryable object errors", () => {
+    expect(isRetryable({ status: 400, message: "Bad Request" })).toBe(false);
+    expect(isRetryable({ code: "23505", message: "duplicate key" })).toBe(false);
+  });
+});
+
+describe("withRetry()", () => {
+  const noSleep = () => Promise.resolve();
+
+  it("retorna na primeira tentativa quando não há erro", async () => {
+    const fn = vi.fn().mockResolvedValue("ok");
+    await expect(withRetry(fn, { sleep: noSleep })).resolves.toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("reexecuta em erro transitório e eventualmente tem sucesso", async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce({ status: 503 })
+      .mockResolvedValueOnce("ok");
+    const onRetry = vi.fn();
+    await expect(withRetry(fn, { sleep: noSleep, onRetry })).resolves.toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("não reexecuta erro não-transitório", async () => {
+    const fn = vi.fn().mockRejectedValue({ status: 400 });
+    await expect(withRetry(fn, { sleep: noSleep })).rejects.toEqual({ status: 400 });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("esgota as tentativas e repropaga o último erro", async () => {
+    const fn = vi.fn().mockRejectedValue({ status: 503 });
+    await expect(withRetry(fn, { retries: 2, sleep: noSleep })).rejects.toEqual({ status: 503 });
+    expect(fn).toHaveBeenCalledTimes(3);
   });
 });
 

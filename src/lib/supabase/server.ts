@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
+import { hardenCookieOptions } from "@/lib/supabase/cookie-options";
 import type { Database } from "@/lib/supabase/database.types";
 
 async function createClient() {
@@ -17,8 +18,7 @@ async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              const { expires, maxAge, ...rest } = options || {};
-              cookieStore.set(name, value, rest);
+              cookieStore.set(name, value, hardenCookieOptions(options));
             });
           } catch (error) {
             console.error("[supabase/server] Erro ao definir cookies:", error);

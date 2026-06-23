@@ -20,6 +20,24 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+### Segurança
+- **Cookies de autenticação `HttpOnly`/`SameSite`/`Secure`** (Fase 1 do roadmap):
+  o token `sb-*-auth-token` deixa de ser legível por `document.cookie` (mitiga
+  roubo de sessão via XSS). Centralizado em `hardenCookieOptions`
+  (`src/lib/supabase/cookie-options.ts`) e aplicado no client de servidor e no
+  middleware. Seguro porque todo acesso ao Supabase é server-side.
+- **Anti-IDOR explícito em `getContaById`**: filtro por `tenant_id` do tenant
+  ativo (fail-closed), alinhado a `getContasPagar` — defesa em profundidade
+  além do RLS.
+
+### Corrigido
+- **Resiliência a 503/timeouts intermitentes do Supabase**: novo helper
+  `withRetry` com backoff exponencial e `isRetryable` ampliado (erros em formato
+  de objeto do PostgREST). Aplicado ao `auth.getUser()` do middleware para
+  evitar logout/erro 503 espúrios em falhas transitórias.
+- **Suíte de testes voltou a 100% verde**: o mock de `sanitizedString` retornava
+  `undefined` e derrubava o load de schemas em 2 arquivos de teste.
+
 ## [2.2.1] - 2026-06-03
 
 Correções de produção: empresa ativa na importação de planos, sanitização sem
