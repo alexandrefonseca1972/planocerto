@@ -16,12 +16,13 @@ export function buildCsp(nonce: string, isDev: boolean): string {
   const directives = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ""}`,
-    // Estilos via <style>/<link> assinados pelo nonce. Em dev o Next injeta CSS
-    // inline sem nonce (HMR), então liberamos 'unsafe-inline' apenas no dev.
-    `style-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-inline'" : ""}`,
-    // Atributos style="" (props `style` do React, transforms do dnd-kit) não
-    // são cobertos por nonce; liberados aqui sem afetar a proteção anti-XSS de script.
-    `style-src-attr 'unsafe-inline'`,
+    // Estilos: 'unsafe-inline' SEM nonce. Combinar nonce + 'unsafe-inline' no
+    // mesmo style-src faz o browser IGNORAR o 'unsafe-inline' (regra do CSP),
+    // bloqueando os <style> que o Next/Turbopack injeta e os style="" do React
+    // e dos transforms do dnd-kit. Estilo inline não é vetor de XSS de script —
+    // a proteção real está em script-src (estrito, com nonce) — então liberar
+    // 'unsafe-inline' aqui é seguro. style-src-attr fica coberto por fallback.
+    `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' blob: data: https://www.gravatar.com`,
     `font-src 'self'`,
     // REST + Realtime (websocket) do Supabase.
