@@ -1,7 +1,7 @@
 import { FornecedoresClient } from "@/components/admin/catalogos/fornecedores-client";
 import { getFornecedores } from "@/app/actions/fornecedores";
 
-export const metadata = { title: "Fornecedores — Catálogos — PlanoCerto" };
+export const metadata = { title: "Fornecedores — Catálogos" };
 
 export default async function FornecedoresPage() {
   const fornecedores = await getFornecedores();

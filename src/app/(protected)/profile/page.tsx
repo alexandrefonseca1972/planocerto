@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Perfil | PlanoCerto",
+  title: "Perfil",
   description: "Gerencie seus dados de perfil no PlanoCerto.",
 };
 

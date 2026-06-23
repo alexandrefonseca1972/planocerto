@@ -12,8 +12,23 @@ export interface AuthResult {
   supabase: ReturnType<typeof createServerClient<Database>>;
 }
 
-export async function checkAuth(request: NextRequest): Promise<AuthResult> {
-  let supabaseResponse = NextResponse.next({ request });
+export async function checkAuth(
+  request: NextRequest,
+  requestHeaders?: Record<string, string>
+): Promise<AuthResult> {
+  // Reconstrói o NextResponse preservando os headers extras (ex.: x-nonce e
+  // Content-Security-Policy) no request que segue para o SSR. Lê request.headers
+  // a cada chamada para capturar cookies atualizados pelo Supabase em setAll.
+  const buildResponse = () => {
+    if (!requestHeaders) return NextResponse.next({ request });
+    const headers = new Headers(request.headers);
+    for (const [key, value] of Object.entries(requestHeaders)) {
+      headers.set(key, value);
+    }
+    return NextResponse.next({ request: { headers } });
+  };
+
+  let supabaseResponse = buildResponse();
 
   const supabase = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,7 +42,7 @@ export async function checkAuth(request: NextRequest): Promise<AuthResult> {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse = buildResponse();
           cookiesToSet.forEach(({ name, value, options }) => {
             if (options) {
               const { expires, maxAge, ...rest } = options;

@@ -22,7 +22,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
-export const metadata = { title: "Catálogos — PlanoCerto" };
+export const metadata = { title: "Catálogos" };
 
 interface CatalogCard {
   href: string;

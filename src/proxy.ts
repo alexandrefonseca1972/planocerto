@@ -2,13 +2,24 @@ import { type NextRequest, NextResponse } from "next/server";
 import { checkAuth } from "@/lib/middleware/auth-check";
 import { isProtectedPath, isAuthPage, isApiRoute } from "@/lib/middleware/route-guards";
 import { checkProfileRestrictions } from "@/lib/middleware/profile-restrictions";
+import { buildCsp } from "@/lib/security/csp";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ component: "proxy" });
 
 export async function proxy(request: NextRequest) {
+  // Nonce único por requisição para a CSP estrita (script-src 'nonce-...').
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = buildCsp(nonce, process.env.NODE_ENV === "development");
+
   try {
-    const { user, response: supabaseResponse } = await checkAuth(request);
+    const { user, response: supabaseResponse } = await checkAuth(request, {
+      "x-nonce": nonce,
+      "content-security-policy": csp,
+    });
+
+    // Garante a CSP em todas as respostas (incl. redirects abaixo herdam via header).
+    supabaseResponse.headers.set("content-security-policy", csp);
 
     const { pathname, searchParams } = request.nextUrl;
 

@@ -9,7 +9,7 @@ import { ArrowLeft } from "lucide-react";
 import type { Profile } from "@/types/auth";
 
 export const metadata: Metadata = {
-  title: "Usuários | PlanoCerto",
+  title: "Usuários",
   description: "Gerencie os usuários do PlanoCerto.",
 };
 

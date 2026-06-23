@@ -12,7 +12,7 @@ import {
 } from "@/components/calendario/calendar-grid";
 
 export const metadata: Metadata = {
-  title: "Calendário | PlanoCerto",
+  title: "Calendário",
   description: "Prazos e deadlines.",
 };
 

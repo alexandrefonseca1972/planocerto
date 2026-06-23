@@ -213,6 +213,7 @@ export function DashboardClient({
       unit: `${base}-unit-order`,
       kpi: `${base}-kpi-order`,
       status: `${base}-status-order`,
+      filters: `${base}-filters`,
     };
   }, [tenantId]);
 
@@ -262,10 +263,29 @@ export function DashboardClient({
       } catch { /* ignore */ }
     }
 
+    let nextFilters: { tipoPa: string; macroAcao: string } | null = null;
+    const storedFilters = localStorage.getItem(storageKeys.filters);
+    if (storedFilters) {
+      try {
+        const parsed: unknown = JSON.parse(storedFilters);
+        if (parsed && typeof parsed === "object") {
+          const f = parsed as Record<string, unknown>;
+          nextFilters = {
+            tipoPa: typeof f.tipoPa === "string" ? f.tipoPa : "",
+            macroAcao: typeof f.macroAcao === "string" ? f.macroAcao : "",
+          };
+        }
+      } catch { /* ignore */ }
+    }
+
     const t = setTimeout(() => {
       if (nextUnitOrder) setUnitOrder(nextUnitOrder);
       if (nextKpiOrder) setKpiOrder(nextKpiOrder);
       if (nextStatusOrder) setStatusOrder(nextStatusOrder);
+      if (nextFilters) {
+        setSelectedTipoPa(nextFilters.tipoPa);
+        setSelectedMacroAcao(nextFilters.macroAcao);
+      }
     }, 0);
     return () => clearTimeout(t);
   }, [unitSummaries, storageKeys]);
@@ -290,6 +310,20 @@ export function DashboardClient({
     }
     const query = qs.toString();
     router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
+  }
+
+  // Persiste os filtros por tenant (mesma abordagem das orders/view do dashboard).
+  function persistFilters(tipoPa: string, macroAcao: string) {
+    if (typeof window === "undefined" || !storageKeys) return;
+    localStorage.setItem(storageKeys.filters, JSON.stringify({ tipoPa, macroAcao }));
+  }
+  function changeTipoPa(value: string) {
+    setSelectedTipoPa(value);
+    persistFilters(value, selectedMacroAcao);
+  }
+  function changeMacroAcao(value: string) {
+    setSelectedMacroAcao(value);
+    persistFilters(selectedTipoPa, value);
   }
 
   const handleDragStart = (id: string) => {
@@ -553,7 +587,7 @@ export function DashboardClient({
             <Tag className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <select
               value={effectiveTipoPa}
-              onChange={(e) => setSelectedTipoPa(e.target.value)}
+              onChange={(e) => changeTipoPa(e.target.value)}
               className={cn(
                 "h-10 w-36 appearance-none rounded-md border border-zinc-200 bg-white pl-8 pr-8 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
                 effectiveTipoPa ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400",
@@ -568,7 +602,7 @@ export function DashboardClient({
             {effectiveTipoPa && (
               <button
                 type="button"
-                onClick={() => setSelectedTipoPa("")}
+                onClick={() => changeTipoPa("")}
                 className="absolute right-7 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-white hover:bg-accent-600"
                 aria-label="Limpar filtro Tipo PA"
               >
@@ -582,7 +616,7 @@ export function DashboardClient({
             <Layers className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <select
               value={effectiveMacroAcao}
-              onChange={(e) => setSelectedMacroAcao(e.target.value)}
+              onChange={(e) => changeMacroAcao(e.target.value)}
               className={cn(
                 "h-10 w-40 appearance-none rounded-md border border-zinc-200 bg-white pl-8 pr-8 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
                 effectiveMacroAcao ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400",
@@ -597,7 +631,7 @@ export function DashboardClient({
             {effectiveMacroAcao && (
               <button
                 type="button"
-                onClick={() => setSelectedMacroAcao("")}
+                onClick={() => changeMacroAcao("")}
                 className="absolute right-7 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-white hover:bg-accent-600"
                 aria-label="Limpar filtro Macro Ação"
               >

@@ -7,7 +7,7 @@ import { RolesTable } from "./roles-table";
 import { getRoles } from "@/app/actions/admin";
 
 export const metadata: Metadata = {
-  title: "Papéis | PlanoCerto",
+  title: "Papéis",
   description: "Gerenciamento de papéis e permissões.",
 };
 
