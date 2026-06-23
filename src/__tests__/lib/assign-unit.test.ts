@@ -5,10 +5,22 @@ const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: createClientMock }));
 vi.mock("@/lib/errors", () => ({ logSupabaseError: vi.fn() }));
-vi.mock("@/lib/validation/sanitize", () => ({
-  sanitizeText: vi.fn((v: unknown) => String(v ?? "")),
-  sanitizedString: vi.fn(),
-}));
+vi.mock("@/lib/validation/sanitize", async () => {
+  const { z } = await import("zod");
+  return {
+    sanitizeText: vi.fn((v: unknown) => String(v ?? "")),
+    // Devolve um schema Zod encadeável (.optional/.min/.max) — o vi.fn() vazio
+    // retornava undefined e quebrava os schemas montados no load do módulo.
+    sanitizedString: vi.fn(
+      (opts: { min?: number; max?: number; minMsg?: string; maxMsg?: string } = {}) => {
+        let s = z.string();
+        if (opts.min != null) s = s.min(opts.min, opts.minMsg);
+        if (opts.max != null) s = s.max(opts.max, opts.maxMsg);
+        return s;
+      },
+    ),
+  };
+});
 
 import { assignSchoolsToUnit } from "@/app/actions/schools";
 import { assignCompaniesToUnit } from "@/app/actions/companies";
