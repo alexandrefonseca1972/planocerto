@@ -21,6 +21,11 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 ## [Não lançado]
 
 ### Alterado
+- **Máscara e validação inline de CNPJ no cadastro de instituição** (Fase 4b,
+  benchmarking): o campo CNPJ passa a ter máscara progressiva
+  (00.000.000/0000-00) e aviso inline quando inválido — alinhando-se aos demais
+  forms (fornecedores, unidades, empresas, perfil) que já tinham máscaras e
+  validação em tempo real.
 - **UX do dashboard (Fase 4a, itens da auditoria 2026-06-22)**: saudação agora é
   pessoal ("Boa noite, <nome>"); o widget de Prazos agrupa ações idênticas
   (mesmo título/data/unidade) numa entrada com contador `×N` em vez de repetir a

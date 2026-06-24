@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { upsertInstituicao } from "@/app/actions/competitor";
+import { formatCNPJ, isValidCNPJ } from "@/lib/format-br";
 import { AlertCircle, Save, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -41,6 +42,10 @@ export function InstituicaoForm({ units, instituicao }: Props) {
     upsertInstituicao,
     initialState,
   );
+
+  // CNPJ com máscara progressiva e validação inline (campo opcional → só avisa).
+  const [cnpj, setCnpj] = useState(instituicao?.cnpj ? formatCNPJ(instituicao.cnpj) : "");
+  const cnpjInvalido = cnpj.trim().length > 0 && !isValidCNPJ(cnpj);
 
   if (state?.success) {
     router.push("/benchmarking");
@@ -101,9 +106,18 @@ export function InstituicaoForm({ units, instituicao }: Props) {
               <Input
                 id="cnpj"
                 name="cnpj"
-                defaultValue={instituicao?.cnpj || ""}
+                value={cnpj}
+                onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
+                inputMode="numeric"
+                maxLength={18}
                 placeholder="00.000.000/0000-00"
+                aria-invalid={cnpjInvalido}
               />
+              {cnpjInvalido && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  CNPJ incompleto ou inválido.
+                </p>
+              )}
             </div>
 
             {/* Tipo */}
