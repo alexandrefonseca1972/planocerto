@@ -20,6 +20,17 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+### Adicionado
+- **RAG na sugestão de IA 5W2H** (Fase 2 do roadmap): o `suggest5W2H` agora
+  recupera trechos relevantes da base de conhecimento do tenant (pgvector +
+  `match_knowledge`, migration 045b) e os injeta no prompt, além do contexto
+  regional. Novo `callEmbeddings` (`src/lib/llm-client.ts`), helpers em
+  `src/lib/knowledge-base.ts` e a action `addKnowledge` para ingestão de
+  documentos (segmentável por unidade/área). Embeddings via config única de app
+  (`EMBEDDINGS_API_KEY`/`BASE_URL`/`MODEL`, default OpenAI text-embedding-3-small
+  = 1536 dims) — consistência exigida pelo match. **Fail-safe**: sem a chave, o
+  RAG fica desativado e a sugestão segue só com o contexto regional.
+
 ### Segurança
 - **Cookies de autenticação `HttpOnly`/`SameSite`/`Secure`** (Fase 1 do roadmap):
   o token `sb-*-auth-token` deixa de ser legível por `document.cookie` (mitiga

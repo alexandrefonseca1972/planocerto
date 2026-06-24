@@ -59,6 +59,36 @@ export interface LlmMessage {
   content: string;
 }
 
+export interface EmbeddingsConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
+/**
+ * Gera o embedding de um texto via endpoint OpenAI-compatível (`/embeddings`).
+ * Usado pelo RAG da base de conhecimento. O modelo default (text-embedding-3-small)
+ * produz 1536 dimensões, casando com a coluna VECTOR(1536) da knowledge_base.
+ * Lança em erro de API — o chamador decide se degrada graciosamente.
+ */
+export async function callEmbeddings(text: string, config: EmbeddingsConfig): Promise<number[]> {
+  const res = await fetch(`${config.baseUrl}/embeddings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
+    body: JSON.stringify({ model: config.model, input: text }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Embeddings API error ${res.status}: ${txt.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const embedding = data?.data?.[0]?.embedding;
+  if (!Array.isArray(embedding)) throw new Error("Resposta de embeddings inesperada.");
+  return embedding as number[];
+}
+
 export async function callLlm(
   messages: LlmMessage[],
   config: LlmConfig,
