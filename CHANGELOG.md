@@ -20,6 +20,13 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+### Alterado
+- **UX do dashboard (Fase 4a, itens da auditoria 2026-06-22)**: saudação agora é
+  pessoal ("Boa noite, <nome>"); o widget de Prazos agrupa ações idênticas
+  (mesmo título/data/unidade) numa entrada com contador `×N` em vez de repetir a
+  mesma linha; cards de KPI zerados ganham CTA "Registrar nos planos →". Helper
+  `groupDeadlines` extraído e testado.
+
 ### Adicionado
 - **Arquivar/Reativar plano em um clique** (Fase 3 do roadmap): novo item no menu
   "Ações" do plano (`plan-quick-actions.tsx`) que alterna a situação sem abrir o
