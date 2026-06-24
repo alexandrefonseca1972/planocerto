@@ -21,6 +21,11 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 ## [Não lançado]
 
 ### Alterado
+- **Responsividade do admin em mobile (Fase 4c)**: a barra de navegação do admin
+  (Painel/Usuários/Empresas/…) agora rola horizontalmente em telas estreitas em
+  vez de forçar a largura da página inteira — todas as telas admin deixam de
+  estourar no mobile (overflow caiu de ~393px para o baseline ~44px num viewport
+  de 375px). As tabelas densas (usuários, catálogos) rolam dentro do próprio card.
 - **Máscara e validação inline de CNPJ no cadastro de instituição** (Fase 4b,
   benchmarking): o campo CNPJ passa a ter máscara progressiva
   (00.000.000/0000-00) e aviso inline quando inválido — alinhando-se aos demais
