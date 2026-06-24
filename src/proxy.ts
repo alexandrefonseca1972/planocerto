@@ -3,6 +3,7 @@ import { checkAuth } from "@/lib/middleware/auth-check";
 import { isProtectedPath, isAuthPage, isApiRoute } from "@/lib/middleware/route-guards";
 import { checkProfileRestrictions } from "@/lib/middleware/profile-restrictions";
 import { buildCsp } from "@/lib/security/csp";
+import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ component: "proxy" });
@@ -10,7 +11,7 @@ const log = logger.child({ component: "proxy" });
 export async function proxy(request: NextRequest) {
   // Nonce único por requisição para a CSP estrita (script-src 'nonce-...').
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const csp = buildCsp(nonce, process.env.NODE_ENV === "development");
+  const csp = buildCsp(nonce, process.env.NODE_ENV === "development", env.NEXT_PUBLIC_SUPABASE_URL);
 
   try {
     const { user, response: supabaseResponse } = await checkAuth(request, {

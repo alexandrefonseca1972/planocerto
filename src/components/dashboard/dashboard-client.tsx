@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -217,6 +217,11 @@ export function DashboardClient({
     };
   }, [tenantId]);
 
+  // Marca quando os filtros já foram re-hidratados do localStorage. Enquanto
+  // false, a persistência fica pausada para não sobrescrever o que está salvo
+  // (na montagem inicial e ao trocar de empresa).
+  const filtersHydratedRef = useRef(false);
+
   // Sincroniza orders com localStorage quando tenant ou unitSummaries mudam.
   // Wrap em setTimeout para satisfazer react-hooks/set-state-in-effect.
   useEffect(() => {
@@ -278,6 +283,9 @@ export function DashboardClient({
       } catch { /* ignore */ }
     }
 
+    // Pausa a persistência até concluir a re-hidratação (síncrono aqui, antes do
+    // effect de persistência rodar — vale também na troca de empresa).
+    filtersHydratedRef.current = false;
     const t = setTimeout(() => {
       if (nextUnitOrder) setUnitOrder(nextUnitOrder);
       if (nextKpiOrder) setKpiOrder(nextKpiOrder);
@@ -286,6 +294,7 @@ export function DashboardClient({
         setSelectedTipoPa(nextFilters.tipoPa);
         setSelectedMacroAcao(nextFilters.macroAcao);
       }
+      filtersHydratedRef.current = true;
     }, 0);
     return () => clearTimeout(t);
   }, [unitSummaries, storageKeys]);
@@ -312,18 +321,22 @@ export function DashboardClient({
     router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
   }
 
-  // Persiste os filtros por tenant (mesma abordagem das orders/view do dashboard).
-  function persistFilters(tipoPa: string, macroAcao: string) {
-    if (typeof window === "undefined" || !storageKeys) return;
-    localStorage.setItem(storageKeys.filters, JSON.stringify({ tipoPa, macroAcao }));
-  }
+  // Persiste os filtros sempre que mudam, lendo o par (tipoPa, macroAcao) já
+  // comprometido no estado — evita o stale-closure de persistir manualmente com
+  // o "outro" valor possivelmente desatualizado. Guardado por filtersHydratedRef.
+  useEffect(() => {
+    if (!filtersHydratedRef.current || typeof window === "undefined" || !storageKeys) return;
+    localStorage.setItem(
+      storageKeys.filters,
+      JSON.stringify({ tipoPa: selectedTipoPa, macroAcao: selectedMacroAcao }),
+    );
+  }, [selectedTipoPa, selectedMacroAcao, storageKeys]);
+
   function changeTipoPa(value: string) {
     setSelectedTipoPa(value);
-    persistFilters(value, selectedMacroAcao);
   }
   function changeMacroAcao(value: string) {
     setSelectedMacroAcao(value);
-    persistFilters(selectedTipoPa, value);
   }
 
   const handleDragStart = (id: string) => {

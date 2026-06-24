@@ -31,4 +31,15 @@ describe("buildCsp", () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
   });
+
+  it("restringe connect-src ao host exato do Supabase quando a URL é fornecida", () => {
+    const csp = buildCsp(NONCE, false, "https://abc123.supabase.co");
+    expect(csp).toContain("connect-src 'self' https://abc123.supabase.co wss://abc123.supabase.co");
+    expect(csp).not.toContain("*.supabase.co");
+  });
+
+  it("cai no wildcard se a URL do Supabase for inválida/ausente", () => {
+    expect(buildCsp(NONCE, false)).toContain("https://*.supabase.co");
+    expect(buildCsp(NONCE, false, "nao-eh-url")).toContain("https://*.supabase.co");
+  });
 });

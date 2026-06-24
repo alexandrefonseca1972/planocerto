@@ -12,7 +12,20 @@
  * uploads do app ficam no Supabase (outra origem), então `'self'` é seguro aqui.
  * Em desenvolvimento o React usa `eval`, por isso `'unsafe-eval'` no dev.
  */
-export function buildCsp(nonce: string, isDev: boolean): string {
+export function buildCsp(nonce: string, isDev: boolean, supabaseUrl?: string): string {
+  // Restringe connect-src ao host exato do projeto Supabase (REST + Realtime),
+  // em vez do wildcard *.supabase.co. Fallback para o wildcard se a URL não
+  // puder ser parseada (ex.: placeholder de build).
+  let supabaseConnect = "https://*.supabase.co wss://*.supabase.co";
+  if (supabaseUrl) {
+    try {
+      const host = new URL(supabaseUrl).host;
+      supabaseConnect = `https://${host} wss://${host}`;
+    } catch {
+      /* mantém o fallback */
+    }
+  }
+
   const directives = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -25,8 +38,8 @@ export function buildCsp(nonce: string, isDev: boolean): string {
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' blob: data: https://www.gravatar.com`,
     `font-src 'self'`,
-    // REST + Realtime (websocket) do Supabase.
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co`,
+    // REST + Realtime (websocket) do Supabase — host exato do projeto.
+    `connect-src 'self' ${supabaseConnect}`,
     `object-src 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,
