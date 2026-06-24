@@ -43,7 +43,9 @@ vi.mock("@/lib/teams", () => ({
   notifyPlanAction: vi.fn(),
 }));
 
-import { updateItemStatus, updatePlan, upsertItem } from "@/app/actions/action-plan";
+import { updateItemStatus, updatePlan, upsertItem, setPlanStatus } from "@/app/actions/action-plan";
+
+const VALID_PLAN_ID = "550e8400-e29b-41d4-a716-446655440000";
 
 describe("action-plan permissions", () => {
   beforeEach(() => {
@@ -174,5 +176,31 @@ describe("action-plan permissions", () => {
     );
     expect(eqMock).toHaveBeenCalledWith("id", "550e8400-e29b-41d4-a716-446655440000");
     expect(result).toEqual({ success: true, message: "Plano atualizado!" });
+  });
+});
+
+describe("setPlanStatus guardas", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("nega quando falta a permissão plans.update", async () => {
+    checkPermissionMock.mockResolvedValue(false);
+    const res = await setPlanStatus(VALID_PLAN_ID, "archived");
+    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE);
+    expect(res.success).toBeUndefined();
+    expect(res.message).toMatch(/Acesso negado/);
+  });
+
+  it("rejeita ID de plano inválido", async () => {
+    checkPermissionMock.mockResolvedValue(true);
+    const res = await setPlanStatus("nao-eh-uuid", "archived");
+    expect(res.message).toMatch(/ID do plano inválido/);
+    expect(createClientMock).not.toHaveBeenCalled();
+  });
+
+  it("rejeita situação inválida", async () => {
+    checkPermissionMock.mockResolvedValue(true);
+    const res = await setPlanStatus(VALID_PLAN_ID, "lixo" as "active");
+    expect(res.message).toMatch(/Situação inválida/);
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 });

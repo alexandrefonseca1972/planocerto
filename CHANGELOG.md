@@ -21,6 +21,11 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 ## [Não lançado]
 
 ### Adicionado
+- **Arquivar/Reativar plano em um clique** (Fase 3 do roadmap): novo item no menu
+  "Ações" do plano (`plan-quick-actions.tsx`) que alterna a situação sem abrir o
+  formulário completo, via a action `setPlanStatus` (PLANS_UPDATE, escopo de
+  tenant explícito e audit log). A lista recarrega no cliente refletindo a nova
+  situação. Os filtros Ativos/Arquivados e o histórico por item já existiam.
 - **RAG na sugestão de IA 5W2H** (Fase 2 do roadmap): o `suggest5W2H` agora
   recupera trechos relevantes da base de conhecimento do tenant (pgvector +
   `match_knowledge`, migration 045b) e os injeta no prompt, além do contexto
