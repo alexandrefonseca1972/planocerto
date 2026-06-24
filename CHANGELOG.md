@@ -21,6 +21,12 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 ## [Não lançado]
 
 ### Adicionado
+- **Geolocalização na Carteira de Escolas (MVP "Cadastro de Locais" — Auvo)**:
+  novos campos latitude/longitude (coordenadas manuais) no cadastro de escolas
+  (migration 065, nullable), com validação de faixa no schema e link "Ver no
+  mapa" na lista (Google Maps por coordenadas ou, na ausência, pelo endereço).
+  Helper puro `src/lib/geo.ts` (buildMapsUrl/validações) testado. Geocoding
+  automático e replicação para Empresas ficam para os próximos ciclos.
 - **Testes E2E com Playwright (Fase 4d)**: suíte versionada em `e2e/` cobrindo os
   fluxos críticos — headers de segurança, redirect de rota protegida, render do
   login, erro de credenciais inválidas, login real + cookie HttpOnly, dashboard

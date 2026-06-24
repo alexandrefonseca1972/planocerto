@@ -1598,6 +1598,8 @@ export type Database = {
           financeira_real: number | null
           id: string
           inscritos_real: number | null
+          latitude: number | null
+          longitude: number | null
           mensalidade_3ano: number | null
           meta_academica: number | null
           meta_financeira: number | null
@@ -1631,6 +1633,8 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
+          longitude?: number | null
           mensalidade_3ano?: number | null
           meta_academica?: number | null
           meta_financeira?: number | null
@@ -1664,6 +1668,8 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
+          longitude?: number | null
           mensalidade_3ano?: number | null
           meta_academica?: number | null
           meta_financeira?: number | null
