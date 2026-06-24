@@ -21,6 +21,10 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 ## [Não lançado]
 
 ### Adicionado
+- **Geolocalização na Carteira de Empresas (MVP "Cadastro de Locais" — Auvo)**:
+  replica em empresas o mesmo de escolas — latitude/longitude (migration 066) com
+  link "Ver no mapa" na lista. O helper de schema de coordenada foi extraído para
+  `src/lib/schemas/geo-schema.ts` e é reusado por escolas e empresas (sem duplicar).
 - **Geolocalização na Carteira de Escolas (MVP "Cadastro de Locais" — Auvo)**:
   novos campos latitude/longitude (coordenadas manuais) no cadastro de escolas
   (migration 065, nullable), com validação de faixa no schema e link "Ver no

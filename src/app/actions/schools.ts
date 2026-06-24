@@ -6,21 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { logSupabaseError } from "@/lib/errors";
 import { isValidUuid } from "@/lib/validations/uuid";
 import { sanitizeText } from "@/lib/validation/sanitize";
+import { latitude as latSchema, longitude as lngSchema } from "@/lib/schemas/geo-schema";
 import type { School, SchoolFormState } from "@/types/school";
-
-// Coordenada opcional: vazio/null → null; número fora da faixa → erro de validação.
-const coord = (min: number, max: number) =>
-  z
-    .preprocess(
-      (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
-      z.number().min(min, "Coordenada fora da faixa.").max(max, "Coordenada fora da faixa.").nullable(),
-    )
-    .optional();
 
 const schoolSchema = z.object({
   unit_id: z.string().uuid().nullable().optional(),
-  latitude: coord(-90, 90),
-  longitude: coord(-180, 180),
+  latitude: latSchema(),
+  longitude: lngSchema(),
   conveniado: z.boolean().default(false),
   prioridade: z.enum(["Alta", "Media", "Baixa"]).default("Media"),
   nome: z.string().trim().min(2, "Nome obrigatório.").max(200),

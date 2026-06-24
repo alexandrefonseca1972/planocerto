@@ -348,8 +348,10 @@ export type Database = {
           financeira_real: number | null
           id: string
           inscritos_real: number | null
+          latitude: number | null
           link_facebook: string | null
           link_instagram: string | null
+          longitude: number | null
           municipio: string | null
           nome_fantasia: string
           pais: string
@@ -383,8 +385,10 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
           link_facebook?: string | null
           link_instagram?: string | null
+          longitude?: number | null
           municipio?: string | null
           nome_fantasia: string
           pais?: string
@@ -418,8 +422,10 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
           link_facebook?: string | null
           link_instagram?: string | null
+          longitude?: number | null
           municipio?: string | null
           nome_fantasia?: string
           pais?: string
