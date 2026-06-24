@@ -20,6 +20,15 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+### Adicionado
+- **Testes E2E com Playwright (Fase 4d)**: suíte versionada em `e2e/` cobrindo os
+  fluxos críticos — headers de segurança, redirect de rota protegida, render do
+  login, erro de credenciais inválidas, login real + cookie HttpOnly, dashboard
+  sem violações de CSP, menu arquivar/reativar de planos e não-estouro no mobile.
+  Roda com `npm run test:e2e` (sobe o dev server automaticamente). Os fluxos
+  autenticados usam `E2E_EMAIL`/`E2E_PASSWORD` (nunca commitados) e são pulados
+  se ausentes — a suíte roda em qualquer máquina sem vazar segredos.
+
 ### Alterado
 - **Responsividade do admin em mobile (Fase 4c)**: a barra de navegação do admin
   (Painel/Usuários/Empresas/…) agora rola horizontalmente em telas estreitas em
