@@ -27,11 +27,15 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { isRagEnabled, retrieveKnowledge, ingestKnowledge } from "@/lib/knowledge-base";
 
+// Vetor com a dimensão real da coluna (VECTOR(1536)).
+const VEC = Array.from({ length: 1536 }, (_, i) => (i === 0 ? 0.1 : 0));
+const VEC_JSON = JSON.stringify(VEC);
+
 describe("knowledge-base RAG", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv.EMBEDDINGS_API_KEY = "test-emb-key";
-    callEmbeddingsMock.mockResolvedValue([0.1, 0.2, 0.3]);
+    callEmbeddingsMock.mockResolvedValue(VEC);
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -58,7 +62,7 @@ describe("knowledge-base RAG", () => {
     const out = await retrieveKnowledge("t1", "consulta", { limit: 3, threshold: 0.4 });
     expect(out).toEqual([{ id: "k1", content: "trecho", similarity: 0.9 }]);
     expect(rpcMock).toHaveBeenCalledWith("match_knowledge", {
-      query_embedding: "[0.1,0.2,0.3]",
+      query_embedding: VEC_JSON,
       match_threshold: 0.4,
       match_count: 3,
       p_tenant_id: "t1",
@@ -73,6 +77,14 @@ describe("knowledge-base RAG", () => {
   it("retrieveKnowledge retorna [] se o embedding lançar (fail-safe)", async () => {
     callEmbeddingsMock.mockRejectedValue(new Error("API down"));
     expect(await retrieveKnowledge("t1", "consulta")).toEqual([]);
+  });
+
+  it("guard de dimensão: embedding com tamanho errado → retrieve [] e ingest erro", async () => {
+    callEmbeddingsMock.mockResolvedValue([0.1, 0.2, 0.3]); // 3 dims, não 1536
+    expect(await retrieveKnowledge("t1", "consulta")).toEqual([]);
+    expect(rpcMock).not.toHaveBeenCalled();
+    const res = await ingestKnowledge({ tenantId: "t1", content: "conteúdo de teste para a base" });
+    expect(res.success).toBe(false);
   });
 
   it("ingestKnowledge insere com embedding serializado e retorna id", async () => {

@@ -6,6 +6,9 @@ import { callEmbeddings, type EmbeddingsConfig } from "@/lib/llm-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logSupabaseError } from "@/lib/errors";
 
+/** Dimensão da coluna knowledge_base.embedding (VECTOR(1536), migration 045b). */
+const EMBEDDING_DIMENSIONS = 1536;
+
 /** RAG só opera quando há chave de embeddings configurada (degrada gracioso). */
 export function isRagEnabled(): boolean {
   return Boolean(env.EMBEDDINGS_API_KEY);
@@ -20,7 +23,17 @@ function embeddingsConfig(): EmbeddingsConfig {
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  return callEmbeddings(text, embeddingsConfig());
+  const vector = await callEmbeddings(text, embeddingsConfig());
+  // Guard de dimensão: a coluna é VECTOR(1536). Um modelo com outra dimensão
+  // (ex.: text-embedding-3-large = 3072) faria o insert/RPC falhar com mensagem
+  // obscura do pgvector — aqui damos um erro claro e acionável.
+  if (vector.length !== EMBEDDING_DIMENSIONS) {
+    throw new Error(
+      `Embedding com ${vector.length} dimensões; esperado ${EMBEDDING_DIMENSIONS}. ` +
+        `Ajuste EMBEDDINGS_MODEL para um modelo de ${EMBEDDING_DIMENSIONS} dims (ex.: text-embedding-3-small).`,
+    );
+  }
+  return vector;
 }
 
 export interface KnowledgeMatch {
