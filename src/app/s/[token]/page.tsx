@@ -5,7 +5,7 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Clock, AlertTriangle, Play, Circle } from "lucide-react";
 
-export const metadata: Metadata = { title: "Dashboard | PlanoCerto" };
+export const metadata: Metadata = { title: "Dashboard" };
 
 interface Params { params: Promise<{ token: string }>; }
 

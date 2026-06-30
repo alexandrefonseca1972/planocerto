@@ -122,9 +122,12 @@ export function HelpModal() {
       <Button
         onClick={() => setOpen(true)}
         size="icon"
+        aria-label="Abrir Centro de Ajuda"
+        title="Centro de Ajuda"
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow z-40"
       >
         <HelpCircle className="w-6 h-6" />
+        <span className="sr-only">Centro de Ajuda</span>
       </Button>
 
       {/* Modal */}

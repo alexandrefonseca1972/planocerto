@@ -6,10 +6,8 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
-vi.mock("@/lib/validation/sanitize", () => ({
-  sanitizeText: vi.fn((v: unknown) => String(v ?? "")),
-  sanitizedString: vi.fn(),
-}));
+vi.mock("@/lib/validation/sanitize", async () =>
+  (await import("@/__tests__/helpers/sanitize-mock")).sanitizeMock());
 
 vi.mock("@/app/actions/llm-settings", () => ({
   getActiveLlmConfig: vi.fn().mockResolvedValue({

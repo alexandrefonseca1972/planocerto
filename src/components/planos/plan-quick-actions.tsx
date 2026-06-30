@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
-import { MoreHorizontal, Copy, Share2 } from "lucide-react";
+import { MoreHorizontal, Copy, Share2, Archive, ArchiveRestore } from "lucide-react";
+import { setPlanStatus } from "@/app/actions/action-plan";
 import type { ActionPlan } from "@/types/action-plan";
 
 interface Props {
@@ -12,13 +13,32 @@ interface Props {
   plans: ActionPlan[];
   toast: (msg: string, type?: "success" | "error") => void;
   router: { refresh: () => void };
+  /** Recarrega a lista de planos no cliente (ex.: usePlanosData.refreshPlans). */
+  onChanged?: () => void;
 }
 
-export function PlanQuickActions({ plan, plans, toast, router }: Props) {
+export function PlanQuickActions({ plan, plans, toast, router, onChanged }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showClone, setShowClone] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [isToggling, startToggle] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
+
+  const isArchived = plan?.status === "archived";
+
+  function handleToggleArchive() {
+    if (!plan) return;
+    setMenuOpen(false);
+    const next = isArchived ? "active" : "archived";
+    startToggle(async () => {
+      const res = await setPlanStatus(plan.id, next);
+      toast(res.message ?? "", res.success ? "success" : "error");
+      if (res.success) {
+        onChanged?.();   // recarrega a lista client → status do plano atualiza na UI
+        router.refresh();
+      }
+    });
+  }
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -49,6 +69,17 @@ export function PlanQuickActions({ plan, plans, toast, router }: Props) {
               className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               <Share2 className="h-3.5 w-3.5" /> Compartilhar
+            </button>
+          )}
+          {plan && (
+            <button
+              onClick={handleToggleArchive}
+              disabled={isToggling}
+              className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {isArchived
+                ? <><ArchiveRestore className="h-3.5 w-3.5" /> Reativar plano</>
+                : <><Archive className="h-3.5 w-3.5" /> Arquivar plano</>}
             </button>
           )}
         </div>

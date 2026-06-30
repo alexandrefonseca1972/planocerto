@@ -9,7 +9,7 @@ import { filterUnitsByScope, filterAreasByScope } from "@/components/dashboard/d
 import { isWithinRange } from "@/components/dashboard/dashboard-range";
 
 export const metadata: Metadata = {
-  title: "Dashboard | PlanoCerto",
+  title: "Dashboard",
   description: "Resumo executivo.",
 };
 

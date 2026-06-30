@@ -2,7 +2,7 @@ import { CategoriasDespesaClient } from "@/components/admin/catalogos/categorias
 import { getCategoriasDespesa } from "@/app/actions/contas-pagar-categorias";
 
 export const metadata = {
-  title: "Categorias de despesa — Catálogos — PlanoCerto",
+  title: "Categorias de despesa — Catálogos",
 };
 
 export default async function CategoriasDespesaPage() {

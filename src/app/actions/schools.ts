@@ -6,10 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { logSupabaseError } from "@/lib/errors";
 import { isValidUuid } from "@/lib/validations/uuid";
 import { sanitizeText } from "@/lib/validation/sanitize";
+import { latitude as latSchema, longitude as lngSchema } from "@/lib/schemas/geo-schema";
 import type { School, SchoolFormState } from "@/types/school";
 
 const schoolSchema = z.object({
   unit_id: z.string().uuid().nullable().optional(),
+  latitude: latSchema(),
+  longitude: lngSchema(),
   conveniado: z.boolean().default(false),
   prioridade: z.enum(["Alta", "Media", "Baixa"]).default("Media"),
   nome: z.string().trim().min(2, "Nome obrigatório.").max(200),
@@ -57,6 +60,8 @@ function readForm(formData: FormData): Record<string, unknown> {
   const unitId = get("unit_id");
   return {
     unit_id: unitId && unitId !== "" ? String(unitId) : null,
+    latitude: get("latitude"),
+    longitude: get("longitude"),
     conveniado: get("conveniado") === "on" || get("conveniado") === "true",
     prioridade: get("prioridade") || "Media",
     nome: get("nome") || "",

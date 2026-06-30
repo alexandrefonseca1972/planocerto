@@ -40,7 +40,9 @@ export function AdminNav({
   });
 
   return (
-    <nav className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
+    // overflow-x-auto + itens shrink-0: no mobile a barra rola horizontalmente
+    // em vez de forçar a largura da página inteira (todas as telas admin).
+    <nav className="flex gap-1 overflow-x-auto rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
       {links.map((link) => {
         const isActive = pathname.startsWith(link.href);
         return (
@@ -48,7 +50,7 @@ export function AdminNav({
             key={link.href}
             href={link.href}
             className={cn(
-              "inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
               isActive
                 ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50"
                 : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"

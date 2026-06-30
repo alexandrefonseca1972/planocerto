@@ -3,7 +3,7 @@ import { getContasPagar } from "@/app/actions/contas-pagar";
 import { getCategoriasDespesa } from "@/app/actions/contas-pagar-categorias";
 import { getFornecedores } from "@/app/actions/fornecedores";
 
-export const metadata = { title: "Contas a pagar — PlanoCerto" };
+export const metadata = { title: "Contas a pagar" };
 
 export default async function ContasPagarPage() {
   const [contas, categorias, fornecedores] = await Promise.all([

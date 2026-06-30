@@ -4,7 +4,7 @@ import { getContaById } from "@/app/actions/contas-pagar";
 import { getCategoriasDespesa } from "@/app/actions/contas-pagar-categorias";
 import { getFornecedores } from "@/app/actions/fornecedores";
 
-export const metadata = { title: "Conta a pagar — PlanoCerto" };
+export const metadata = { title: "Conta a pagar" };
 
 export default async function ContaDetalhePage({
   params,

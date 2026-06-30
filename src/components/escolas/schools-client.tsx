@@ -13,7 +13,8 @@ import { getSchools, upsertSchool, deleteSchool, assignSchoolsToUnit } from "@/a
 import { SortableTh, TablePagination, useDataTable } from "@/components/ui/data-table";
 import type { School, SchoolFormState } from "@/types/school";
 import type { Unit } from "@/types/catalog";
-import { Plus, Pencil, Trash2, X, Save, Search, GraduationCap, Building2, Link2, Unlink } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Save, Search, GraduationCap, Building2, Link2, Unlink, MapPin } from "lucide-react";
+import { buildMapsUrl } from "@/lib/geo";
 
 type SchoolSortKey =
   | "idx"
@@ -403,7 +404,31 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
                     {s.unit_id ? (unitMap.get(s.unit_id) || "—") : <span className="text-zinc-400">—</span>}
                   </td>
                   <td className="px-3 py-2 text-zinc-500">
-                    {[s.municipio, s.uf].filter(Boolean).join("/") || "—"}
+                    {(() => {
+                      const label = [s.municipio, s.uf].filter(Boolean).join("/") || "—";
+                      const mapsUrl = buildMapsUrl({
+                        lat: s.latitude,
+                        lng: s.longitude,
+                        address: [s.endereco, s.bairro, s.municipio, s.uf].filter(Boolean).join(", "),
+                      });
+                      return (
+                        <span className="inline-flex items-center gap-1">
+                          {label}
+                          {mapsUrl && (
+                            <a
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title={s.latitude != null ? "Ver no mapa (coordenadas)" : "Ver no mapa (endereço)"}
+                              className="text-accent-600 hover:text-accent-700 dark:text-accent-400"
+                            >
+                              <MapPin className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-3 py-2 text-zinc-500">{s.diretor || "—"}</td>
                   <td className="px-3 py-2">
@@ -565,6 +590,30 @@ function SchoolForm({
             </Field>
             <Field label="País">
               <Input name="pais" defaultValue={String(v("pais", "Brasil"))} />
+            </Field>
+            <Field label="Latitude">
+              <Input
+                name="latitude"
+                type="number"
+                step="any"
+                min={-90}
+                max={90}
+                inputMode="decimal"
+                placeholder="-1.2345678"
+                defaultValue={v("latitude") != null ? String(v("latitude")) : ""}
+              />
+            </Field>
+            <Field label="Longitude">
+              <Input
+                name="longitude"
+                type="number"
+                step="any"
+                min={-180}
+                max={180}
+                inputMode="decimal"
+                placeholder="-48.1234567"
+                defaultValue={v("longitude") != null ? String(v("longitude")) : ""}
+              />
             </Field>
 
             <Field label="Diretor">

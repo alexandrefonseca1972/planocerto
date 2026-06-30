@@ -14,6 +14,8 @@ export interface Company {
   municipio: string;
   uf: string;
   pais: string;
+  latitude: number | null;
+  longitude: number | null;
   responsavel_nome: string;
   responsavel_cargo: string;
   contato_whatsapp: string;

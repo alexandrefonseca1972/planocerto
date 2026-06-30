@@ -345,7 +345,7 @@ export default function PlanosPage() {
           <Button variant="outline" size="sm" className="text-red-600" onClick={() => setDeletingPlan(plan)}>
             <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
           </Button>
-          <PlanQuickActions plan={plan} plans={data.allPlans} toast={toast} router={router} />
+          <PlanQuickActions plan={plan} plans={data.allPlans} toast={toast} router={router} onChanged={data.refreshPlans} />
         </div>
       </div>
 

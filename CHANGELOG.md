@@ -20,6 +20,76 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+### Adicionado
+- **Geolocalização na Carteira de Empresas (MVP "Cadastro de Locais" — Auvo)**:
+  replica em empresas o mesmo de escolas — latitude/longitude (migration 066) com
+  link "Ver no mapa" na lista. O helper de schema de coordenada foi extraído para
+  `src/lib/schemas/geo-schema.ts` e é reusado por escolas e empresas (sem duplicar).
+- **Geolocalização na Carteira de Escolas (MVP "Cadastro de Locais" — Auvo)**:
+  novos campos latitude/longitude (coordenadas manuais) no cadastro de escolas
+  (migration 065, nullable), com validação de faixa no schema e link "Ver no
+  mapa" na lista (Google Maps por coordenadas ou, na ausência, pelo endereço).
+  Helper puro `src/lib/geo.ts` (buildMapsUrl/validações) testado. Geocoding
+  automático e replicação para Empresas ficam para os próximos ciclos.
+- **Testes E2E com Playwright (Fase 4d)**: suíte versionada em `e2e/` cobrindo os
+  fluxos críticos — headers de segurança, redirect de rota protegida, render do
+  login, erro de credenciais inválidas, login real + cookie HttpOnly, dashboard
+  sem violações de CSP, menu arquivar/reativar de planos e não-estouro no mobile.
+  Roda com `npm run test:e2e` (sobe o dev server automaticamente). Os fluxos
+  autenticados usam `E2E_EMAIL`/`E2E_PASSWORD` (nunca commitados) e são pulados
+  se ausentes — a suíte roda em qualquer máquina sem vazar segredos.
+
+### Alterado
+- **Responsividade do admin em mobile (Fase 4c)**: a barra de navegação do admin
+  (Painel/Usuários/Empresas/…) agora rola horizontalmente em telas estreitas em
+  vez de forçar a largura da página inteira — todas as telas admin deixam de
+  estourar no mobile (overflow caiu de ~393px para o baseline ~44px num viewport
+  de 375px). As tabelas densas (usuários, catálogos) rolam dentro do próprio card.
+- **Máscara e validação inline de CNPJ no cadastro de instituição** (Fase 4b,
+  benchmarking): o campo CNPJ passa a ter máscara progressiva
+  (00.000.000/0000-00) e aviso inline quando inválido — alinhando-se aos demais
+  forms (fornecedores, unidades, empresas, perfil) que já tinham máscaras e
+  validação em tempo real.
+- **UX do dashboard (Fase 4a, itens da auditoria 2026-06-22)**: saudação agora é
+  pessoal ("Boa noite, <nome>"); o widget de Prazos agrupa ações idênticas
+  (mesmo título/data/unidade) numa entrada com contador `×N` em vez de repetir a
+  mesma linha; cards de KPI zerados ganham CTA "Registrar nos planos →". Helper
+  `groupDeadlines` extraído e testado.
+
+### Adicionado
+- **Arquivar/Reativar plano em um clique** (Fase 3 do roadmap): novo item no menu
+  "Ações" do plano (`plan-quick-actions.tsx`) que alterna a situação sem abrir o
+  formulário completo, via a action `setPlanStatus` (PLANS_UPDATE, escopo de
+  tenant explícito e audit log). A lista recarrega no cliente refletindo a nova
+  situação. Os filtros Ativos/Arquivados e o histórico por item já existiam.
+- **RAG na sugestão de IA 5W2H** (Fase 2 do roadmap): o `suggest5W2H` agora
+  recupera trechos relevantes da base de conhecimento do tenant (pgvector +
+  `match_knowledge`, migration 045b) e os injeta no prompt, além do contexto
+  regional. Novo `callEmbeddings` (`src/lib/llm-client.ts`), helpers em
+  `src/lib/knowledge-base.ts` e a action `addKnowledge` para ingestão de
+  documentos (segmentável por unidade/área). Embeddings via config única de app
+  (`EMBEDDINGS_API_KEY`/`BASE_URL`/`MODEL`, default OpenAI text-embedding-3-small
+  = 1536 dims) — consistência exigida pelo match. **Fail-safe**: sem a chave, o
+  RAG fica desativado e a sugestão segue só com o contexto regional.
+
+### Segurança
+- **Cookies de autenticação `HttpOnly`/`SameSite`/`Secure`** (Fase 1 do roadmap):
+  o token `sb-*-auth-token` deixa de ser legível por `document.cookie` (mitiga
+  roubo de sessão via XSS). Centralizado em `hardenCookieOptions`
+  (`src/lib/supabase/cookie-options.ts`) e aplicado no client de servidor e no
+  middleware. Seguro porque todo acesso ao Supabase é server-side.
+- **Anti-IDOR explícito em `getContaById`**: filtro por `tenant_id` do tenant
+  ativo (fail-closed), alinhado a `getContasPagar` — defesa em profundidade
+  além do RLS.
+
+### Corrigido
+- **Resiliência a 503/timeouts intermitentes do Supabase**: novo helper
+  `withRetry` com backoff exponencial e `isRetryable` ampliado (erros em formato
+  de objeto do PostgREST). Aplicado ao `auth.getUser()` do middleware para
+  evitar logout/erro 503 espúrios em falhas transitórias.
+- **Suíte de testes voltou a 100% verde**: o mock de `sanitizedString` retornava
+  `undefined` e derrubava o load de schemas em 2 arquivos de teste.
+
 ## [2.2.1] - 2026-06-03
 
 Correções de produção: empresa ativa na importação de planos, sanitização sem

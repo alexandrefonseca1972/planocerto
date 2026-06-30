@@ -230,7 +230,7 @@ export function RolesTable({ roles }: { roles: RoleRow[] }) {
                   role="user"
                   overrides={createPermissions}
                   onChange={setCreatePermissions}
-                  hideRoleSelect
+                  customMode
                 />
                 <input type="hidden" name="permissions" value={JSON.stringify(createPermissions)} />
               </div>
@@ -282,7 +282,7 @@ export function RolesTable({ roles }: { roles: RoleRow[] }) {
                     role="user"
                     overrides={editPermissions}
                     onChange={setEditPermissions}
-                    hideRoleSelect
+                    customMode
                   />
                   <input type="hidden" name="permissions" value={JSON.stringify(editPermissions)} />
                 </div>

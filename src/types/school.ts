@@ -14,6 +14,8 @@ export interface School {
   municipio: string;
   uf: string;
   pais: string;
+  latitude: number | null;
+  longitude: number | null;
   diretor: string;
   contato_diretor: string;
   coordenador_3ano: string;

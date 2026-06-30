@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { Building2, Users, ClipboardList, MapPin, Plus, Settings2 } from "lucide-react";
 
-export const metadata: Metadata = { title: "Painel | PlanoCerto" };
+export const metadata: Metadata = { title: "Painel" };
 
 const PLAN_BADGE: Record<string, { label: string; variant: "default" | "accent" | "muted" }> = {
   enterprise: { label: "Enterprise", variant: "default" },

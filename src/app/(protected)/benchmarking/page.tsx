@@ -4,7 +4,7 @@ import { getInstituicoes } from "@/app/actions/competitor";
 import { InstituicoesClient } from "@/components/benchmarking/instituicoes-client";
 
 export const metadata: Metadata = {
-  title: "Benchmarking | PlanoCerto",
+  title: "Benchmarking",
   description: "Compare mensalidades de instituições concorrentes.",
 };
 
