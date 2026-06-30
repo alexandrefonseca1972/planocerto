@@ -594,7 +594,10 @@ export async function updateUser(
         existingIds.size - existingInScope.length + newIds.size;
       if (validated.data.role !== "super_admin" && remainingTenants === 0) {
         return {
-          message: "O usuário precisa permanecer associado a ao menos uma empresa.",
+          message:
+            "O usuário precisa permanecer associado a ao menos uma empresa. " +
+            "Para removê-lo do sistema, use o botão Excluir (lixeira) na lista — " +
+            "não é preciso desvincular antes. Para apenas tirar o acesso, use Desativar.",
         };
       }
 
