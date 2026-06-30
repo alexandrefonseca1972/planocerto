@@ -10,8 +10,10 @@ interface CheckboxProps
 const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className, label, id, ...props }, ref) => {
     return (
+      // Sem htmlFor: o input está aninhado (associação implícita). Usar htmlFor
+      // + aninhamento causa duplo disparo do clique no Chrome (o checkbox
+      // alterna 2x e parece "travado"). O `id` segue no input para labels externos.
       <label
-        htmlFor={id}
         className={cn("flex cursor-pointer items-center gap-2", className)}
       >
         <div className="relative flex h-4 w-4 shrink-0 items-center justify-center">
