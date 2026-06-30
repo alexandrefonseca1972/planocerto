@@ -496,7 +496,7 @@ export function ContaDetalheClient({
         open={confirmCancel}
         onOpenChange={(open) => !open && setConfirmCancel(false)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent closeOnOverlayClick={false} closeOnEsc={false}>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar esta conta?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -528,7 +528,7 @@ export function ContaDetalheClient({
         open={showBatchPay}
         onOpenChange={(open) => !open && setShowBatchPay(false)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent closeOnOverlayClick={false} closeOnEsc={false}>
           <AlertDialogHeader>
             <AlertDialogTitle>
               Pagar {parcelasPendentesCount} parcela(s) pendentes?

@@ -72,7 +72,7 @@ export function CreateUserDialog({
 
   return (
     <AlertDialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <AlertDialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+      <AlertDialogContent className="max-w-lg max-h-[90vh] flex flex-col" closeOnOverlayClick={false} closeOnEsc={false}>
         <AlertDialogHeader className="shrink-0">
           <AlertDialogTitle>Criar usuário</AlertDialogTitle>
           <AlertDialogDescription>

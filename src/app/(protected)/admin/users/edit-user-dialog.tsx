@@ -69,7 +69,6 @@ export function EditUserDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-900/50 p-4 backdrop-blur-sm sm:items-center"
-      onClick={onClose}
     >
       <div
         className="my-auto flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
