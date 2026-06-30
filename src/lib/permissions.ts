@@ -134,7 +134,7 @@ export function getPermissionsMap(
 
   if (overrides) {
     for (const [key, value] of Object.entries(overrides)) {
-      if (PERMISSIONS[key as keyof typeof PERMISSIONS]) {
+      if (ALL_PERMISSIONS.includes(key as Permission)) {
         map[key] = Boolean(value);
       }
     }
