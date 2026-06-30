@@ -924,15 +924,15 @@ export function UsersTable({
                   {deleteImpact &&
                     (deleteImpact.tenantMemberships > 0 || deleteImpact.actionPlans > 0) && (
                       <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                        <span className="block font-medium">Este usuário possui vínculos ativos:</span>
+                        <span className="block font-medium">Ao excluir, estes vínculos serão afetados:</span>
                         {deleteImpact.tenantMemberships > 0 && (
-                          <span className="block">· {deleteImpact.tenantMemberships} empresa(s)</span>
+                          <span className="block">· {deleteImpact.tenantMemberships} empresa(s) — vínculo removido</span>
                         )}
                         {deleteImpact.actionPlans > 0 && (
-                          <span className="block">· {deleteImpact.actionPlans} plano(s) de ação</span>
+                          <span className="block">· {deleteImpact.actionPlans} plano(s) de ação — mantidos, mas sem responsável</span>
                         )}
-                        <span className="mt-2 block font-medium">
-                          Remova os vínculos antes de excluir, ou apenas desative o usuário.
+                        <span className="mt-2 block">
+                          Se preferir preservar o histórico, você pode apenas desativar o usuário.
                         </span>
                       </div>
                     )}
@@ -950,10 +950,6 @@ export function UsersTable({
                   type="submit"
                   variant="destructive"
                   isLoading={isDeleting}
-                  disabled={
-                    !!deleteImpact &&
-                    (deleteImpact.tenantMemberships > 0 || deleteImpact.actionPlans > 0)
-                  }
                 >
                   <Trash2 className="h-4 w-4" />
                   Excluir

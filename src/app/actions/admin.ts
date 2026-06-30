@@ -725,33 +725,10 @@ export async function deleteUser(
 
     const adminClient = createAdminClient();
 
-    const memResult = await adminClient
-      .from("tenant_members")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId);
-
-    const planResult = await adminClient
-      .from("action_plans")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId);
-
-    const membershipCount = (memResult as unknown as { count: number | null }).count ?? 0;
-    const planCount = (planResult as unknown as { count: number | null }).count ?? 0;
-
-    const impactWarnings: string[] = [];
-    if (membershipCount > 0) {
-      impactWarnings.push(`${membershipCount} empresa(s)`);
-    }
-    if (planCount > 0) {
-      impactWarnings.push(`${planCount} plano(s) de ação`);
-    }
-
-    if (impactWarnings.length > 0) {
-      return {
-        message: `Este usuário está vinculado a ${impactWarnings.join(" e ")}. Remova os vínculos antes de excluir.`,
-      };
-    }
-
+    // Limpeza tratada pelo banco: tenant_members tem ON DELETE CASCADE (vínculos
+    // de empresa removidos) e action_plans tem ON DELETE SET NULL (planos
+    // preservados, apenas sem responsável). Por isso não bloqueamos a exclusão
+    // por vínculos — a UI apenas avisa o impacto antes de confirmar.
     const { error } = await adminClient.auth.admin.deleteUser(userId);
 
     if (error) {
