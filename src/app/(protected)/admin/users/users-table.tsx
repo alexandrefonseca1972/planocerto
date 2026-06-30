@@ -1076,7 +1076,7 @@ export function UsersTable({
         }}
       >
         {resettingUser && (
-          <AlertDialogContent>
+          <AlertDialogContent closeOnOverlayClick={false} closeOnEsc={false}>
             <AlertDialogHeader>
               <AlertDialogTitle>Redefinir senha</AlertDialogTitle>
               <AlertDialogDescription>

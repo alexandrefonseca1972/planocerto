@@ -98,7 +98,7 @@ export function CopyPlanButton({ plan, plans, toast, router, autoOpen }: CopyPla
       </Button>
 
       <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent closeOnOverlayClick={false} closeOnEsc={false}>
           <AlertDialogHeader>
             <AlertDialogTitle>Clonar Plano de Ação</AlertDialogTitle>
             <AlertDialogDescription>

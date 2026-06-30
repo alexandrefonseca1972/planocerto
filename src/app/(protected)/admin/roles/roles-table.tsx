@@ -15,7 +15,6 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
-  AlertDialogClose,
 } from "@/components/ui/alert-dialog";
 import { PermissionManager } from "@/components/admin/permission-manager";
 import { ROLES, ALL_PERMISSIONS } from "@/lib/permissions";
@@ -203,9 +202,8 @@ export function RolesTable({ roles }: { roles: RoleRow[] }) {
 
       {/* Create Role Dialog */}
       <AlertDialog open={showCreateDialog} onOpenChange={(open) => { if (!open) handleCreateClose(); }}>
-        <AlertDialogContent className="max-w-lg max-h-[90vh] flex flex-col">
-          <AlertDialogClose onClick={handleCreateClose} />
-          <AlertDialogHeader className="shrink-0 pr-8">
+        <AlertDialogContent className="max-w-lg max-h-[90vh] flex flex-col" closeOnOverlayClick={false} closeOnEsc={false}>
+          <AlertDialogHeader className="shrink-0">
             <AlertDialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               Criar papel
@@ -254,9 +252,8 @@ export function RolesTable({ roles }: { roles: RoleRow[] }) {
       {/* Edit Role Dialog */}
       <AlertDialog open={!!editingRole} onOpenChange={(open) => { if (!open) handleEditClose(); }}>
         {editingRole && (
-          <AlertDialogContent className="max-w-lg max-h-[90vh] flex flex-col">
-            <AlertDialogClose onClick={handleEditClose} />
-            <AlertDialogHeader className="shrink-0 pr-8">
+          <AlertDialogContent className="max-w-lg max-h-[90vh] flex flex-col" closeOnOverlayClick={false} closeOnEsc={false}>
+            <AlertDialogHeader className="shrink-0">
               <AlertDialogTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
                 Editar papel

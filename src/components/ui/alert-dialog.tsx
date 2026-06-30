@@ -63,24 +63,34 @@ export function AlertDialogTrigger({
 export function AlertDialogContent({
   children,
   className,
+  closeOnOverlayClick = true,
+  closeOnEsc = true,
+  hideClose = false,
 }: {
   children: ReactNode;
   className?: string;
+  /** Fecha ao clicar no overlay. Desligue em formulários para evitar perda de dados. */
+  closeOnOverlayClick?: boolean;
+  /** Fecha ao pressionar Esc. Desligue em formulários para evitar perda de dados. */
+  closeOnEsc?: boolean;
+  /** Esconde o botão X (canto superior direito). */
+  hideClose?: boolean;
 }) {
   const { onOpenChange } = useAlertDialog();
 
   useEffect(() => {
+    if (!closeOnEsc) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onOpenChange(false);
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onOpenChange]);
+  }, [onOpenChange, closeOnEsc]);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-4 backdrop-blur-sm"
-      onClick={() => onOpenChange(false)}
+      onClick={closeOnOverlayClick ? () => onOpenChange(false) : undefined}
     >
       <div
         className={cn(
@@ -89,6 +99,7 @@ export function AlertDialogContent({
         )}
         onClick={(e) => e.stopPropagation()}
       >
+        {!hideClose && <AlertDialogClose />}
         {children}
       </div>
     </div>
@@ -113,7 +124,7 @@ export function AlertDialogClose({
       }}
       aria-label="Fechar"
       className={cn(
-        "absolute right-4 top-4 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
+        "absolute right-4 top-4 z-10 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
         className
       )}
     >
@@ -130,7 +141,7 @@ export function AlertDialogHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-4 flex items-start gap-3", className)}>
+    <div className={cn("mb-4 flex items-start gap-3 pr-8", className)}>
       {children}
     </div>
   );
