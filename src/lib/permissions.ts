@@ -185,7 +185,7 @@ export function buildCustomRolesMap(
   for (const role of roles) {
     const perms: Permission[] = [];
     for (const [key, value] of Object.entries(role.permissions)) {
-      if (value && PERMISSIONS[key as keyof typeof PERMISSIONS]) {
+      if (value && ALL_PERMISSIONS.includes(key as Permission)) {
         perms.push(key as Permission);
       }
     }

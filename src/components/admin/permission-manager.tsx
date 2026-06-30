@@ -8,6 +8,7 @@ import {
   PERMISSION_LABELS,
   ROLES,
   getPermissionsMap,
+  getRolePermissions,
   type Permission,
 } from "@/lib/permissions";
 
@@ -16,7 +17,12 @@ interface PermissionManagerProps {
   overrides?: Record<string, boolean> | null;
   onChange: (permissions: Record<string, boolean>) => void;
   readonly?: boolean;
+  /** Hide only the role <select>, keeping the role as the permission base. */
   hideRoleSelect?: boolean;
+  /** Pure custom-permission mode: no base role, edits the permission set directly. Implies the select is hidden. */
+  customMode?: boolean;
+  /** Base permissions for custom (DB-stored) roles, so the role base resolves correctly. */
+  customRoles?: Record<string, Permission[]>;
 }
 
 export function PermissionManager({
@@ -25,13 +31,21 @@ export function PermissionManager({
   onChange,
   readonly = false,
   hideRoleSelect = false,
+  customMode = false,
+  customRoles,
 }: PermissionManagerProps) {
-  const effectiveRole = hideRoleSelect ? "_custom" : role;
+  const effectiveRole = customMode ? "_custom" : role;
+  const showRoleSelect = !customMode && !hideRoleSelect;
   const customPermissions = useMemo(() => overrides || {}, [overrides]);
 
+  const basePermissions = useMemo(
+    () => getRolePermissions(effectiveRole, customRoles),
+    [effectiveRole, customRoles]
+  );
+
   const effectivePermissions = useMemo(
-    () => getPermissionsMap(effectiveRole, customPermissions),
-    [effectiveRole, customPermissions]
+    () => getPermissionsMap(effectiveRole, customPermissions, customRoles),
+    [effectiveRole, customPermissions, customRoles]
   );
 
   const handleRoleChange = (_newRole: string) => {
@@ -40,8 +54,7 @@ export function PermissionManager({
 
   const handleToggle = (perm: Permission) => {
     if (readonly) return;
-    const rolePerms = ROLES[effectiveRole]?.permissions || [];
-    const fromRole = rolePerms.includes(perm);
+    const fromRole = basePermissions.includes(perm);
     const currentEffective = effectivePermissions[perm];
     const newEffective = !currentEffective;
 
@@ -58,10 +71,9 @@ export function PermissionManager({
   const allPermissionsMap = useMemo(() => {
     const map: Record<Permission, { enabled: boolean; overridden: boolean }> =
       {} as Record<Permission, { enabled: boolean; overridden: boolean }>;
-    const rolePerms = ROLES[effectiveRole]?.permissions || [];
 
     for (const perm of ALL_PERMISSIONS) {
-      const fromRole = rolePerms.includes(perm);
+      const fromRole = basePermissions.includes(perm);
       const overridden = perm in customPermissions;
       map[perm] = {
         enabled: overridden ? customPermissions[perm] : fromRole,
@@ -69,7 +81,7 @@ export function PermissionManager({
       };
     }
     return map;
-  }, [effectiveRole, customPermissions]);
+  }, [basePermissions, customPermissions]);
 
   const totalEnabled = ALL_PERMISSIONS.filter(
     (p) => effectivePermissions[p]
@@ -77,7 +89,7 @@ export function PermissionManager({
 
   return (
     <div className="space-y-4">
-      {!hideRoleSelect && (
+      {showRoleSelect && (
         <div className="flex flex-col gap-3">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -105,14 +117,14 @@ export function PermissionManager({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            {hideRoleSelect ? "Permissões" : "Permissões individuais"}
+            {customMode ? "Permissões" : "Permissões individuais"}
           </span>
           <span className="text-xs text-zinc-400">
             {totalEnabled}/{ALL_PERMISSIONS.length} ativas
           </span>
         </div>
 
-        {!hideRoleSelect && Object.keys(customPermissions).length > 0 && (
+        {!customMode && Object.keys(customPermissions).length > 0 && (
           <button
             type="button"
             onClick={() => {
@@ -147,20 +159,20 @@ export function PermissionManager({
                       disabled={readonly}
                       className={cn(
                         "rounded",
-                        !hideRoleSelect && state.overridden && "ring-1 ring-blue-400"
+                        !customMode && state.overridden && "ring-1 ring-blue-400"
                       )}
                     />
                     <span
                       className={cn(
                         "flex-1 text-xs",
-                        !hideRoleSelect && state.overridden
+                        !customMode && state.overridden
                           ? "font-medium text-blue-700 dark:text-blue-400"
                           : "text-zinc-700 dark:text-zinc-300"
                       )}
                     >
                       {PERMISSION_LABELS[perm]}
                     </span>
-                    {!hideRoleSelect && state.overridden && (
+                    {!customMode && state.overridden && (
                       <span className="text-[10px] text-blue-500">
                         personalizado
                       </span>
