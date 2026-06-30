@@ -5,7 +5,7 @@ import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { UserCircle, LogOut, Shield, Loader2 } from "lucide-react";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, ROLES } from "@/lib/permissions";
 import type { User } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ interface UserMenuProps {
   role?: string;
 }
 
-export function UserMenu({ user, userPermissions = {}, role: _role = "user" }: UserMenuProps) {
+export function UserMenu({ user, userPermissions = {}, role = "user" }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -37,6 +37,7 @@ export function UserMenu({ user, userPermissions = {}, role: _role = "user" }: U
   ).toUpperCase();
   const displayName = user.user_metadata?.name || user.email?.split("@")[0] || "Usuário";
   const canAccessAdmin = userPermissions[PERMISSIONS.ADMIN_ACCESS];
+  const roleLabel = ROLES[role]?.label ?? role;
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -70,6 +71,11 @@ export function UserMenu({ user, userPermissions = {}, role: _role = "user" }: U
             <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
               {user.email}
             </p>
+            {roleLabel && (
+              <p className="mt-1 truncate text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                {roleLabel}
+              </p>
+            )}
           </div>
 
           <div className="py-1">

@@ -12,7 +12,7 @@ import {
   permissionsSchema,
   sanitizePermissions,
 } from "@/lib/validations/admin";
-import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, type Permission } from "@/lib/permissions";
+import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, buildCustomRolesMap, type Permission } from "@/lib/permissions";
 import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, repointActiveTenant, type RequesterScope } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { isValidUuid } from "@/lib/validations/uuid";
@@ -117,6 +117,23 @@ export async function checkIsAdmin(): Promise<boolean> {
   }
 }
 
+/**
+ * Carrega o mapa de papéis customizados (tabela `roles`) para resolver a base
+ * de permissões de papéis que não são embutidos (ex.: "Gerente Comercial").
+ * Sem isso, a base de um papel customizado seria vazia em tempo de execução.
+ */
+async function loadCustomRolesMap(): Promise<Record<string, Permission[]>> {
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient.from("roles").select("name, permissions");
+    return buildCustomRolesMap(
+      (data || []) as { name: string; permissions: Record<string, boolean> }[],
+    );
+  } catch {
+    return {};
+  }
+}
+
 export async function checkPermission(requiredPermission: Permission): Promise<boolean> {
   try {
     const supabase = await createClient();
@@ -135,7 +152,11 @@ export async function checkPermission(requiredPermission: Permission): Promise<b
 
     if (!profile) return false;
 
-    return hasPermission(profile.permissions, profile.role, requiredPermission);
+    const customRoles = BUILTIN_ROLES.has(profile.role)
+      ? undefined
+      : await loadCustomRolesMap();
+
+    return hasPermission(profile.permissions, profile.role, requiredPermission, customRoles);
   } catch (error) {
     console.error("[checkPermission] Erro:", error);
     return false;
@@ -220,7 +241,10 @@ async function requirePermission(
     return { authorized: false, error: { message: "Perfil não encontrado." } };
   }
 
-  const authorized = hasPermission(profile.permissions, profile.role, requiredPermission);
+  const customRoles = BUILTIN_ROLES.has(profile.role)
+    ? undefined
+    : await loadCustomRolesMap();
+  const authorized = hasPermission(profile.permissions, profile.role, requiredPermission, customRoles);
 
   if (!authorized) {
     return {
@@ -1084,7 +1108,8 @@ export async function getCurrentUserPermissions(): Promise<{
 
     const role = profile?.role ?? "user";
     const perms = (profile?.permissions ?? null) as Record<string, boolean> | null;
-    const effectivePermissions = getPermissionsMap(role, perms);
+    const customRoles = BUILTIN_ROLES.has(role) ? undefined : await loadCustomRolesMap();
+    const effectivePermissions = getPermissionsMap(role, perms, customRoles);
 
     return { role, permissions: perms, effectivePermissions };
   } catch {
