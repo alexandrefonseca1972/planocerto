@@ -11,6 +11,7 @@ import type { AdminFormState, AreaOption, UnitOption, RoleRow } from "@/app/acti
 import type { Profile } from "@/types/auth";
 import type { Tenant } from "@/types/tenant";
 import { PermissionManager } from "@/components/admin/permission-manager";
+import { buildCustomRolesMap } from "@/lib/permissions";
 import { TenantRoleRow } from "./tenant-role-row";
 import { ScopePicker } from "./scope-picker";
 import { EffectivePermissions } from "./effective-permissions";
@@ -50,6 +51,10 @@ export function EditUserDialog({
     user.permissions || {}
   );
   const [currentRole, setCurrentRole] = useState(user.role);
+
+  const customRolesMap = buildCustomRolesMap(
+    customRoles.map((r) => ({ name: r.name, permissions: r.permissions }))
+  );
 
   const permissionsJson = JSON.stringify(permissions);
 
@@ -148,13 +153,12 @@ export function EditUserDialog({
           </div>
 
           <div className="border-t border-zinc-200 pt-3 dark:border-zinc-700">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-              Permissões
-            </p>
             <PermissionManager
               role={currentRole}
               overrides={user.permissions}
               onChange={handlePermissionsChange}
+              hideRoleSelect
+              customRoles={customRolesMap}
             />
             <input type="hidden" name="permissions" value={permissionsJson} />
           </div>
