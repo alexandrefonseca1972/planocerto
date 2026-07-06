@@ -1,6 +1,6 @@
 {
   "name": "planocerto",
-  "version": "2.7.14",
+  "version": "2.7.15",
   "private": true,
   "scripts": {
     "dev": "NODE_OPTIONS='--max-http-header-size=65536' next dev",

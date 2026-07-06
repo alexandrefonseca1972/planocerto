@@ -216,6 +216,14 @@ async function assertCanManageUser(
 /** Papéis que um não-super-admin pode ATRIBUIR a usuários (criar/editar). */
 const ADMIN_ASSIGNABLE_ROLES = new Set(["manager", "user", "viewer"]);
 
+/**
+ * Papéis builtin restritos a super_admin no seletor de permissões POR EMPRESA
+ * (tenant_member_roles). Diferente de ADMIN_ASSIGNABLE_ROLES: papéis
+ * customizados também podem ser atribuídos por admins de empresa, mas apenas
+ * dentro das empresas que administram (scopeTenantIds já restringe isso).
+ */
+const TENANT_PERM_ROLE_SUPER_ADMIN_ONLY = new Set(["admin", "super_admin"]);
+
 /** Limita os tenantIds solicitados ao escopo do admin (super_admin: todos). */
 function scopeTenantIds(requested: string[], scope: RequesterScope): string[] {
   if (scope.isSuperAdmin) return requested;
@@ -330,9 +338,11 @@ function membershipRoleFor(
  * distinto do papel de membership acima. Retorna null quando o campo vem
  * vazio ("Usar papel global") — nesse caso não se cria/mantém linha em
  * tenant_member_roles, e o usuário herda o papel global (profiles.role)
- * nessa empresa (ver getEffectiveRole). Mesma política de ADMIN_ASSIGNABLE_ROLES:
- * não-super só atribui papéis subordinados; valores fora disso são ignorados
- * (a UI já restringe as opções, isso é defesa em profundidade no servidor).
+ * nessa empresa (ver getEffectiveRole). Não-super pode atribuir papéis
+ * customizados (definidos globalmente, mas escopados aqui à empresa do
+ * admin via scopeTenantIds) além dos builtin subordinados; admin/super_admin
+ * builtin seguem restritos a super_admin (TENANT_PERM_ROLE_SUPER_ADMIN_ONLY).
+ * A UI já restringe as opções, isso é defesa em profundidade no servidor.
  */
 function resolveTenantPermRole(
   isSuperAdmin: boolean,
@@ -342,7 +352,7 @@ function resolveTenantPermRole(
   const str = typeof raw === "string" ? raw.trim() : "";
   if (!str) return null;
   if (!validRoleNames.has(str)) return null;
-  if (!isSuperAdmin && !ADMIN_ASSIGNABLE_ROLES.has(str)) return null;
+  if (!isSuperAdmin && TENANT_PERM_ROLE_SUPER_ADMIN_ONLY.has(str)) return null;
   return str;
 }
 

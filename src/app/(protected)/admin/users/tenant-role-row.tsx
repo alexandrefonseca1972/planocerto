@@ -64,11 +64,14 @@ export function TenantRoleRow({
     ? TENANT_ROLES
     : TENANT_ROLES.filter((r) => r.value === "member");
 
-  // Mesma regra de ADMIN_ASSIGNABLE_ROLES (admin.ts): admin/super_admin/papéis
-  // customizados só podem ser atribuídos por super_admin.
-  const permRoleOptions = isSuperAdmin
-    ? [...BUILTIN_PERM_ROLES, ...SUPER_ADMIN_ONLY_PERM_ROLES, ...customRoles.map((r) => ({ value: r.name, label: r.name }))]
-    : BUILTIN_PERM_ROLES;
+  // Admin/Super Admin (builtin) seguem restritos a super_admin. Papéis
+  // customizados já podem ser atribuídos por admins de empresa dentro das
+  // suas próprias empresas (ver resolveTenantPermRole em admin.ts).
+  const permRoleOptions = [
+    ...BUILTIN_PERM_ROLES,
+    ...(isSuperAdmin ? SUPER_ADMIN_ONLY_PERM_ROLES : []),
+    ...customRoles.map((r) => ({ value: r.name, label: r.name })),
+  ];
 
   return (
     <div className="space-y-1 border-b border-zinc-100 py-1 last:border-b-0 dark:border-zinc-800">
