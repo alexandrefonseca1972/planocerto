@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       action_items: {
@@ -348,8 +373,10 @@ export type Database = {
           financeira_real: number | null
           id: string
           inscritos_real: number | null
+          latitude: number | null
           link_facebook: string | null
           link_instagram: string | null
+          longitude: number | null
           municipio: string | null
           nome_fantasia: string
           pais: string
@@ -383,8 +410,10 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
           link_facebook?: string | null
           link_instagram?: string | null
+          longitude?: number | null
           municipio?: string | null
           nome_fantasia: string
           pais?: string
@@ -418,8 +447,10 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
           link_facebook?: string | null
           link_instagram?: string | null
+          longitude?: number | null
           municipio?: string | null
           nome_fantasia?: string
           pais?: string
@@ -1598,6 +1629,8 @@ export type Database = {
           financeira_real: number | null
           id: string
           inscritos_real: number | null
+          latitude: number | null
+          longitude: number | null
           mensalidade_3ano: number | null
           meta_academica: number | null
           meta_financeira: number | null
@@ -1631,6 +1664,8 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
+          longitude?: number | null
           mensalidade_3ano?: number | null
           meta_academica?: number | null
           meta_financeira?: number | null
@@ -1664,6 +1699,8 @@ export type Database = {
           financeira_real?: number | null
           id?: string
           inscritos_real?: number | null
+          latitude?: number | null
+          longitude?: number | null
           mensalidade_3ano?: number | null
           meta_academica?: number | null
           meta_financeira?: number | null
@@ -1800,6 +1837,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "units"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_member_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_member_roles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_member_roles_tenant_id_user_id_fkey"
+            columns: ["tenant_id", "user_id"]
+            isOneToOne: true
+            referencedRelation: "tenant_members"
+            referencedColumns: ["tenant_id", "user_id"]
           },
         ]
       }
@@ -2083,10 +2162,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_area: { Args: { p_area_id: string }; Returns: boolean }
+      can_access_unit: { Args: { p_unit_id: string }; Returns: boolean }
       create_conta_with_parcelas: { Args: { payload: Json }; Returns: string }
+      effective_role_for_tenant: {
+        Args: { p_tenant_id: string; p_user_id: string }
+        Returns: string
+      }
       has_perm: { Args: { required_perm: string }; Returns: boolean }
+      has_perm_for_tenant: {
+        Args: { p_tenant_id: string; required_perm: string }
+        Returns: boolean
+      }
+      has_scope: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_admin_for_tenant: { Args: { p_tenant_id: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      is_valid_role_name: { Args: { p_role: string }; Returns: boolean }
       match_knowledge: {
         Args: {
           match_count: number
@@ -2248,8 +2340,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
-

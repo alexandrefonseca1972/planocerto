@@ -152,13 +152,13 @@ export async function getItems(planId: string): Promise<ActionItem[]> {
 
 export async function createPlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
     const tenantId = (formData.get("tenantId") as string) || await getCurrentTenantId();
     if (!tenantId) return { message: "Nenhuma empresa." };
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE, tenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const raw = { 
       title: formData.get("title"), 
       unit_id: formData.get("unit_id"),
@@ -205,8 +205,6 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
 
 export async function updatePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const planId = formData.get("planId") as string;
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     const raw = {
@@ -225,6 +223,8 @@ export async function updatePlan(_prev: ActionPlanFormState, formData: FormData)
     const supabase = await createClient();
     const { data: planRecord } = await supabase.from("action_plans").select("tenant_id").eq("id", planId).single();
     if (!planRecord?.tenant_id) return { message: "Plano não encontrado." };
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE, planRecord.tenant_id);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const resolvedUnit = await resolvePlanUnitReference(supabase, {
       tenantId: planRecord.tenant_id,
       unitId: v.data.unit_id,
@@ -257,13 +257,13 @@ export async function updatePlan(_prev: ActionPlanFormState, formData: FormData)
 
 export async function deletePlan(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_DELETE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const planId = formData.get("planId") as string;
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     const supabase = await createClient();
     const { data: plan } = await supabase.from("action_plans").select("title,tenant_id").eq("id", planId).single();
     if (!plan) return { message: "Plano não encontrado." };
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_DELETE, plan.tenant_id);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const { error } = await supabase.from("action_plans").delete().eq("id", planId);
     if (error) {
       logSupabaseError("deletePlan", error);
@@ -280,13 +280,16 @@ export async function deletePlan(_prev: ActionPlanFormState, formData: FormData)
 export async function upsertItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
     const itemId = formData.get("itemId") as string;
-    const requiredPermission = itemId ? PERMISSIONS.PLANS_UPDATE : PERMISSIONS.PLANS_CREATE;
-    const hasPerm = await checkPermission(requiredPermission);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const planId = formData.get("planId") as string;
     if (!planId) return { message: "Plano obrigatório." };
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     if (itemId && !isValidUuid(itemId)) return { message: "ID do item inválido." };
+
+    const supabase = await createClient();
+    const { data: planForPerm } = await supabase.from("action_plans").select("tenant_id").eq("id", planId).maybeSingle();
+    const requiredPermission = itemId ? PERMISSIONS.PLANS_UPDATE : PERMISSIONS.PLANS_CREATE;
+    const hasPerm = await checkPermission(requiredPermission, planForPerm?.tenant_id ?? null);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const macroAcaoRaw = formData.get("macro_acao");
     const raw: Record<string, unknown> = {};
     const textFields = ["number", "action", "why", "where", "responsible", "cost", "expected_result", "actual_result", "observations", "tipo_pa", "area", "prioridade", "subacao", "como"];
@@ -315,7 +318,6 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
       sanitizeText(v.data.como || ""),
     ]);
     const sanitized = { ...v.data, action, why, where, responsible, cost, expected_result, actual_result, observations, tipo_pa, area, prioridade, subacao, como };
-    const supabase = await createClient();
     const macroAcao = await sanitizeText(typeof macroAcaoRaw === "string" ? macroAcaoRaw : "");
     const resolvedParentId = macroAcao
       ? await resolveMacroActionGroupId(supabase, planId, macroAcao, itemId)
@@ -377,14 +379,19 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
 
 export async function deleteItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_DELETE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const itemId = formData.get("itemId") as string;
     if (!itemId) return { message: "ID obrigatório." };
     if (!isValidUuid(itemId)) return { message: "ID do item inválido." };
     const supabase = await createClient();
-    const { data: item } = await supabase.from("action_items").select("plan_id,number,action").eq("id", itemId).single();
+    const { data: item } = await supabase
+      .from("action_items")
+      .select("plan_id,number,action,action_plans(tenant_id)")
+      .eq("id", itemId)
+      .single();
     if (!item) return { message: "Item não encontrado." };
+    const itemTenantId = (Array.isArray(item.action_plans) ? item.action_plans[0]?.tenant_id : item.action_plans?.tenant_id) ?? null;
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_DELETE, itemTenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const { error } = await supabase.from("action_items").delete().eq("id", itemId);
     if (error) {
       logSupabaseError("deleteItem", error);
@@ -400,18 +407,20 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
 
 export async function updateItemStatus(itemId: string, _status: ActionItemStatus): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     if (!itemId) return { message: "ID obrigatório." };
     if (!isValidUuid(itemId)) return { message: "ID do item inválido." };
 
     const supabase = await createClient();
     const { data: item } = await supabase
       .from("action_items")
-      .select("plan_id,number,action,responsible,prioridade,planned_start,planned_end,actual_start,actual_end,expected_result,actual_result,observations,cost,\"where\",why,como,inscritos_real,mat_fin_real,mat_acad_real,status")
+      .select("plan_id,number,action,responsible,prioridade,planned_start,planned_end,actual_start,actual_end,expected_result,actual_result,observations,cost,\"where\",why,como,inscritos_real,mat_fin_real,mat_acad_real,status,action_plans(tenant_id)")
       .eq("id", itemId)
       .single();
     if (!item) return { message: "Item não encontrado." };
+
+    const itemTenantId = (Array.isArray(item.action_plans) ? item.action_plans[0]?.tenant_id : item.action_plans?.tenant_id) ?? null;
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE, itemTenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const status = deriveActionItemStatus(item);
     
@@ -457,9 +466,6 @@ export async function updateItemStatus(itemId: string, _status: ActionItemStatus
 
 export async function quickUpdateItemAction(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
-
     const itemId = formData.get("itemId") as string;
     if (!itemId || !isValidUuid(itemId)) return { message: "ID do item inválido." };
 
@@ -470,10 +476,14 @@ export async function quickUpdateItemAction(_prev: ActionPlanFormState, formData
     const supabase = await createClient();
     const { data: item } = await supabase
       .from("action_items")
-      .select("plan_id,number,action,responsible,prioridade,planned_start,planned_end,expected_result,observations,cost,\"where\",why,como,inscritos_real,mat_fin_real,mat_acad_real")
+      .select("plan_id,number,action,responsible,prioridade,planned_start,planned_end,expected_result,observations,cost,\"where\",why,como,inscritos_real,mat_fin_real,mat_acad_real,action_plans(tenant_id)")
       .eq("id", itemId)
       .single();
     if (!item) return { message: "Item não encontrado." };
+
+    const itemTenantId = (Array.isArray(item.action_plans) ? item.action_plans[0]?.tenant_id : item.action_plans?.tenant_id) ?? null;
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE, itemTenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const status = deriveActionItemStatus({ ...item, actual_start, actual_end, actual_result });
 
@@ -497,15 +507,16 @@ export async function quickUpdateItemAction(_prev: ActionPlanFormState, formData
 
 export async function clonePlanWithDateShift(planId: string, newStartDate: string): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
-    
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
     const { data: sourcePlan } = await supabase.from("action_plans").select("*").eq("id", planId).single();
     if (!sourcePlan) return { message: "Plano original não encontrado." };
+
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE, sourcePlan.tenant_id);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const { data: sourceItems } = await supabase.from("action_items").select("*").eq("plan_id", planId).order("sort_order").limit(2000);
     if (!sourceItems) return { message: "Erro ao buscar itens do plano original." };
@@ -612,18 +623,24 @@ export async function clonePlanWithDateShift(planId: string, newStartDate: strin
 
 export async function bulkUpdateStatus(planId: string, itemIds: string[], _status: ActionItemStatus): Promise<ActionPlanFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     if (!planId) return { message: "Plano obrigatório." };
     if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
     if (!itemIds.length) return { message: "Selecione pelo menos um item." };
     if (!itemIds.every(isValidUuid)) return { message: "Lista de itens contém ID inválido." };
 
     const supabase = await createClient();
+    const { data: planForPerm } = await supabase.from("action_plans").select("tenant_id").eq("id", planId).maybeSingle();
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE, planForPerm?.tenant_id ?? null);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
+    // .eq("plan_id", planId) é essencial: a permissão acima só foi validada
+    // para ESTE plano — sem o filtro, itemIds poderia incluir itens de outro
+    // plano/empresa e seriam recalculados/persistidos sem checagem própria.
     const { data: items, error: fetchError } = await supabase
       .from("action_items")
       .select("id,plan_id,planned_start,planned_end,actual_start,actual_end,expected_result,actual_result,observations,cost,\"where\",why,como,inscritos_real,mat_fin_real,mat_acad_real,action,responsible,prioridade")
-      .in("id", itemIds);
+      .in("id", itemIds)
+      .eq("plan_id", planId);
     if (fetchError || !items) return { message: "Erro ao recalcular." };
 
     let updatedCount = 0;

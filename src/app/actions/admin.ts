@@ -13,7 +13,7 @@ import {
   sanitizePermissions,
 } from "@/lib/validations/admin";
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, buildCustomRolesMap, type Permission } from "@/lib/permissions";
-import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, repointActiveTenant, type RequesterScope } from "@/app/actions/_helpers";
+import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, repointActiveTenant, getEffectiveRole, type RequesterScope } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { isValidUuid } from "@/lib/validations/uuid";
 import { generateSecurePassword } from "@/lib/security/password";
@@ -134,7 +134,13 @@ async function loadCustomRolesMap(): Promise<Record<string, Permission[]>> {
   }
 }
 
-export async function checkPermission(requiredPermission: Permission): Promise<boolean> {
+/**
+ * `tenantId` é opcional e retrocompatível: quando omitido, o comportamento é
+ * idêntico ao de antes (papel global via profiles.role). Quando informado,
+ * resolve o papel efetivo do usuário NAQUELA empresa (tenant_member_roles,
+ * com fallback para o papel global) via getEffectiveRole.
+ */
+export async function checkPermission(requiredPermission: Permission, tenantId?: string | null): Promise<boolean> {
   try {
     const supabase = await createClient();
     const {
@@ -144,19 +150,30 @@ export async function checkPermission(requiredPermission: Permission): Promise<b
 
     if (userError || !user) return false;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, permissions")
-      .eq("id", user.id)
-      .maybeSingle() as { data: UserProfile | null; error: unknown };
+    let role: string;
+    let permissions: Record<string, boolean> | null;
 
-    if (!profile) return false;
+    if (tenantId) {
+      const effective = await getEffectiveRole(user.id, tenantId);
+      role = effective.role;
+      permissions = effective.permissions;
+    } else {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, permissions")
+        .eq("id", user.id)
+        .maybeSingle() as { data: UserProfile | null; error: unknown };
 
-    const customRoles = BUILTIN_ROLES.has(profile.role)
+      if (!profile) return false;
+      role = profile.role;
+      permissions = profile.permissions;
+    }
+
+    const customRoles = BUILTIN_ROLES.has(role)
       ? undefined
       : await loadCustomRolesMap();
 
-    return hasPermission(profile.permissions, profile.role, requiredPermission, customRoles);
+    return hasPermission(permissions, role, requiredPermission, customRoles);
   } catch (error) {
     console.error("[checkPermission] Erro:", error);
     return false;
@@ -218,8 +235,16 @@ async function getValidRoleNames(): Promise<Set<string>> {
   }
 }
 
+/**
+ * `tenantId` opcional e retrocompatível (ver checkPermission). `profile`
+ * retornado é sempre o perfil GLOBAL (papel/overrides tal como gravados em
+ * profiles) — usado por chamadores que precisam do papel global cru (ex.:
+ * guard de "não pode rebaixar o próprio papel"), não o papel efetivo
+ * resolvido para o tenant.
+ */
 async function requirePermission(
-  requiredPermission: Permission
+  requiredPermission: Permission,
+  tenantId?: string | null,
 ): Promise<{ authorized: boolean; currentUserId?: string; profile?: UserProfile; error?: AdminFormState }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -241,10 +266,18 @@ async function requirePermission(
     return { authorized: false, error: { message: "Perfil não encontrado." } };
   }
 
-  const customRoles = BUILTIN_ROLES.has(profile.role)
+  let role = profile.role;
+  let permissions = profile.permissions;
+  if (tenantId) {
+    const effective = await getEffectiveRole(user.id, tenantId);
+    role = effective.role;
+    permissions = effective.permissions;
+  }
+
+  const customRoles = BUILTIN_ROLES.has(role)
     ? undefined
     : await loadCustomRolesMap();
-  const authorized = hasPermission(profile.permissions, profile.role, requiredPermission, customRoles);
+  const authorized = hasPermission(permissions, role, requiredPermission, customRoles);
 
   if (!authorized) {
     return {
@@ -290,6 +323,27 @@ function membershipRoleFor(
   if (isSuperAdmin) return resolveTenantRole(raw);
   if (existingRole === "owner" || existingRole === "admin") return existingRole;
   return "member";
+}
+
+/**
+ * Papel de PERMISSÕES do usuário numa empresa específica (tenant_member_roles),
+ * distinto do papel de membership acima. Retorna null quando o campo vem
+ * vazio ("Usar papel global") — nesse caso não se cria/mantém linha em
+ * tenant_member_roles, e o usuário herda o papel global (profiles.role)
+ * nessa empresa (ver getEffectiveRole). Mesma política de ADMIN_ASSIGNABLE_ROLES:
+ * não-super só atribui papéis subordinados; valores fora disso são ignorados
+ * (a UI já restringe as opções, isso é defesa em profundidade no servidor).
+ */
+function resolveTenantPermRole(
+  isSuperAdmin: boolean,
+  raw: FormDataEntryValue | null,
+  validRoleNames: Set<string>,
+): string | null {
+  const str = typeof raw === "string" ? raw.trim() : "";
+  if (!str) return null;
+  if (!validRoleNames.has(str)) return null;
+  if (!isSuperAdmin && !ADMIN_ASSIGNABLE_ROLES.has(str)) return null;
+  return str;
 }
 
 export async function createUser(
@@ -387,6 +441,7 @@ export async function createUser(
         p_tenant_members: scopedTenantIds.map((tenantId) => ({
           tenant_id: tenantId,
           role: membershipRoleFor(scope.isSuperAdmin, formData.get(`tenantRole-${tenantId}`)),
+          perm_role: resolveTenantPermRole(scope.isSuperAdmin, formData.get(`tenantPermRole-${tenantId}`), validRoles),
         })),
         p_area_ids: newAreaIds,
         p_unit_ids: newUnitIds,
@@ -626,8 +681,16 @@ export async function updateUser(
       if (losingOwner.length > 0) {
         const blocked = await tenantsWithSingleOwner(losingOwner);
         if (blocked.length > 0) {
+          const { data: blockedTenants } = await adminClient
+            .from("tenants")
+            .select("name")
+            .in("id", blocked);
+          const names = (blockedTenants || []).map((t) => t.name).join(", ");
           return {
-            message: "Não é possível remover ou rebaixar o último proprietário de uma empresa. Defina outro proprietário antes.",
+            message:
+              `Não é possível remover/rebaixar o usuário como proprietário de ${names} porque é o único proprietário. ` +
+              "Defina outro proprietário antes. Se a intenção é remover o usuário do sistema, use o botão Excluir " +
+              "(lixeira) na lista — excluir não exige desvincular empresas antes.",
           };
         }
       }
@@ -643,6 +706,39 @@ export async function updateUser(
         if (upsertErr) {
           console.error("[updateUser] Erro ao atualizar memberships:", upsertErr.message);
           return { message: "Erro ao atualizar empresas do usuário. Tente novamente." };
+        }
+      }
+
+      // Papel de PERMISSÕES por empresa (tenant_member_roles) — reconciliado
+      // só para as empresas que permanecem/entram no vínculo (toKeep + toAdd).
+      // toRemove é limpo automaticamente via FK ON DELETE CASCADE em
+      // tenant_members. Campo vazio ("Usar papel global") remove a linha.
+      const permRoleTenantIds = [...toKeep, ...toAdd];
+      if (permRoleTenantIds.length > 0) {
+        const permRoleToUpsert = permRoleTenantIds
+          .map((tenantId) => ({
+            tenantId,
+            role: resolveTenantPermRole(scope.isSuperAdmin, formData.get(`tenantPermRole-${tenantId}`), validRoles),
+          }))
+          .filter((r): r is { tenantId: string; role: string } => r.role !== null);
+        const permRoleToRemove = permRoleTenantIds.filter(
+          (tenantId) => !permRoleToUpsert.some((r) => r.tenantId === tenantId)
+        );
+
+        if (permRoleToRemove.length > 0) {
+          await adminClient.from("tenant_member_roles").delete()
+            .eq("user_id", userId)
+            .in("tenant_id", permRoleToRemove);
+        }
+        if (permRoleToUpsert.length > 0) {
+          const { error: permRoleErr } = await adminClient.from("tenant_member_roles").upsert(
+            permRoleToUpsert.map((r) => ({ user_id: userId, tenant_id: r.tenantId, role: r.role })),
+            { onConflict: "tenant_id,user_id" },
+          );
+          if (permRoleErr) {
+            console.error("[updateUser] Erro ao atualizar papel por empresa:", permRoleErr.message);
+            return { message: "Erro ao atualizar papel de permissões por empresa. Tente novamente." };
+          }
         }
       }
 
@@ -987,35 +1083,13 @@ export async function bulkDeleteUsers(
 
     const adminClient = createAdminClient();
 
-    const { data: memberships } = await adminClient
-      .from("tenant_members")
-      .select("user_id")
-      .in("user_id", userIds);
-
-    const { data: plans } = await adminClient
-      .from("action_plans")
-      .select("user_id")
-      .in("user_id", userIds);
-
-    const usersWithMemberships = new Set((memberships || []).map((m) => m.user_id));
-    const usersWithPlans = new Set((plans || []).map((p) => p.user_id));
-
-    const blockedIds = userIds.filter(
-      (id) => usersWithMemberships.has(id) || usersWithPlans.has(id)
-    );
-    const deletableIds = userIds.filter((id) => !blockedIds.includes(id));
-
-    if (deletableIds.length === 0) {
-      return {
-        message: `Nenhum usuário pode ser excluído: todos possuem vínculos ativos (empresas ou planos). Remova os vínculos antes de excluir.`,
-      };
-    }
-
+    // Sem bloqueio por vínculo (mesma regra de deleteUser, PR #29): tenant_members
+    // tem ON DELETE CASCADE e action_plans tem ON DELETE SET NULL, então o banco
+    // limpa os vínculos com segurança — a UI apenas avisa o impacto antes.
     const errors: string[] = [];
 
-    // Deleta em paralelo os usuários sem vínculos
     await Promise.all(
-      deletableIds.map(async (userId) => {
+      userIds.map(async (userId) => {
         const { error } = await adminClient.auth.admin.deleteUser(userId);
         if (error) {
           errors.push(userId);
@@ -1028,13 +1102,12 @@ export async function bulkDeleteUsers(
     revalidatePath("/admin/users");
     revalidatePath("/", "layout");
 
-    const deleted = deletableIds.length - errors.length;
+    const deleted = userIds.length - errors.length;
     const parts: string[] = [];
     if (deleted > 0) parts.push(`${deleted} usuário${deleted !== 1 ? "s" : ""} excluído${deleted !== 1 ? "s" : ""}`);
     if (errors.length > 0) parts.push(`${errors.length} falha${errors.length !== 1 ? "s" : ""}`);
-    if (blockedIds.length > 0) parts.push(`${blockedIds.length} ignorado${blockedIds.length !== 1 ? "s" : ""} (com vínculos)`);
 
-    return { success: true, message: parts.join(" · ") + "." };
+    return { success: deleted > 0, message: parts.join(" · ") + "." };
   } catch (error) {
     console.error("[bulkDeleteUsers] Erro:", error);
     return { message: "Serviço indisponível no momento." };
@@ -1042,12 +1115,13 @@ export async function bulkDeleteUsers(
 }
 
 export async function getUserImpact(userId: string) {
+  const empty = { tenantMemberships: 0, actionPlans: 0, soleOwnerOf: [] as string[] };
   try {
     const hasPerm = await checkPermission(PERMISSIONS.USERS_READ);
-    if (!hasPerm) return { tenantMemberships: 0, actionPlans: 0 };
+    if (!hasPerm) return empty;
 
     const { denied } = await assertCanManageUser(userId);
-    if (denied) return { tenantMemberships: 0, actionPlans: 0 };
+    if (denied) return empty;
 
     const adminClient = createAdminClient();
 
@@ -1061,16 +1135,40 @@ export async function getUserImpact(userId: string) {
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId);
 
+    // Empresas das quais este usuário é o ÚNICO proprietário — excluí-lo deixa
+    // a empresa sem owner. Não bloqueia (deleteUser sempre permite), só avisa.
+    const { data: ownedRows } = await adminClient
+      .from("tenant_members")
+      .select("tenant_id")
+      .eq("user_id", userId)
+      .eq("role", "owner");
+    const ownedTenantIds = (ownedRows || []).map((r) => r.tenant_id as string);
+    const soleOwnerTenantIds = await tenantsWithSingleOwner(ownedTenantIds);
+    let soleOwnerOf: string[] = [];
+    if (soleOwnerTenantIds.length > 0) {
+      const { data: tenantRows } = await adminClient
+        .from("tenants")
+        .select("name")
+        .in("id", soleOwnerTenantIds);
+      soleOwnerOf = (tenantRows || []).map((t) => t.name as string);
+    }
+
     return {
       tenantMemberships: (memResult as unknown as { count: number | null }).count ?? 0,
       actionPlans: (planResult as unknown as { count: number | null }).count ?? 0,
+      soleOwnerOf,
     };
   } catch {
-    return { tenantMemberships: 0, actionPlans: 0 };
+    return empty;
   }
 }
 
-export async function getCurrentUserPermissions(): Promise<{
+/**
+ * `tenantId` opcional e retrocompatível: quando omitido, retorna o papel
+ * global (comportamento de antes). Quando informado, retorna o papel
+ * efetivo do usuário naquela empresa (ver getEffectiveRole).
+ */
+export async function getCurrentUserPermissions(tenantId?: string | null): Promise<{
   role: string;
   permissions: Record<string, boolean> | null;
   effectivePermissions: Record<string, boolean>;
@@ -1080,14 +1178,24 @@ export async function getCurrentUserPermissions(): Promise<{
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { role: "user", permissions: null, effectivePermissions: {} };
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, permissions")
-      .eq("id", user.id)
-      .maybeSingle() as { data: UserProfile | null; error: unknown };
+    let role: string;
+    let perms: Record<string, boolean> | null;
 
-    const role = profile?.role ?? "user";
-    const perms = (profile?.permissions ?? null) as Record<string, boolean> | null;
+    if (tenantId) {
+      const effective = await getEffectiveRole(user.id, tenantId);
+      role = effective.role;
+      perms = effective.permissions;
+    } else {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, permissions")
+        .eq("id", user.id)
+        .maybeSingle() as { data: UserProfile | null; error: unknown };
+
+      role = profile?.role ?? "user";
+      perms = (profile?.permissions ?? null) as Record<string, boolean> | null;
+    }
+
     const customRoles = BUILTIN_ROLES.has(role) ? undefined : await loadCustomRolesMap();
     const effectivePermissions = getPermissionsMap(role, perms, customRoles);
 
@@ -1216,6 +1324,9 @@ export async function updateRole(
     }
 
     const adminClient = createAdminClient();
+
+    const { data: currentRole } = await adminClient.from("roles").select("name").eq("id", roleId).single();
+
     const { error } = await adminClient.from("roles").update({
       name,
       description,
@@ -1230,7 +1341,30 @@ export async function updateRole(
       return { message: "Erro ao atualizar papel." };
     }
 
+    // profiles.role e tenant_member_roles.role referenciam o papel
+    // customizado pelo NOME (sem FK). Se o nome mudou, propaga para os dois —
+    // esquecer qualquer um deixa usuários com um role órfão que silenciosamente
+    // zera as permissões efetivas (global ou só naquela empresa).
+    if (currentRole && currentRole.name !== name) {
+      const { error: renameErr } = await adminClient
+        .from("profiles")
+        .update({ role: name })
+        .eq("role", currentRole.name);
+      if (renameErr) {
+        console.error("[updateRole] Erro ao propagar rename para profiles:", renameErr.message);
+      }
+
+      const { error: tenantRenameErr } = await adminClient
+        .from("tenant_member_roles")
+        .update({ role: name })
+        .eq("role", currentRole.name);
+      if (tenantRenameErr) {
+        console.error("[updateRole] Erro ao propagar rename para tenant_member_roles:", tenantRenameErr.message);
+      }
+    }
+
     revalidatePath("/admin/roles");
+    revalidatePath("/admin/users");
     return { success: true, message: `Papel "${name}" atualizado!` };
   } catch (error) { console.error("[updateRole] Error:", error); return { message: "Serviço indisponível." }; }
 }
@@ -1348,6 +1482,20 @@ export async function deleteRole(
     const { data: role } = await adminClient.from("roles").select("name, is_system").eq("id", roleId).single();
     if (!role) return { message: "Papel não encontrado." };
     if (role.is_system) return { message: "Papéis do sistema não podem ser excluídos." };
+
+    // profiles.role e tenant_member_roles.role referenciam o papel pelo NOME
+    // (sem FK) — excluir com usuários ainda apontando para esse nome (global
+    // ou só numa empresa) os deixaria com permissões vazias silenciosamente.
+    const [{ count: usersInUse }, { count: tenantRolesInUse }] = await Promise.all([
+      adminClient.from("profiles").select("id", { count: "exact", head: true }).eq("role", role.name),
+      adminClient.from("tenant_member_roles").select("id", { count: "exact", head: true }).eq("role", role.name),
+    ]);
+    const totalInUse = (usersInUse ?? 0) + (tenantRolesInUse ?? 0);
+    if (totalInUse > 0) {
+      return {
+        message: `Não é possível excluir: ${totalInUse} atribuição${totalInUse !== 1 ? "ões" : ""} usa${totalInUse === 1 ? "" : "m"} este papel (global ou por empresa). Reatribua antes.`,
+      };
+    }
 
     const { error } = await adminClient.from("roles").delete().eq("id", roleId);
     if (error) return { message: "Erro ao excluir papel." };

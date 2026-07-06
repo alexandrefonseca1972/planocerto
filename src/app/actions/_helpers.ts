@@ -124,6 +124,43 @@ export async function tenantsWithSingleOwner(tenantIds: string[]): Promise<strin
 }
 
 /**
+ * Papel efetivo de um usuário — global (profiles.role) ou, se `tenantId`
+ * informado, o papel específico atribuído para aquela empresa em
+ * tenant_member_roles (fallback para o global se não houver linha).
+ * `permissions` (overrides) continua sempre global, fora do escopo do
+ * papel por-empresa.
+ */
+export async function getEffectiveRole(
+  userId: string,
+  tenantId: string | null,
+): Promise<{ role: string; permissions: Record<string, boolean> | null }> {
+  const adminClient = createAdminClient();
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("role, permissions")
+    .eq("id", userId)
+    .maybeSingle();
+
+  // Sem perfil (conta apagada/race de signup), nega por padrão: "" não bate
+  // com nenhum builtin nem papel customizado, então hasPermission() resolve
+  // para nenhuma permissão — mesmo comportamento fail-closed do caminho sem
+  // tenantId em checkPermission (que retorna false quando !profile).
+  const globalRole = (profile?.role as string | undefined) ?? "";
+  const permissions = (profile?.permissions as Record<string, boolean> | null) ?? null;
+
+  if (!tenantId) return { role: globalRole, permissions };
+
+  const { data: tenantRole } = await adminClient
+    .from("tenant_member_roles")
+    .select("role")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return { role: (tenantRole?.role as string | undefined) ?? globalRole, permissions };
+}
+
+/**
  * Obtém o ID do tenant ativo do usuário autenticado.
  * Quando `active_tenant_id` não está definido no profile, cai no primeiro
  * tenant visível ao usuário (mesma lógica do layout/getCurrentTenant), para

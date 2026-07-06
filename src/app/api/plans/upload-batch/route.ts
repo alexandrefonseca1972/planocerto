@@ -22,15 +22,15 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-    const canCreate = await checkPermission(PERMISSIONS.PLANS_CREATE);
-    if (!canCreate) return NextResponse.json({ error: "Sem permissão para criar planos." }, { status: 403 });
-
     // Resolve tenant ativo com a mesma lógica do layout (getCurrentTenant tem
     // fallback para o primeiro tenant do usuário quando active_tenant_id não
     // está definido) — evita 400 enquanto a UI mostra uma empresa ativa.
     const tenant = await getCurrentTenant();
     const tenantId = tenant?.id;
     if (!tenantId) return NextResponse.json({ error: "Nenhuma empresa ativa." }, { status: 400 });
+
+    const canCreate = await checkPermission(PERMISSIONS.PLANS_CREATE, tenantId);
+    if (!canCreate) return NextResponse.json({ error: "Sem permissão para criar planos." }, { status: 403 });
 
     const formData = await req.formData();
     const files = formData.getAll("files") as File[];

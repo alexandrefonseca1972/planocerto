@@ -28,12 +28,6 @@ export async function POST(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-    // Mesma permissão exigida pelas actions de edição de itens — sem isso,
-    // qualquer membro do tenant (inclusive Visualizador) poderia inserir
-    // itens via chamada direta à API (o RLS de INSERT não distingue papel).
-    const canUpdate = await checkPermission(PERMISSIONS.PLANS_UPDATE);
-    if (!canUpdate) return NextResponse.json({ error: "Sem permissão para editar planos." }, { status: 403 });
-
     // Verifica acesso ao plano (RLS filtra: só retorna se o usuário pode lê-lo).
     const { data: plan } = await supabase
       .from("action_plans")
@@ -41,6 +35,12 @@ export async function POST(
       .eq("id", planId)
       .single();
     if (!plan) return NextResponse.json({ error: "Plano não encontrado." }, { status: 404 });
+
+    // Mesma permissão exigida pelas actions de edição de itens — sem isso,
+    // qualquer membro do tenant (inclusive Visualizador) poderia inserir
+    // itens via chamada direta à API (o RLS de INSERT não distingue papel).
+    const canUpdate = await checkPermission(PERMISSIONS.PLANS_UPDATE, plan.tenant_id);
+    if (!canUpdate) return NextResponse.json({ error: "Sem permissão para editar planos." }, { status: 403 });
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

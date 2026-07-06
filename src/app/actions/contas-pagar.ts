@@ -29,9 +29,27 @@ import { getCurrentTenantId } from "@/app/actions/_helpers";
 // Helpers
 // =========================================================================
 
-async function requirePerm(perm: Permission): Promise<string | null> {
-  const ok = await checkPermission(perm);
+async function requirePerm(perm: Permission, tenantId?: string | null): Promise<string | null> {
+  const ok = await checkPermission(perm, tenantId);
   return ok ? null : "Acesso negado para esta operação financeira.";
+}
+
+/** Busca o tenant_id de uma conta a pagar (usado para autorização tenant-scoped). */
+async function getContaTenantId(supabase: Awaited<ReturnType<typeof createClient>>, contaId: string): Promise<string | null> {
+  const { data } = await supabase.from("contas_pagar").select("tenant_id").eq("id", contaId).maybeSingle();
+  return (data?.tenant_id as string | undefined) ?? null;
+}
+
+/** Busca o tenant_id da conta-mãe de uma parcela (usado para autorização tenant-scoped). */
+async function getParcelaTenantId(supabase: Awaited<ReturnType<typeof createClient>>, parcelaId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("parcelas_pagar")
+    .select("conta_id, contas_pagar(tenant_id)")
+    .eq("id", parcelaId)
+    .maybeSingle();
+  const contas = data?.contas_pagar as { tenant_id?: string } | { tenant_id?: string }[] | null | undefined;
+  if (Array.isArray(contas)) return contas[0]?.tenant_id ?? null;
+  return contas?.tenant_id ?? null;
 }
 
 function parseContaForm(formData: FormData): {
@@ -541,11 +559,11 @@ export async function createConta(
   formData: FormData,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_CREATE);
-    if (guard) return { message: guard };
-
     const tenantId = await getCurrentTenantId();
     if (!tenantId) return { message: "Empresa ativa não definida." };
+
+    const guard = await requirePerm(PERMISSIONS.FINANCE_CREATE, tenantId);
+    if (guard) return { message: guard };
 
     const { payload } = parseContaForm(formData);
     const v = contaPagarSchema.safeParse(payload);
@@ -594,11 +612,12 @@ export async function updateConta(
   formData: FormData,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE);
-    if (guard) return { message: guard };
-
     const id = formData.get("id") as string | null;
     if (!id) return { message: "ID da conta obrigatório." };
+
+    const supabase = await createClient();
+    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE, await getContaTenantId(supabase, id));
+    if (guard) return { message: guard };
 
     const { payload } = parseContaForm(formData);
     const v = contaPagarSchema.safeParse(payload);
@@ -608,8 +627,6 @@ export async function updateConta(
         message: "Verifique os campos.",
       };
     }
-
-    const supabase = await createClient();
 
     // RPC atômica: faz check de parcelas pagas, valida soma, atualiza header
     // e substitui parcelas dentro de uma única transação SQL.
@@ -657,13 +674,13 @@ export async function deleteConta(
   formData: FormData,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_DELETE);
-    if (guard) return { message: guard };
-
     const id = formData.get("id") as string;
     if (!id) return { message: "ID obrigatório." };
 
     const supabase = await createClient();
+    const guard = await requirePerm(PERMISSIONS.FINANCE_DELETE, await getContaTenantId(supabase, id));
+    if (guard) return { message: guard };
+
     const { data: parcelas } = await supabase
       .from("parcelas_pagar")
       .select("status")
@@ -695,10 +712,10 @@ export async function cancelarConta(
   motivo: string,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE);
+    const supabase = await createClient();
+    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE, await getContaTenantId(supabase, id));
     if (guard) return { message: guard };
 
-    const supabase = await createClient();
     const { data: existing } = await supabase
       .from("contas_pagar")
       .select("observacoes")
@@ -743,9 +760,6 @@ export async function registrarPagamento(
   formData: FormData,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE);
-    if (guard) return { message: guard };
-
     const payload = {
       parcela_id: String(formData.get("parcela_id") ?? ""),
       data_pagamento: String(formData.get("data_pagamento") ?? ""),
@@ -762,6 +776,9 @@ export async function registrarPagamento(
     }
 
     const supabase = await createClient();
+    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE, await getParcelaTenantId(supabase, v.data.parcela_id));
+    if (guard) return { message: guard };
+
     const { error, data } = await supabase
       .from("parcelas_pagar")
       .update({
@@ -794,9 +811,6 @@ export async function pagarParcelasEmLote(
   formaPagamento: string,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE);
-    if (guard) return { message: guard };
-
     if (!parcelaIds.length) return { message: "Nenhuma parcela selecionada." };
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPagamento)) {
       return { message: "Data de pagamento inválida." };
@@ -818,12 +832,27 @@ export async function pagarParcelasEmLote(
     // Busca parcelas pendentes do conjunto solicitado para preencher valor_pago = valor.
     const { data: parcelas } = await supabase
       .from("parcelas_pagar")
-      .select("id, conta_id, valor, numero")
+      .select("id, conta_id, valor, numero, contas_pagar(tenant_id)")
       .in("id", parcelaIds)
       .eq("status", "pendente");
 
     if (!parcelas || parcelas.length === 0) {
       return { message: "Nenhuma parcela pendente encontrada." };
+    }
+
+    // O lote pode misturar parcelas de empresas diferentes — autoriza CADA
+    // tenant distinto presente, não só o da primeira parcela (senão um
+    // usuário com FINANCE_UPDATE numa empresa poderia quitar parcelas de
+    // outra empresa da qual só é membro, sem essa permissão).
+    const distinctTenantIds = [...new Set(
+      parcelas.map((p) => {
+        const contas = p.contas_pagar as { tenant_id?: string } | { tenant_id?: string }[] | null;
+        return (Array.isArray(contas) ? contas[0]?.tenant_id : contas?.tenant_id) ?? null;
+      }).filter((t): t is string => t !== null)
+    )];
+    for (const tenantId of distinctTenantIds) {
+      const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE, tenantId);
+      if (guard) return { message: guard };
     }
 
     // Atualiza uma a uma — Supabase não suporta UPDATE de múltiplos valores
@@ -871,10 +900,10 @@ export async function estornarPagamento(
   parcelaId: string,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE);
+    const supabase = await createClient();
+    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE, await getParcelaTenantId(supabase, parcelaId));
     if (guard) return { message: guard };
 
-    const supabase = await createClient();
     const { error, data } = await supabase
       .from("parcelas_pagar")
       .update({
@@ -940,7 +969,8 @@ export async function uploadAnexoConta(
   tipo: AnexoTipo = "outro",
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE);
+    const supabase = await createClient();
+    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE, await getContaTenantId(supabase, contaId));
     if (guard) return { message: guard };
 
     if (!file || !file.size) return { message: "Arquivo inválido." };
@@ -952,7 +982,6 @@ export async function uploadAnexoConta(
     }
     const tipoFinal: AnexoTipo = ANEXO_TIPOS.includes(tipo) ? tipo : "outro";
 
-    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -1007,15 +1036,18 @@ export async function deleteAnexo(
   anexoId: string,
 ): Promise<FinanceFormState> {
   try {
-    const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE);
-    if (guard) return { message: guard };
-
     const supabase = await createClient();
     const { data: anexo } = await supabase
       .from("conta_attachments")
       .select("storage_path, conta_id")
       .eq("id", anexoId)
       .maybeSingle();
+
+    const guard = await requirePerm(
+      PERMISSIONS.FINANCE_UPDATE,
+      anexo?.conta_id ? await getContaTenantId(supabase, anexo.conta_id) : null,
+    );
+    if (guard) return { message: guard };
 
     if (anexo?.storage_path) {
       await supabase.storage.from("contas-anexos").remove([anexo.storage_path]);

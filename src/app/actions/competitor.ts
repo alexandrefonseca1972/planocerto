@@ -32,10 +32,10 @@ import type {
 import { getCurrentTenantId } from "@/app/actions/_helpers";
 
 async function checkCompetitorWrite(): Promise<string | null> {
-  const ok = await checkPermission(PERMISSIONS.COMPETITOR_WRITE);
-  if (!ok) return "Acesso negado.";
   const tenantId = await getCurrentTenantId();
   if (!tenantId) return "Selecione uma empresa.";
+  const ok = await checkPermission(PERMISSIONS.COMPETITOR_WRITE, tenantId);
+  if (!ok) return "Acesso negado.";
   return null;
 }
 

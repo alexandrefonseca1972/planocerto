@@ -30,31 +30,11 @@ export default async function CalendarioPage({
   const params = (await searchParams) || {};
   const initialFilter = isFilterKind(params.filter) ? params.filter : null;
 
-  const hasReadPerm = await checkPermission(PERMISSIONS.PLANS_READ);
-
   let currentTenantName = "";
   let noTenant = false;
   const items: CalendarDeadlineItem[] = [];
 
   try {
-    if (!hasReadPerm) {
-      return (
-        <div className="flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
-          <Card>
-            <CardContent className="flex flex-col items-center py-16">
-              <Calendar className="h-12 w-12 text-zinc-300 dark:text-zinc-600" />
-              <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                Acesso negado
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                Você não tem permissão para visualizar planos.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-
     const supabase = await createClient();
     const {
       data: { user },
@@ -73,6 +53,26 @@ export default async function CalendarioPage({
     const tenants = await getUserTenants();
     const activeTenant =
       tenants.find((t) => t.id === activeTenantId) || tenants[0];
+
+    const hasReadPerm = await checkPermission(PERMISSIONS.PLANS_READ, activeTenant?.id ?? null);
+    if (!hasReadPerm) {
+      return (
+        <div className="flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
+          <Card>
+            <CardContent className="flex flex-col items-center py-16">
+              <Calendar className="h-12 w-12 text-zinc-300 dark:text-zinc-600" />
+              <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Acesso negado
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Você não tem permissão para visualizar planos.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     if (!activeTenant) {
       noTenant = true;
     } else {

@@ -110,9 +110,6 @@ export async function createNotification(
   _prev: NotificationFormState, formData: FormData
 ): Promise<NotificationFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_CREATE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
-
     const raw = {
       title: sanitizeText(formData.get("title")),
       message: sanitizeText(formData.get("message")),
@@ -131,6 +128,12 @@ export async function createNotification(
     }
 
     const { title, message, type, target_type, target_id, is_fixed, expires_at } = validated.data;
+
+    // Notificação alvo de uma empresa específica: checa permissão NESSA
+    // empresa. Alvo "all"/"user" é uma ação de admin sem tenant único — fica global.
+    const tenantId = target_type === "tenant" ? target_id : null;
+    const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_CREATE, tenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -156,11 +159,20 @@ export async function deleteNotification(
   _prev: NotificationFormState, formData: FormData
 ): Promise<NotificationFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_DELETE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const id = formData.get("notificationId") as string;
     if (!id) return { message: "ID obrigatório." };
     const supabase = await createClient();
+
+    const { data: notif } = await supabase
+      .from("notifications")
+      .select("target_type, target_id")
+      .eq("id", id)
+      .maybeSingle();
+    const tenantId = notif?.target_type === "tenant" ? notif.target_id : null;
+
+    const hasPerm = await checkPermission(PERMISSIONS.NOTIFICATIONS_DELETE, tenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
     await supabase.from("notifications").delete().eq("id", id);
     revalidatePath("/admin/notifications");
     return { success: true, message: "Notificação excluída!" };

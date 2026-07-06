@@ -14,7 +14,7 @@ import { PermissionManager } from "@/components/admin/permission-manager";
 import { buildCustomRolesMap } from "@/lib/permissions";
 import { TenantRoleRow } from "./tenant-role-row";
 import { ScopePicker } from "./scope-picker";
-import { EffectivePermissions } from "./effective-permissions";
+import { EffectivePermissions, type TenantPermissionContext } from "./effective-permissions";
 
 export function EditUserDialog({
   user,
@@ -25,6 +25,7 @@ export function EditUserDialog({
   tenants = [],
   selectedTenantIds = [],
   selectedTenantRoles = {},
+  selectedTenantPermRoles = {},
   areas = [],
   units = [],
   selectedAreaIds = [],
@@ -40,6 +41,7 @@ export function EditUserDialog({
   tenants: Tenant[];
   selectedTenantIds: string[];
   selectedTenantRoles?: Record<string, string>;
+  selectedTenantPermRoles?: Record<string, string>;
   areas?: AreaOption[];
   units?: UnitOption[];
   selectedAreaIds?: string[];
@@ -51,12 +53,20 @@ export function EditUserDialog({
     user.permissions || {}
   );
   const [currentRole, setCurrentRole] = useState(user.role);
+  // Espelha, para exibição em tempo real na EffectivePermissions, a seleção de
+  // empresa/papel que cada TenantRoleRow controla internamente (o form em si
+  // continua submetendo pelos campos nativos, isto é só para a prévia).
+  const [tenantSelections, setTenantSelections] = useState<Record<string, { checked: boolean; permRole: string }>>({});
 
   const customRolesMap = buildCustomRolesMap(
     customRoles.map((r) => ({ name: r.name, permissions: r.permissions }))
   );
 
   const permissionsJson = JSON.stringify(permissions);
+
+  const selectedTenantContexts: TenantPermissionContext[] = tenants
+    .filter((t) => tenantSelections[t.id]?.checked)
+    .map((t) => ({ id: t.id, name: t.name, permRole: tenantSelections[t.id]?.permRole || null }));
 
   const handlePermissionsChange = (newPerms: Record<string, boolean>) => {
     setPermissions(newPerms);
@@ -162,7 +172,12 @@ export function EditUserDialog({
             <input type="hidden" name="permissions" value={permissionsJson} />
           </div>
 
-          <EffectivePermissions role={currentRole} overrides={permissions} customRoles={customRoles} />
+          <EffectivePermissions
+            role={currentRole}
+            overrides={permissions}
+            customRoles={customRoles}
+            tenants={selectedTenantContexts}
+          />
 
           {tenants.length > 0 && (
             <div className="space-y-2">
@@ -179,7 +194,12 @@ export function EditUserDialog({
                     formPrefix="edit"
                     defaultChecked={selectedTenantIds.includes(tenant.id)}
                     defaultRole={selectedTenantRoles[tenant.id] || "member"}
+                    defaultPermRole={selectedTenantPermRoles[tenant.id] || ""}
                     isSuperAdmin={isSuperAdmin}
+                    customRoles={customRoles}
+                    onSelectionChange={(checked, permRole) =>
+                      setTenantSelections((prev) => ({ ...prev, [tenant.id]: { checked, permRole } }))
+                    }
                   />
                 ))}
               </div>

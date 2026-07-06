@@ -25,7 +25,7 @@ import type {
   UnitOption,
   AuditLogEntry,
 } from "@/app/actions/admin";
-import { getBulkUserTenantIds, getUserTenantMemberships } from "@/app/actions/tenant";
+import { getBulkUserTenantIds, getUserTenantMemberships, getUserTenantPermRoles } from "@/app/actions/tenant";
 import type { TenantMembership } from "@/app/actions/tenant";
 import { CreateUserDialog } from "./create-user-dialog";
 import { EditUserDialog } from "./edit-user-dialog";
@@ -194,13 +194,14 @@ export function UsersTable({
   const [allUnits, setAllUnits] = useState<UnitOption[]>([]);
   const [editingUserTenantIds, setEditingUserTenantIds] = useState<string[]>([]);
   const [editingUserTenantRoles, setEditingUserTenantRoles] = useState<Record<string, string>>({});
+  const [editingUserTenantPermRoles, setEditingUserTenantPermRoles] = useState<Record<string, string>>({});
   const [editingUserAreaIds, setEditingUserAreaIds] = useState<string[]>([]);
   const [editingUserUnitIds, setEditingUserUnitIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [roleFilter, setRoleFilter] = useState<string>(initialRole);
   const [tenantFilter, setTenantFilter] = useState<string>("");
   const [userTenantMap, setUserTenantMap] = useState<Map<string, string[]>>(new Map());
-  const [deleteImpact, setDeleteImpact] = useState<{ tenantMemberships: number; actionPlans: number } | null>(null);
+  const [deleteImpact, setDeleteImpact] = useState<{ tenantMemberships: number; actionPlans: number; soleOwnerOf: string[] } | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [auditingUser, setAuditingUser] = useState<Profile | null>(null);
@@ -281,8 +282,9 @@ export function UsersTable({
 
   const handleEditUser = useCallback(async (user: Profile) => {
     try {
-      const [memberships, aIds, uIds] = await Promise.all([
+      const [memberships, permRoles, aIds, uIds] = await Promise.all([
         getUserTenantMemberships(user.id),
+        getUserTenantPermRoles(user.id),
         getUserAreaIds(user.id),
         getUserUnitIds(user.id),
       ]);
@@ -290,6 +292,7 @@ export function UsersTable({
       const tRoles = Object.fromEntries(memberships.map((m: TenantMembership) => [m.tenantId, m.role]));
       setEditingUserTenantIds(tIds);
       setEditingUserTenantRoles(tRoles);
+      setEditingUserTenantPermRoles(permRoles);
       setEditingUserAreaIds(aIds);
       setEditingUserUnitIds(uIds);
       setEditingUser(user);
@@ -843,6 +846,7 @@ export function UsersTable({
           tenants={allTenants}
           selectedTenantIds={editingUserTenantIds}
           selectedTenantRoles={editingUserTenantRoles}
+          selectedTenantPermRoles={editingUserTenantPermRoles}
           areas={allAreas}
           units={allUnits}
           selectedAreaIds={editingUserAreaIds}
@@ -875,8 +879,9 @@ export function UsersTable({
               <strong className="text-zinc-900 dark:text-zinc-50">
                 {selectedIds.size} usuário(s)
               </strong>
-              ? Esta ação não pode ser desfeita. Usuários com vínculos ativos
-              (empresas ou planos) não serão excluídos.
+              ? Esta ação não pode ser desfeita. Vínculos de empresa serão
+              removidos e planos de ação ficarão sem responsável — nada bloqueia
+              a exclusão por causa desses vínculos.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -936,6 +941,17 @@ export function UsersTable({
                         </span>
                       </div>
                     )}
+                  {deleteImpact && deleteImpact.soleOwnerOf.length > 0 && (
+                    <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">
+                      <span className="block font-medium">
+                        Atenção: este usuário é o único proprietário de {deleteImpact.soleOwnerOf.join(", ")}.
+                      </span>
+                      <span className="mt-1 block">
+                        Excluir vai deixar {deleteImpact.soleOwnerOf.length > 1 ? "essas empresas" : "essa empresa"} sem
+                        proprietário. Considere definir outro proprietário antes de excluir.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>

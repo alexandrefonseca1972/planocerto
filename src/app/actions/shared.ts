@@ -15,7 +15,7 @@ type ActionItemInsert = Database["public"]["Tables"]["action_items"]["Insert"];
 
 export async function copyPlan(sourcePlanId: string, targetTenantId: string): Promise<{ message: string; success?: boolean }> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE, targetTenantId);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const supabase = await createClient();
@@ -242,7 +242,7 @@ export async function getTemplates(): Promise<{ id: string; name: string; title:
 
 export async function createPlanFromTemplate(templateId: string, tenantId: string): Promise<{ message: string; success?: boolean }> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE);
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE, tenantId);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     const supabase = await createClient();

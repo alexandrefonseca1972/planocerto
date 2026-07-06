@@ -232,7 +232,10 @@ export async function updateTenant(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_UPDATE);
+    const tenantId = formData.get("tenantId") as string;
+    if (!tenantId) return { message: "ID da empresa obrigatório." };
+
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_UPDATE, tenantId);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     // Configurações da empresa (incl. limite de unidades) são exclusivas do super_admin.
@@ -240,9 +243,6 @@ export async function updateTenant(
     if (!scope.isSuperAdmin) {
       return { message: "Apenas super admins podem editar empresas." };
     }
-
-    const tenantId = formData.get("tenantId") as string;
-    if (!tenantId) return { message: "ID da empresa obrigatório." };
 
     const validated = tenantFormSchema.safeParse(readTenantForm(formData));
     if (!validated.success) {
@@ -294,9 +294,6 @@ export async function removeTenantMember(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
-
     const memberId = formData.get("memberId") as string;
     if (!memberId) return { message: "ID do membro obrigatório." };
 
@@ -304,6 +301,9 @@ export async function removeTenantMember(
 
     const { data: target } = await adminClient.from("tenant_members").select("tenant_id,user_id,role").eq("id", memberId).maybeSingle();
     if (!target) return { message: "Membro não encontrado." };
+
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS, target.tenant_id);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     // Escopo: admin/manager não-super só gerencia membros das suas empresas.
     const scope = await getRequesterScope();
@@ -337,9 +337,6 @@ export async function updateTenantMemberRole(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
-
     const memberId = formData.get("memberId") as string;
     const role = formData.get("role") as string;
 
@@ -355,6 +352,9 @@ export async function updateTenantMemberRole(
 
     const { data: target } = await adminClient.from("tenant_members").select("tenant_id,role").eq("id", memberId).maybeSingle();
     if (!target) return { message: "Membro não encontrado." };
+
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS, target.tenant_id);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
 
     // Escopo: admin/manager não-super só gerencia membros das suas empresas.
     const scope = await getRequesterScope();
@@ -436,6 +436,23 @@ export async function getUserTenantMemberships(userId: string): Promise<TenantMe
   } catch (error) { console.error("[getUserTenantMemberships] Error:", error); return []; }
 }
 
+/**
+ * Papéis de PERMISSÕES do usuário por empresa (tenant_member_roles). Empresas
+ * sem linha aqui não aparecem no retorno — herdam o papel global (ver
+ * getEffectiveRole em _helpers.ts) e a UI trata isso como "Usar papel global".
+ */
+export async function getUserTenantPermRoles(userId: string): Promise<Record<string, string>> {
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from("tenant_member_roles")
+      .select("tenant_id, role")
+      .eq("user_id", userId);
+    if (!data) return {};
+    return Object.fromEntries(data.map((r) => [r.tenant_id, r.role]));
+  } catch (error) { console.error("[getUserTenantPermRoles] Error:", error); return {}; }
+}
+
 export async function getBulkUserTenantIds(userIds: string[]): Promise<Map<string, string[]>> {
   try {
     const adminClient = createAdminClient();
@@ -512,10 +529,10 @@ export async function deleteTenant(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_DELETE);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const tenantId = formData.get("tenantId") as string;
     if (!tenantId) return { message: "ID da empresa obrigatório." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_DELETE, tenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const adminClient = createAdminClient();
     const { error } = await adminClient.from("tenants").delete().eq("id", tenantId);
     if (error) return { message: "Erro ao excluir empresa." };
@@ -530,11 +547,11 @@ export async function addTenantMember(
   formData: FormData
 ): Promise<TenantFormState> {
   try {
-    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     const tenantId = formData.get("tenantId") as string;
     const email = (formData.get("email") as string)?.trim().toLowerCase();
     if (!tenantId || !email) return { message: "ID da empresa e email são obrigatórios." };
+    const hasPerm = await checkPermission(PERMISSIONS.TENANTS_MANAGE_MEMBERS, tenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
     // Escopo: admin/manager não-super só gerencia membros das suas empresas.
     const scope = await getRequesterScope();
     if (!scope.isSuperAdmin && !scope.tenantIds.includes(tenantId)) {
