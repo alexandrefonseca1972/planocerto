@@ -22,7 +22,7 @@ function renderLayout(title: string, eyebrow: string, intro: string, ctaLabel: s
       <div style="max-width:600px;margin:0 auto;background-color:${brand.card};border-radius:20px;overflow:hidden;border:1px solid ${brand.border};">
         <div style="padding:28px 32px 22px;background:${brand.brand};color:#ffffff;">
           <div style="display:flex;align-items:center;gap:12px;">
-            <img src="${siteUrl}/icon.svg" alt="${brandName}" width="36" height="36" style="display:block;height:36px;width:36px;border-radius:8px;" />
+            <img src="${siteUrl}/email-logo.png" alt="${brandName}" width="36" height="36" style="display:block;height:36px;width:36px;border-radius:8px;" />
             <div>
               <div style="font-size:19px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">${brandName}</div>
               <div style="margin-top:4px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;opacity:0.84;">${eyebrow}</div>
