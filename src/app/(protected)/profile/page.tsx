@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "@/components/forms/profile-form";
+import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import {
   Card,
   CardContent,
@@ -18,6 +19,7 @@ import {
   Calendar,
   Activity,
   CheckCircle2,
+  KeyRound,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -252,6 +254,20 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <KeyRound className="h-4 w-4 text-accent-600" /> Alterar senha
+          </CardTitle>
+          <CardDescription>
+            Informe sua senha atual para definir uma nova.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="max-w-md">
+          <ChangePasswordForm />
+        </CardContent>
+      </Card>
 
     </div>
   );

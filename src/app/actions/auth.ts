@@ -12,7 +12,9 @@ import {
   profileSchema,
   resetSchema,
   updatePasswordSchema,
+  changePasswordSchema,
 } from "@/lib/validations/auth";
+import { rateLimit } from "@/lib/security/rate-limit";
 import type { FormState } from "@/types/auth";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -175,6 +177,69 @@ export async function updatePassword(
   }
 
   redirect("/auth?message=Senha alterada com sucesso!");
+}
+
+export async function changePassword(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user?.email) {
+      return { message: "Sessão expirada. Faça login novamente." };
+    }
+
+    const limit = rateLimit(`change-password:${user.id}`, 5, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return { message: "Muitas tentativas. Aguarde alguns minutos e tente novamente." };
+    }
+
+    const rawData = {
+      currentPassword: formData.get("currentPassword"),
+      password: formData.get("password"),
+      confirmPassword: formData.get("confirmPassword"),
+    };
+
+    const validated = changePasswordSchema.safeParse(rawData);
+
+    if (!validated.success) {
+      return {
+        errors: validated.error.flatten().fieldErrors,
+        message: "Verifique os campos e tente novamente.",
+      };
+    }
+
+    // Reautentica com a senha atual antes de trocar — supabase-js não expõe
+    // uma verificação de senha isolada, então signInWithPassword serve de checagem.
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: validated.data.currentPassword,
+    });
+
+    if (signInError) {
+      return {
+        errors: { currentPassword: ["Senha atual incorreta."] },
+        message: "Senha atual incorreta.",
+      };
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: validated.data.password,
+    });
+
+    if (error) {
+      return { message: "Erro ao atualizar senha. Tente novamente." };
+    }
+
+    return { success: true, message: "Senha alterada com sucesso!" };
+  } catch (error) {
+    console.error("[changePassword] Erro:", error);
+    return { message: "Serviço indisponível no momento." };
+  }
 }
 
 export async function updateProfile(
