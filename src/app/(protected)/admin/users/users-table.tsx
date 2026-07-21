@@ -72,6 +72,8 @@ import {
   History,
   KeyRound,
   Mail,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 const createInitialState: AdminFormState = { message: undefined, errors: {} };
@@ -204,6 +206,7 @@ export function UsersTable({
   const [deleteImpact, setDeleteImpact] = useState<{ tenantMemberships: number; actionPlans: number; soleOwnerOf: string[] } | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [auditingUser, setAuditingUser] = useState<Profile | null>(null);
   const [userAuditLog, setUserAuditLog] = useState<AuditLogEntry[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
@@ -256,7 +259,7 @@ export function UsersTable({
     const pw = resetState.data?.password ?? null;
     const t = setTimeout(() => {
       setResettingUser(null);
-      if (pw) setGeneratedPassword(pw);
+      if (pw) { setGeneratedPassword(pw); setPasswordVisible(false); }
     }, 0);
     return () => clearTimeout(t);
   }, [resetState]);
@@ -431,7 +434,7 @@ export function UsersTable({
     const pw = createState.data?.password ?? null;
     const t = setTimeout(() => {
       setShowCreateDialog(false);
-      if (pw) setGeneratedPassword(pw);
+      if (pw) { setGeneratedPassword(pw); setPasswordVisible(false); }
     }, 0);
     return () => clearTimeout(t);
   }, [createState]);
@@ -569,15 +572,30 @@ export function UsersTable({
 
           {generatedPassword && (
             <div className="mb-3 flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-              <span className="font-mono select-all">{generatedPassword}</span>
+              <span className="font-mono select-all">
+                {passwordVisible ? generatedPassword : "•".repeat(generatedPassword.length)}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7"
+                onClick={() => setPasswordVisible((v) => !v)}
+                title={passwordVisible ? "Ocultar senha" : "Mostrar senha"}
+              >
+                {passwordVisible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 className="ml-auto h-7 w-7"
-                onClick={() => {
-                  navigator.clipboard.writeText(generatedPassword);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(generatedPassword);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    toast("Não foi possível copiar. Copie manualmente.", "error");
+                  }
                 }}
               >
                 {copied ? <CheckCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
