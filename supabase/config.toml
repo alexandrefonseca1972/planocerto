@@ -13,6 +13,8 @@ site_url = "https://planocerto.app"
 additional_redirect_urls = [
   "https://planocerto.app/auth/confirm",
   "https://planocerto.app/auth/update-password",
+  "https://www.planocerto.app/auth/confirm",
+  "https://www.planocerto.app/auth/update-password",
   "http://127.0.0.1:3000/auth/confirm",
   "http://127.0.0.1:3000/auth/update-password",
   "http://localhost:3000/auth/confirm",
