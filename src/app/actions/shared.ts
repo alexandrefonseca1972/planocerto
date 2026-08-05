@@ -8,6 +8,7 @@ import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 import { sanitizedString } from "@/lib/validation/sanitize";
+import { isValidUuid } from "@/lib/validations/uuid";
 
 type ActionItemInsert = Database["public"]["Tables"]["action_items"]["Insert"];
 
@@ -190,14 +191,37 @@ export async function deleteComment(commentId: string): Promise<{ message: strin
 
 // --- Public Links ---
 
+/** Expiração padrão dos links públicos (horas). Evita links eternos por omissão. */
+const DEFAULT_PUBLIC_LINK_HOURS = 24;
+/** Máximo permitido (30 dias). */
+const MAX_PUBLIC_LINK_HOURS = 24 * 30;
+
 export async function createPublicLink(planId: string, expiresInHours?: number): Promise<{ message: string; success?: boolean; token?: string }> {
   try {
+    if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
 
-    const token = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-    const expiresAt = expiresInHours ? new Date(Date.now() + expiresInHours * 3600000).toISOString() : null;
+    const { data: plan } = await supabase
+      .from("action_plans")
+      .select("tenant_id")
+      .eq("id", planId)
+      .maybeSingle();
+    if (!plan?.tenant_id) return { message: "Plano não encontrado." };
+
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE, plan.tenant_id);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
+    const hoursRaw = expiresInHours ?? DEFAULT_PUBLIC_LINK_HOURS;
+    const hours = Math.min(
+      Math.max(Number.isFinite(hoursRaw) ? Number(hoursRaw) : DEFAULT_PUBLIC_LINK_HOURS, 1),
+      MAX_PUBLIC_LINK_HOURS,
+    );
+    // Token opaco (32 hex) — mais forte que 16 chars do UUID truncado.
+    const token = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "").slice(0, 32);
+    const expiresAt = new Date(Date.now() + hours * 3600000).toISOString();
 
     const { error } = await supabase.from("public_links").insert({
       plan_id: planId,
@@ -215,8 +239,32 @@ export async function createPublicLink(planId: string, expiresInHours?: number):
 
 export async function deletePublicLink(linkId: string): Promise<{ message: string; success?: boolean }> {
   try {
+    if (!isValidUuid(linkId)) return { message: "ID do link inválido." };
+
     const supabase = await createClient();
-    await supabase.from("public_links").delete().eq("id", linkId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { message: "Não autenticado." };
+
+    const { data: link } = await supabase
+      .from("public_links")
+      .select("id, plan_id")
+      .eq("id", linkId)
+      .maybeSingle();
+    if (!link) return { message: "Link não encontrado." };
+
+    const { data: plan } = await supabase
+      .from("action_plans")
+      .select("tenant_id")
+      .eq("id", link.plan_id)
+      .maybeSingle();
+    if (!plan?.tenant_id) return { message: "Plano do link não encontrado." };
+
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE, plan.tenant_id);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
+    const { error } = await supabase.from("public_links").delete().eq("id", linkId);
+    if (error) return { message: "Erro ao remover link." };
+
     revalidatePath("/planos");
     return { success: true, message: "Link removido." };
   } catch (error) { console.error("[deletePublicLink] Error:", error); return { message: "Serviço indisponível." }; }
@@ -224,6 +272,7 @@ export async function deletePublicLink(linkId: string): Promise<{ message: strin
 
 export async function getPublicLinks(planId: string): Promise<{ id: string; token: string; expires_at: string | null; created_at: string }[]> {
   try {
+    if (!isValidUuid(planId)) return [];
     const supabase = await createClient();
     const { data } = await supabase.from("public_links").select("id, token, expires_at, created_at").eq("plan_id", planId).order("created_at", { ascending: false });
     return (data || []) as { id: string; token: string; expires_at: string | null; created_at: string }[];

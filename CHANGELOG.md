@@ -59,6 +59,11 @@ produção permanece em 2.7.x até promoção explícita.
 - CI com job E2E smoke (sem secrets = só testes públicos).
 - Guia `docs-isolated/README.md`: regras para não tocar em produção.
 
+### Segurança (iteração links + reset)
+- Rate-limit em **reset de senha** (5/15min por e-mail).
+- Links públicos: **expiração obrigatória** (default 24h, máx. 30d), token 32 hex, permissão `plans.update`, revogação autorizada.
+- URL de share usa `window.location.origin` (não hardcode de domínio).
+
 ### Observações
 - Esta versão **não** aplica migrations no banco de produção.
 - Branch remota: `origin/release/v2.8.0-isolated` (preview no máximo; **sem** promote).

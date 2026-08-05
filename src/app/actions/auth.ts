@@ -121,6 +121,16 @@ export async function resetPassword(
       };
     }
 
+    // Rate-limit por e-mail (best-effort): mitiga abuso de recovery / enumeração.
+    const emailKey = validated.data.email.toLowerCase();
+    const limit = rateLimit(`reset-password:${emailKey}`, 5, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return {
+        message:
+          "Muitas solicitações de recuperação. Aguarde alguns minutos e tente novamente.",
+      };
+    }
+
     const adminClient = createAdminClient();
     const { data, error } = await adminClient.auth.admin.generateLink({
       type: "recovery",
