@@ -214,6 +214,11 @@ export async function getContasPagar(
 export async function getContaById(id: string): Promise<ContaComParcelas | null> {
   try {
     const supabase = await createClient();
+    // Anti-IDOR (defesa em profundidade, além do RLS): filtra explicitamente
+    // pelo tenant ativo — mesmo padrão de getContasPagar.
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return null;
+
     const { data, error } = await supabase
       .from("contas_pagar")
       .select(
@@ -225,6 +230,7 @@ export async function getContaById(id: string): Promise<ContaComParcelas | null>
          parcelas:parcelas_pagar(*)`,
       )
       .eq("id", id)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
 
     if (error || !data) return null;

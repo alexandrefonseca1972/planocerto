@@ -277,6 +277,57 @@ export async function deletePlan(_prev: ActionPlanFormState, formData: FormData)
   } catch (error) { console.error("[deletePlan] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
+/**
+ * Arquiva/desarquiva um plano em um clique (sem abrir o formulário completo).
+ * Mantém dados; só altera `status` (filtro Ativos/Arquivados).
+ * Permissão e tenant escopados (anti-IDOR além do RLS).
+ */
+export async function setPlanStatus(
+  planId: string,
+  status: "active" | "archived",
+): Promise<ActionPlanFormState> {
+  try {
+    if (!isValidUuid(planId)) return { message: "ID do plano inválido." };
+    if (status !== "active" && status !== "archived") return { message: "Situação inválida." };
+
+    const supabase = await createClient();
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return { message: "Empresa não identificada." };
+
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_UPDATE, tenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
+    const { data: plan } = await supabase
+      .from("action_plans")
+      .select("title")
+      .eq("id", planId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (!plan) return { message: "Plano não encontrado." };
+
+    const { error } = await supabase
+      .from("action_plans")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", planId)
+      .eq("tenant_id", tenantId);
+    if (error) {
+      logSupabaseError("setPlanStatus", error);
+      return { message: "Erro ao atualizar a situação do plano." };
+    }
+
+    await logAudit(planId, "UPDATE_PLAN", { status });
+    revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    return {
+      success: true,
+      message: status === "archived" ? "Plano arquivado!" : "Plano reativado!",
+    };
+  } catch (error) {
+    console.error("[setPlanStatus] Error:", error);
+    return { message: "Serviço indisponível." };
+  }
+}
+
 export async function upsertItem(_prev: ActionPlanFormState, formData: FormData): Promise<ActionPlanFormState> {
   try {
     const itemId = formData.get("itemId") as string;

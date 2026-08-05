@@ -41,16 +41,20 @@ export function ShareLinkButton({ planId, toast, canCreate = false, autoOpen }: 
   };
 
   const handleDelete = async (id: string) => {
-    await deletePublicLink(id);
+    const result = await deletePublicLink(id);
     const l = await getPublicLinks(planId);
     setLinks(l);
-    toast("Link removido.");
+    toast(result.success ? "Link removido." : result.message || "Erro ao remover link.");
   };
 
-  const getShareUrl = (token: string) => `https://planocerto.ruphus.app/s/${token}`;
+  const getShareUrl = (token: string) => {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/s/${token}`;
+  };
 
   function formatExpires(expiresAt: string | null): string {
-    if (!expiresAt) return "Sem prazo";
+    if (!expiresAt) return "Sem prazo (legado)";
     const d = new Date(expiresAt);
     const now = new Date();
     const horas = Math.ceil((d.getTime() - now.getTime()) / 3600000);
@@ -85,6 +89,8 @@ export function ShareLinkButton({ planId, toast, canCreate = false, autoOpen }: 
                 <option value="12">12h</option>
                 <option value="24">24h</option>
                 <option value="48">48h</option>
+                <option value="168">7d</option>
+                <option value="720">30d</option>
               </Select>
               <Button size="sm" variant="outline" onClick={handleCreate} className="text-xs h-7 ml-auto">Criar</Button>
             </div>

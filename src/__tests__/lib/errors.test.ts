@@ -40,10 +40,47 @@ describe("isRetryable()", () => {
     expect(isRetryable(new Error("Validation failed"))).toBe(false);
   });
 
-  it("returns false for non-Error inputs", () => {
-    expect(isRetryable("string")).toBe(false);
+  it("detects retryable markers in plain strings and status objects", () => {
+    expect(isRetryable("503 Service Unavailable")).toBe(true);
+    expect(isRetryable({ status: 503, message: "unavailable" })).toBe(true);
+  });
+
+  it("returns false for non-retryable non-Error inputs", () => {
+    expect(isRetryable("validation failed")).toBe(false);
     expect(isRetryable(null)).toBe(false);
     expect(isRetryable(42)).toBe(false);
+  });
+});
+
+describe("withRetry()", () => {
+  it("retries retryable failures and eventually succeeds", async () => {
+    const { withRetry } = await import("@/lib/errors");
+    let attempts = 0;
+    const result = await withRetry(
+      async () => {
+        attempts += 1;
+        if (attempts < 3) throw new Error("503 Service Unavailable");
+        return "ok";
+      },
+      { retries: 3, baseDelayMs: 1, sleep: async () => {} },
+    );
+    expect(result).toBe("ok");
+    expect(attempts).toBe(3);
+  });
+
+  it("does not retry non-retryable errors", async () => {
+    const { withRetry } = await import("@/lib/errors");
+    let attempts = 0;
+    await expect(
+      withRetry(
+        async () => {
+          attempts += 1;
+          throw new Error("Validation failed");
+        },
+        { retries: 3, baseDelayMs: 1, sleep: async () => {} },
+      ),
+    ).rejects.toThrow("Validation failed");
+    expect(attempts).toBe(1);
   });
 });
 

@@ -5,10 +5,8 @@ const { createClientMock } = vi.hoisted(() => ({ createClientMock: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: createClientMock }));
 vi.mock("@/lib/errors", () => ({ logSupabaseError: vi.fn() }));
-vi.mock("@/lib/validation/sanitize", () => ({
-  sanitizeText: vi.fn((v: unknown) => String(v ?? "")),
-  sanitizedString: vi.fn(),
-}));
+vi.mock("@/lib/validation/sanitize", async () =>
+  (await import("@/__tests__/helpers/sanitize-mock")).sanitizeMock());
 
 import { assignSchoolsToUnit } from "@/app/actions/schools";
 import { assignCompaniesToUnit } from "@/app/actions/companies";

@@ -19,6 +19,11 @@ const envSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
   SUPABASE_SERVICE_ROLE_KEY: secret("placeholder-key"),
   OPENROUTER_API_KEY: z.string().optional().default(""),
+  // Embeddings da base de conhecimento (RAG). Sem EMBEDDINGS_API_KEY o RAG
+  // desativa graciosamente. text-embedding-3-small = 1536 dims (coluna VECTOR).
+  EMBEDDINGS_API_KEY: z.string().optional().default(""),
+  EMBEDDINGS_BASE_URL: z.string().url().optional().default("https://api.openai.com/v1"),
+  EMBEDDINGS_MODEL: z.string().optional().default("text-embedding-3-small"),
   RESEND_API_KEY: secret("placeholder-key"),
   AUTH_EMAIL_FROM: z.string().min(1).default("PlanoCerto <acesso@planocerto.app>"),
   AUTH_EMAIL_REPLY_TO: z.string().email().optional().default("suporte@planocerto.app"),
@@ -27,4 +32,41 @@ const envSchema = z.object({
     .optional(),
 });
 
-export const env: z.infer<typeof envSchema> = envSchema.parse(process.env);
+const parsed = envSchema.parse(process.env);
+
+// Em runtime de produção (Vercel/Node), rejeita os defaults de schema que
+// fariam o app “subir” e falhar de forma opaca nas primeiras requests.
+// Compara com os defaults exatos — não com substring "placeholder" — para
+// permitir hosts de CI como `ci-build.supabase.co`.
+const isProdRuntime =
+  process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+if (isProdRuntime) {
+  const DEFAULT_URL = "https://placeholder.supabase.co";
+  const DEFAULT_KEY = "placeholder-key";
+  const bad: string[] = [];
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    parsed.NEXT_PUBLIC_SUPABASE_URL === DEFAULT_URL
+  ) {
+    bad.push("NEXT_PUBLIC_SUPABASE_URL");
+  }
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    parsed.NEXT_PUBLIC_SUPABASE_ANON_KEY === DEFAULT_KEY
+  ) {
+    bad.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  if (
+    !process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    parsed.SUPABASE_SERVICE_ROLE_KEY === DEFAULT_KEY
+  ) {
+    bad.push("SUPABASE_SERVICE_ROLE_KEY");
+  }
+  if (bad.length > 0) {
+    throw new Error(
+      `[env] Variáveis obrigatórias ausentes ou com placeholder em produção: ${bad.join(", ")}`
+    );
+  }
+}
+
+export const env: z.infer<typeof envSchema> = parsed;

@@ -20,6 +20,55 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.8.0-isolated] - 2026-08-04
+
+Linha de release **isolada de produção** (`release/v2.8.0-isolated`). A `main` /
+produção permanece em 2.7.x até promoção explícita.
+
+### Segurança
+- **Cookies de sessão HttpOnly** via `hardenCookieOptions` (token não legível por `document.cookie`).
+- **CSP por requisição** com nonce (`buildCsp` + `proxy.ts`); `frame-ancestors 'none'`.
+- **Retry com backoff** em `auth.getUser` no middleware (`withRetry`) para 503 transitórios.
+- **Anti-IDOR** em `getContaById` (filtro explícito por `tenant_id` do tenant ativo).
+- **Escape HTML** no export PDF de planos (mitiga XSS por conteúdo de plano/item).
+- **Rate-limit no login** (10 tentativas / 15 min por e-mail, best-effort in-memory).
+- **Fail-fast de env em produção** quando secrets estão ausentes ou em placeholder.
+- **`import.env` removido do tracking Git** (continha `SUPABASE_SERVICE_ROLE_KEY`).
+  **Ação manual obrigatória:** rotacionar a service role no Supabase e nos secrets da Vercel.
+
+### Qualidade
+- CI GitHub Actions (lint, typecheck, test, build) em PRs e branches de release.
+- Correção do mock de `bulkUpdateStatus` no teste de evidência obrigatória.
+- Testes de `withRetry` / `isRetryable` alinhados à implementação.
+
+### Adicionado (iteração UX, sem impacto em prod)
+- **Arquivar/reativar plano** em 1 clique (`setPlanStatus` + menu Ações).
+- **Dashboard:** saudação por horário, agrupamento de prazos, CTAs em empty states.
+- **Admin nav** rolável em telas estreitas (mobile).
+- **CNPJ** com máscara e validação inline no form de instituição (benchmarking).
+- Testes extras: CSP, cookies, FAROL, prazos, format-br.
+
+### Adicionado (iteração E2E + geo no repo)
+- **Playwright E2E** (`e2e/`, `npm run test:e2e`): auth/CSP/HttpOnly, planos, escolas; fluxos autenticados só com `E2E_EMAIL`/`E2E_PASSWORD`.
+- **Headers estáticos** em `next.config.ts`: `X-Frame-Options`, `X-Content-Type-Options`, HSTS, etc.
+- **Geo helpers** (`src/lib/geo.ts`, `geo-schema`) + campos lat/long em escolas/empresas (UI + actions).
+- **Migrations no repositório (não aplicadas em prod):** `073_schools_geolocation.sql`, `074_companies_geolocation.sql`.
+
+### Adicionado (iteração RAG + documentação isolada)
+- **RAG na sugestão 5W2H** (`knowledge-base`, `callEmbeddings`, `addKnowledge`) — fail-safe sem `EMBEDDINGS_API_KEY`.
+- CI com job E2E smoke (sem secrets = só testes públicos).
+- Guia `docs-isolated/README.md`: regras para não tocar em produção.
+
+### Segurança (iteração links + reset)
+- Rate-limit em **reset de senha** (5/15min por e-mail).
+- Links públicos: **expiração obrigatória** (default 24h, máx. 30d), token 32 hex, permissão `plans.update`, revogação autorizada.
+- URL de share usa `window.location.origin` (não hardcode de domínio).
+
+### Observações
+- Esta versão **não** aplica migrations no banco de produção.
+- Branch remota: `origin/release/v2.8.0-isolated` (preview no máximo; **sem** promote).
+- Billing, RAG completo e geo (Auvo) ficam para iterações seguintes na mesma linha.
+
 ## [2.2.1] - 2026-06-03
 
 Correções de produção: empresa ativa na importação de planos, sanitização sem

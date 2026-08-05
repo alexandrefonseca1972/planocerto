@@ -164,9 +164,12 @@ export function isSuperAdmin(role: string): boolean {
 export function hasAnyPermission(
   userPermissions: Record<string, boolean> | null,
   role: string,
-  requiredPermissions: Permission[]
+  requiredPermissions: Permission[],
+  customRoles?: Record<string, Permission[]>
 ): boolean {
-  return requiredPermissions.some((p) => hasPermission(userPermissions, role, p));
+  return requiredPermissions.some((p) =>
+    hasPermission(userPermissions, role, p, customRoles)
+  );
 }
 
 export function hasAllPermissions(

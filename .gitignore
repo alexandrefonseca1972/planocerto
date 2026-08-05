@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — never commit secrets; examples are allowed
+.env
+.env.*
+*.env
+import.env
+!.env.example
+!.env.local.example
 
 # vercel
 .vercel
@@ -41,6 +46,11 @@ yarn-error.log*
 next-env.d.ts
 .env*.local
 supabase/.temp
+
+# test artifacts
+/test-results
+/playwright-report
+/coverage
 
 # docs
 /docs

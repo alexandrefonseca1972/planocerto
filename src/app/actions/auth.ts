@@ -37,6 +37,17 @@ export async function login(
       };
     }
 
+    // Rate-limit por email (best-effort, in-memory): mitiga brute-force.
+    // Em multi-instância serverless o teto é por processo; ainda reduz abuso local.
+    const emailKey = validated.data.email.toLowerCase();
+    const limit = rateLimit(`login:${emailKey}`, 10, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return {
+        message:
+          "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.",
+      };
+    }
+
     const supabase = await createClient();
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -107,6 +118,16 @@ export async function resetPassword(
       return {
         errors: validated.error.flatten().fieldErrors,
         message: "Verifique o email e tente novamente.",
+      };
+    }
+
+    // Rate-limit por e-mail (best-effort): mitiga abuso de recovery / enumeração.
+    const emailKey = validated.data.email.toLowerCase();
+    const limit = rateLimit(`reset-password:${emailKey}`, 5, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return {
+        message:
+          "Muitas solicitações de recuperação. Aguarde alguns minutos e tente novamente.",
       };
     }
 
