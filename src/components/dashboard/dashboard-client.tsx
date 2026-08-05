@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { groupDeadlines, type Grouped } from "@/components/dashboard/deadline-helpers";
 import { DistributionCard } from "@/components/dashboard/distribution-card";
 import { DetailTable } from "@/components/dashboard/detail-table";
 import { AreaUnitFilter } from "@/components/dashboard/area-unit-filter";
@@ -213,8 +214,14 @@ export function DashboardClient({
       unit: `${base}-unit-order`,
       kpi: `${base}-kpi-order`,
       status: `${base}-status-order`,
+      filters: `${base}-filters`,
     };
   }, [tenantId]);
+
+  // Marca quando os filtros já foram re-hidratados do localStorage. Enquanto
+  // false, a persistência fica pausada para não sobrescrever o que está salvo
+  // (na montagem inicial e ao trocar de empresa).
+  const filtersHydratedRef = useRef(false);
 
   // Sincroniza orders com localStorage quando tenant ou unitSummaries mudam.
   // Wrap em setTimeout para satisfazer react-hooks/set-state-in-effect.
@@ -262,10 +269,33 @@ export function DashboardClient({
       } catch { /* ignore */ }
     }
 
+    let nextFilters: { tipoPa: string; macroAcao: string } | null = null;
+    const storedFilters = localStorage.getItem(storageKeys.filters);
+    if (storedFilters) {
+      try {
+        const parsed: unknown = JSON.parse(storedFilters);
+        if (parsed && typeof parsed === "object") {
+          const f = parsed as Record<string, unknown>;
+          nextFilters = {
+            tipoPa: typeof f.tipoPa === "string" ? f.tipoPa : "",
+            macroAcao: typeof f.macroAcao === "string" ? f.macroAcao : "",
+          };
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Pausa a persistência até concluir a re-hidratação (síncrono aqui, antes do
+    // effect de persistência rodar — vale também na troca de empresa).
+    filtersHydratedRef.current = false;
     const t = setTimeout(() => {
       if (nextUnitOrder) setUnitOrder(nextUnitOrder);
       if (nextKpiOrder) setKpiOrder(nextKpiOrder);
       if (nextStatusOrder) setStatusOrder(nextStatusOrder);
+      if (nextFilters) {
+        setSelectedTipoPa(nextFilters.tipoPa);
+        setSelectedMacroAcao(nextFilters.macroAcao);
+      }
+      filtersHydratedRef.current = true;
     }, 0);
     return () => clearTimeout(t);
   }, [unitSummaries, storageKeys]);
@@ -290,6 +320,24 @@ export function DashboardClient({
     }
     const query = qs.toString();
     router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
+  }
+
+  // Persiste os filtros sempre que mudam, lendo o par (tipoPa, macroAcao) já
+  // comprometido no estado — evita o stale-closure de persistir manualmente com
+  // o "outro" valor possivelmente desatualizado. Guardado por filtersHydratedRef.
+  useEffect(() => {
+    if (!filtersHydratedRef.current || typeof window === "undefined" || !storageKeys) return;
+    localStorage.setItem(
+      storageKeys.filters,
+      JSON.stringify({ tipoPa: selectedTipoPa, macroAcao: selectedMacroAcao }),
+    );
+  }, [selectedTipoPa, selectedMacroAcao, storageKeys]);
+
+  function changeTipoPa(value: string) {
+    setSelectedTipoPa(value);
+  }
+  function changeMacroAcao(value: string) {
+    setSelectedMacroAcao(value);
   }
 
   const handleDragStart = (id: string) => {
@@ -503,12 +551,11 @@ export function DashboardClient({
     return map;
   }, [filteredUnits]);
 
-  const greeting =
-    new Date().getHours() < 12
-      ? "Bom dia"
-      : new Date().getHours() < 18
-      ? "Boa tarde"
-      : "Boa noite";
+  const hour = new Date().getHours();
+  const greetingBase = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
+  // Saudação pessoal: inclui o primeiro nome (item de UX da auditoria).
+  const firstName = userName?.trim().split(/\s+/)[0] || "";
+  const greeting = firstName ? `${greetingBase}, ${firstName}` : greetingBase;
 
   return (
     <div className="space-y-4">
@@ -553,7 +600,7 @@ export function DashboardClient({
             <Tag className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <select
               value={effectiveTipoPa}
-              onChange={(e) => setSelectedTipoPa(e.target.value)}
+              onChange={(e) => changeTipoPa(e.target.value)}
               className={cn(
                 "h-10 w-36 appearance-none rounded-md border border-zinc-200 bg-white pl-8 pr-8 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
                 effectiveTipoPa ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400",
@@ -568,7 +615,7 @@ export function DashboardClient({
             {effectiveTipoPa && (
               <button
                 type="button"
-                onClick={() => setSelectedTipoPa("")}
+                onClick={() => changeTipoPa("")}
                 className="absolute right-7 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-white hover:bg-accent-600"
                 aria-label="Limpar filtro Tipo PA"
               >
@@ -582,7 +629,7 @@ export function DashboardClient({
             <Layers className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <select
               value={effectiveMacroAcao}
-              onChange={(e) => setSelectedMacroAcao(e.target.value)}
+              onChange={(e) => changeMacroAcao(e.target.value)}
               className={cn(
                 "h-10 w-40 appearance-none rounded-md border border-zinc-200 bg-white pl-8 pr-8 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
                 effectiveMacroAcao ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400",
@@ -597,7 +644,7 @@ export function DashboardClient({
             {effectiveMacroAcao && (
               <button
                 type="button"
-                onClick={() => setSelectedMacroAcao("")}
+                onClick={() => changeMacroAcao("")}
                 className="absolute right-7 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-white hover:bg-accent-600"
                 aria-label="Limpar filtro Macro Ação"
               >
@@ -1206,28 +1253,33 @@ function DeadlinesCard({ deadlines }: { deadlines: DeadlineItem[] }) {
     overdue.length > 0 ? "overdue" : near.length > 0 ? "near" : "future",
   );
 
+  // Agrupa entradas idênticas (mesmo título/data/unidade) antes de listar.
   const lists: Record<
     DeadlineKind,
-    { items: DeadlineItem[]; label: string; emptyMsg: string }
+    { items: Grouped<DeadlineItem>[]; total: number; label: string; emptyMsg: string }
   > = {
     overdue: {
-      items: sortedOverdue.slice(0, 10),
+      items: groupDeadlines(sortedOverdue),
+      total: overdue.length,
       label: "Atrasadas",
       emptyMsg: "Nenhuma ação atrasada. ✓",
     },
     near: {
-      items: sortedNear.slice(0, 10),
+      items: groupDeadlines(sortedNear),
+      total: near.length,
       label: "Próximas",
       emptyMsg: "Nenhuma ação nos próximos 7 dias.",
     },
     future: {
-      items: sortedFuture.slice(0, 10),
+      items: groupDeadlines(sortedFuture),
+      total: future.length,
       label: "Futuras",
       emptyMsg: "Nenhuma ação programada.",
     },
   };
 
   const active = lists[tab];
+  const visibleItems = active.items.slice(0, 10);
 
   return (
     <Card>
@@ -1294,28 +1346,20 @@ function DeadlinesCard({ deadlines }: { deadlines: DeadlineItem[] }) {
           </div>
         ) : (
           <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
-            {active.items.map((d) => (
-              <DeadlineRow key={d.id} d={d} />
+            {visibleItems.map((d) => (
+              <DeadlineRow key={`${d.id}-${d.count}`} d={d} count={d.count} tab={tab} />
             ))}
-            {(() => {
-              const allCount =
-                tab === "overdue"
-                  ? overdue.length
-                  : tab === "near"
-                  ? near.length
-                  : future.length;
-              return allCount > 10 ? (
-                <p className="px-2 pt-1 text-center text-[10px] text-zinc-400">
-                  Mostrando 10 de {allCount} —{" "}
-                  <Link
-                    href={`/calendario?filter=${tab}`}
-                    className="font-medium text-accent-600 hover:underline dark:text-accent-400"
-                  >
-                    ver no calendário
-                  </Link>
-                </p>
-              ) : null;
-            })()}
+            {active.items.length > 10 ? (
+              <p className="px-2 pt-1 text-center text-[10px] text-zinc-400">
+                Mostrando 10 de {active.items.length} grupos ({active.total} ações) —{" "}
+                <Link
+                  href={`/calendario?filter=${tab}`}
+                  className="font-medium text-accent-600 hover:underline dark:text-accent-400"
+                >
+                  ver no calendário
+                </Link>
+              </p>
+            ) : null}
           </div>
         )}
       </CardContent>
@@ -1385,9 +1429,11 @@ function TabPill({
   );
 }
 
-function DeadlineRow({ d }: { d: DeadlineItem }) {
+function DeadlineRow({ d, count = 1, tab }: { d: DeadlineItem; count?: number; tab: DeadlineKind }) {
   const dateLabel = new Date(d.deadline + "T00:00:00").toLocaleDateString("pt-BR");
   const overdueDays = d.kind === "overdue" ? Math.abs(d.daysLeft) : 0;
+  // Grupo de ações idênticas → leva ao calendário (vários itens); senão, ao item.
+  const href = count > 1 ? `/calendario?filter=${tab}` : `/planos?plan=${d.planId}&item=${d.id}`;
 
   const badge =
     d.kind === "overdue" ? (
@@ -1406,12 +1452,19 @@ function DeadlineRow({ d }: { d: DeadlineItem }) {
 
   return (
     <Link
-      href={`/planos?plan=${d.planId}&item=${d.id}`}
+      href={href}
       className="flex items-start gap-2 rounded-md p-1.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
     >
       <span className="mt-0.5">{badge}</span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium">{d.title}</p>
+        <p className="truncate text-xs font-medium">
+          {d.title}
+          {count > 1 && (
+            <span className="ml-1 rounded-full bg-zinc-200 px-1.5 py-0.5 text-[9px] font-bold text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+              ×{count}
+            </span>
+          )}
+        </p>
         <p className="text-[11px] text-zinc-500">
           {d.unitName} · {dateLabel}
           {d.kind === "overdue" ? (
@@ -1681,6 +1734,19 @@ function KpiFunilCard({
             {pct}%
           </span>
         </div>
+        {real === 0 && (
+          // CTA para cards zerados (item de UX da auditoria): leva aos planos,
+          // onde os valores de realização são registrados/atualizados.
+          <Link
+            href="/planos"
+            className={cn(
+              "mt-2 inline-flex items-center gap-0.5 text-[11px] font-medium hover:underline",
+              palette.iconFg,
+            )}
+          >
+            Registrar nos planos →
+          </Link>
+        )}
       </CardContent>
     </Card>
   );

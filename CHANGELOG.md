@@ -41,8 +41,16 @@ produção permanece em 2.7.x até promoção explícita.
 - Correção do mock de `bulkUpdateStatus` no teste de evidência obrigatória.
 - Testes de `withRetry` / `isRetryable` alinhados à implementação.
 
+### Adicionado (iteração UX, sem impacto em prod)
+- **Arquivar/reativar plano** em 1 clique (`setPlanStatus` + menu Ações).
+- **Dashboard:** saudação por horário, agrupamento de prazos, CTAs em empty states.
+- **Admin nav** rolável em telas estreitas (mobile).
+- **CNPJ** com máscara e validação inline no form de instituição (benchmarking).
+- Testes extras: CSP, cookies, FAROL, prazos, format-br.
+
 ### Observações
 - Esta versão **não** aplica migrations no banco de produção.
+- Branch remota: `origin/release/v2.8.0-isolated` (preview no máximo; **sem** promote).
 - Billing, RAG completo e geo (Auvo) ficam para iterações seguintes na mesma linha.
 
 ## [2.2.1] - 2026-06-03
