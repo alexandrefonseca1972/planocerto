@@ -3,6 +3,7 @@
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { createClient } from "@/lib/supabase/server";
 import { callLlm } from "@/lib/llm-client";
+import { retrieveKnowledge } from "@/lib/knowledge-base";
 import { getActiveLlmConfig } from "@/app/actions/llm-settings";
 
 type RegionalContext = {
@@ -120,6 +121,21 @@ CONTEXTO REGIONAL DA UNIDADE (${unitData.name}):
     }
   }
 
+  // RAG: trechos da base de conhecimento do tenant. Fail-safe se desligado.
+  let knowledgePrompt = "";
+  try {
+    const matches = await retrieveKnowledge(plan.tenant_id, actionDescription, {
+      limit: 4,
+      threshold: 0.3,
+    });
+    if (matches.length > 0) {
+      const trechos = matches.map((m, i) => `(${i + 1}) ${m.content}`).join("\n");
+      knowledgePrompt = `BASE DE CONHECIMENTO (use se for pertinente à ação):\n${trechos}`;
+    }
+  } catch (e) {
+    console.error("[suggest5W2H] RAG retrieval Error:", e);
+  }
+
   const prompt = `
 Você é um consultor especialista em gestão estratégica e metodologia 5W2H.
 Sua tarefa é sugerir o preenchimento dos campos "POR QUÊ" e "COMO" para uma ação.
@@ -127,6 +143,8 @@ Sua tarefa é sugerir o preenchimento dos campos "POR QUÊ" e "COMO" para uma a�
 AÇÃO: "${actionDescription}"
 
 ${regionalContextPrompt}
+
+${knowledgePrompt}
 
 INSTRUÇÕES:
 1. POR QUÊ? (Justificativa): Explique a importância estratégica, focando em resultados e no contexto regional se fornecido.

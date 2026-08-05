@@ -19,6 +19,11 @@ const envSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
   SUPABASE_SERVICE_ROLE_KEY: secret("placeholder-key"),
   OPENROUTER_API_KEY: z.string().optional().default(""),
+  // Embeddings da base de conhecimento (RAG). Sem EMBEDDINGS_API_KEY o RAG
+  // desativa graciosamente. text-embedding-3-small = 1536 dims (coluna VECTOR).
+  EMBEDDINGS_API_KEY: z.string().optional().default(""),
+  EMBEDDINGS_BASE_URL: z.string().url().optional().default("https://api.openai.com/v1"),
+  EMBEDDINGS_MODEL: z.string().optional().default("text-embedding-3-small"),
   RESEND_API_KEY: secret("placeholder-key"),
   AUTH_EMAIL_FROM: z.string().min(1).default("PlanoCerto <acesso@planocerto.app>"),
   AUTH_EMAIL_REPLY_TO: z.string().email().optional().default("suporte@planocerto.app"),

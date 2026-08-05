@@ -54,6 +54,11 @@ produção permanece em 2.7.x até promoção explícita.
 - **Geo helpers** (`src/lib/geo.ts`, `geo-schema`) + campos lat/long em escolas/empresas (UI + actions).
 - **Migrations no repositório (não aplicadas em prod):** `073_schools_geolocation.sql`, `074_companies_geolocation.sql`.
 
+### Adicionado (iteração RAG + documentação isolada)
+- **RAG na sugestão 5W2H** (`knowledge-base`, `callEmbeddings`, `addKnowledge`) — fail-safe sem `EMBEDDINGS_API_KEY`.
+- CI com job E2E smoke (sem secrets = só testes públicos).
+- Guia `docs-isolated/README.md`: regras para não tocar em produção.
+
 ### Observações
 - Esta versão **não** aplica migrations no banco de produção.
 - Branch remota: `origin/release/v2.8.0-isolated` (preview no máximo; **sem** promote).

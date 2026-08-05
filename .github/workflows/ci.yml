@@ -54,3 +54,31 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key-not-real
           SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key-not-real
           RESEND_API_KEY: re_ci_build_key
+
+  # E2E sem credenciais: só fluxos públicos (auth headers, redirect, login inválido).
+  # Não sobe deploy; não toca produção. Autenticados só se secrets E2E_* existirem.
+  e2e:
+    name: E2E (smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: quality
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-build.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key-not-real
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key-not-real
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      RESEND_API_KEY: re_ci_build_key
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - name: Playwright smoke
+        run: npm run test:e2e -- --project=chromium
