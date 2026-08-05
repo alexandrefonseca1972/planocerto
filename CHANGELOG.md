@@ -20,6 +20,31 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.8.0-isolated] - 2026-08-04
+
+Linha de release **isolada de produção** (`release/v2.8.0-isolated`). A `main` /
+produção permanece em 2.7.x até promoção explícita.
+
+### Segurança
+- **Cookies de sessão HttpOnly** via `hardenCookieOptions` (token não legível por `document.cookie`).
+- **CSP por requisição** com nonce (`buildCsp` + `proxy.ts`); `frame-ancestors 'none'`.
+- **Retry com backoff** em `auth.getUser` no middleware (`withRetry`) para 503 transitórios.
+- **Anti-IDOR** em `getContaById` (filtro explícito por `tenant_id` do tenant ativo).
+- **Escape HTML** no export PDF de planos (mitiga XSS por conteúdo de plano/item).
+- **Rate-limit no login** (10 tentativas / 15 min por e-mail, best-effort in-memory).
+- **Fail-fast de env em produção** quando secrets estão ausentes ou em placeholder.
+- **`import.env` removido do tracking Git** (continha `SUPABASE_SERVICE_ROLE_KEY`).
+  **Ação manual obrigatória:** rotacionar a service role no Supabase e nos secrets da Vercel.
+
+### Qualidade
+- CI GitHub Actions (lint, typecheck, test, build) em PRs e branches de release.
+- Correção do mock de `bulkUpdateStatus` no teste de evidência obrigatória.
+- Testes de `withRetry` / `isRetryable` alinhados à implementação.
+
+### Observações
+- Esta versão **não** aplica migrations no banco de produção.
+- Billing, RAG completo e geo (Auvo) ficam para iterações seguintes na mesma linha.
+
 ## [2.2.1] - 2026-06-03
 
 Correções de produção: empresa ativa na importação de planos, sanitização sem

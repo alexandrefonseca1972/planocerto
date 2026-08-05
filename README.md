@@ -12,6 +12,9 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 - **Testes:** Vitest + Testing Library
 - **Deploy:** Vercel
 
+> **Versão isolada:** `2.8.0-isolated` (branch `release/v2.8.0-isolated`).  
+> Produção estável permanece em `main` (2.7.x) até promoção explícita.
+
 ## Funcionalidades
 
 - 🔐 Autenticação email/senha com reset de senha e confirmação
@@ -20,7 +23,7 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 - 🗂️ Kanban Board com drag-and-drop
 - 📊 Dashboard executivo com KPIs, gráficos e prazos
 - 📅 Calendário de prazos
-- 🔔 Notificações por tenant/usário com polling automático
+- 🔔 Notificações por tenant/usuário com polling automático
 - 💬 Comentários por item de ação
 - 📎 Upload de anexos (imagens, PDF, Excel)
 - 🔗 Dashboard público via link compartilhável
@@ -33,8 +36,8 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 - 🌙 Dark/Light mode
 - 📏 Controle de tamanho de fonte
 - 📤 Exportação Excel + PDF
-- 📅 Sincronização Google Calendar (OAuth 2.0)
 - 📈 Gráfico de Gantt interativo (zoom mês/trimestre/ano)
+- 🛡️ CSP + cookies HttpOnly + rate-limit de login (v2.8.0-isolated)
 
 ## 📚 Documentação Completa
 

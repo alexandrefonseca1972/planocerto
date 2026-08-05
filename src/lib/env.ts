@@ -27,4 +27,41 @@ const envSchema = z.object({
     .optional(),
 });
 
-export const env: z.infer<typeof envSchema> = envSchema.parse(process.env);
+const parsed = envSchema.parse(process.env);
+
+// Em runtime de produção (Vercel/Node), rejeita os defaults de schema que
+// fariam o app “subir” e falhar de forma opaca nas primeiras requests.
+// Compara com os defaults exatos — não com substring "placeholder" — para
+// permitir hosts de CI como `ci-build.supabase.co`.
+const isProdRuntime =
+  process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+if (isProdRuntime) {
+  const DEFAULT_URL = "https://placeholder.supabase.co";
+  const DEFAULT_KEY = "placeholder-key";
+  const bad: string[] = [];
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    parsed.NEXT_PUBLIC_SUPABASE_URL === DEFAULT_URL
+  ) {
+    bad.push("NEXT_PUBLIC_SUPABASE_URL");
+  }
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    parsed.NEXT_PUBLIC_SUPABASE_ANON_KEY === DEFAULT_KEY
+  ) {
+    bad.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  if (
+    !process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    parsed.SUPABASE_SERVICE_ROLE_KEY === DEFAULT_KEY
+  ) {
+    bad.push("SUPABASE_SERVICE_ROLE_KEY");
+  }
+  if (bad.length > 0) {
+    throw new Error(
+      `[env] Variáveis obrigatórias ausentes ou com placeholder em produção: ${bad.join(", ")}`
+    );
+  }
+}
+
+export const env: z.infer<typeof envSchema> = parsed;

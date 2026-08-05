@@ -51,23 +51,51 @@ describe("Action Plan Phase 3: Mandatory Evidence", () => {
 
   it("should skip HIGH priority items without evidence during bulk recalculation", async () => {
     const updateEqMock = vi.fn().mockResolvedValue({ error: null });
+    const highPriorityItem = {
+      id: VALID_ITEM_ID,
+      plan_id: VALID_PLAN_ID,
+      prioridade: "Alta",
+      action: "Test",
+      actual_end: "2026-01-01",
+      planned_start: null,
+      planned_end: null,
+      actual_start: null,
+      expected_result: null,
+      actual_result: null,
+      observations: null,
+      cost: null,
+      where: null,
+      why: null,
+      como: null,
+      inscritos_real: null,
+      mat_fin_real: null,
+      mat_acad_real: null,
+      responsible: null,
+    };
+
     const mockSupabase: MockSupabase = {
       auth: { getUser: vi.fn(() => Promise.resolve({ data: { user: { id: "user1" } } })) },
       from: vi.fn((table) => {
-        if (table === "action_items") {
+        if (table === "action_plans") {
           return {
-            select: vi.fn().mockReturnThis(),
-            in: vi.fn().mockResolvedValue({
-              data: [{
-                id: VALID_ITEM_ID,
-                plan_id: VALID_PLAN_ID,
-                prioridade: "Alta",
-                action: "Test",
-                actual_end: "2026-01-01",
-              }],
-            }),
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { tenant_id: "550e8400-e29b-41d4-a716-446655440099" },
+                }),
+              })),
+            })),
+          };
+        }
+
+        if (table === "action_items") {
+          const chain = {
+            select: vi.fn(() => chain),
+            in: vi.fn(() => chain),
+            eq: vi.fn().mockResolvedValue({ data: [highPriorityItem], error: null }),
             update: vi.fn(() => ({ eq: updateEqMock })),
           };
+          return chain;
         }
 
         if (table === "item_comments" || table === "plan_attachments") {
@@ -81,6 +109,7 @@ describe("Action Plan Phase 3: Mandatory Evidence", () => {
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null }),
         };
       }),
     };
