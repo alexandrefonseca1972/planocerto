@@ -48,6 +48,12 @@ produção permanece em 2.7.x até promoção explícita.
 - **CNPJ** com máscara e validação inline no form de instituição (benchmarking).
 - Testes extras: CSP, cookies, FAROL, prazos, format-br.
 
+### Adicionado (iteração E2E + geo no repo)
+- **Playwright E2E** (`e2e/`, `npm run test:e2e`): auth/CSP/HttpOnly, planos, escolas; fluxos autenticados só com `E2E_EMAIL`/`E2E_PASSWORD`.
+- **Headers estáticos** em `next.config.ts`: `X-Frame-Options`, `X-Content-Type-Options`, HSTS, etc.
+- **Geo helpers** (`src/lib/geo.ts`, `geo-schema`) + campos lat/long em escolas/empresas (UI + actions).
+- **Migrations no repositório (não aplicadas em prod):** `073_schools_geolocation.sql`, `074_companies_geolocation.sql`.
+
 ### Observações
 - Esta versão **não** aplica migrations no banco de produção.
 - Branch remota: `origin/release/v2.8.0-isolated` (preview no máximo; **sem** promote).

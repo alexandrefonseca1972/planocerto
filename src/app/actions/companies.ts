@@ -4,10 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { sanitizedString } from "@/lib/validation/sanitize";
+import { latitude as latSchema, longitude as lngSchema } from "@/lib/schemas/geo-schema";
 import type { Company, CompanyFormState } from "@/types/company";
 
 const companySchema = z.object({
   unit_id: z.string().uuid().nullable().optional(),
+  latitude: latSchema(),
+  longitude: lngSchema(),
   conveniado: z.boolean().default(false),
   cluster: sanitizedString({ max: 100 }).optional(),
   segmento: sanitizedString({ max: 100 }).optional(),
@@ -57,6 +60,8 @@ function readForm(formData: FormData): Record<string, unknown> {
   const unitId = get("unit_id");
   return {
     unit_id: unitId && unitId !== "" ? String(unitId) : null,
+    latitude: get("latitude"),
+    longitude: get("longitude"),
     conveniado: get("conveniado") === "on" || get("conveniado") === "true",
     cluster: get("cluster") || "",
     segmento: get("segmento") || "",

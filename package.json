@@ -3,7 +3,7 @@
   "version": "2.8.0-isolated",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-http-header-size=65536' next dev",
+    "dev": "NODE_OPTIONS='--max-http-header-size=65536' next dev --webpack",
     "build": "next build --webpack",
     "start": "NODE_OPTIONS='--max-http-header-size=65536' next start",
     "lint": "eslint",
@@ -13,6 +13,8 @@
     "test:integration": "vitest run src/__tests__/integration",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "version:patch": "npm version patch --no-git-tag-version",
     "version:minor": "npm version minor --no-git-tag-version",
     "version:major": "npm version major --no-git-tag-version",
@@ -49,6 +51,7 @@
     "zod": "^4.4.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
