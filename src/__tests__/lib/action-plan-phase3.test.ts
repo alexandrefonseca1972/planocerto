@@ -57,15 +57,17 @@ describe("Action Plan Phase 3: Mandatory Evidence", () => {
         if (table === "action_items") {
           return {
             select: vi.fn().mockReturnThis(),
-            in: vi.fn().mockResolvedValue({
-              data: [{
-                id: VALID_ITEM_ID,
-                plan_id: VALID_PLAN_ID,
-                prioridade: "Alta",
-                action: "Test",
-                actual_end: "2026-01-01",
-              }],
-            }),
+            in: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({
+                data: [{
+                  id: VALID_ITEM_ID,
+                  plan_id: VALID_PLAN_ID,
+                  prioridade: "Alta",
+                  action: "Test",
+                  actual_end: "2026-01-01",
+                }],
+              }),
+            })),
             update: vi.fn(() => ({ eq: updateEqMock })),
           };
         }
@@ -81,6 +83,7 @@ describe("Action Plan Phase 3: Mandatory Evidence", () => {
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { tenant_id: "tenant1" } }),
         };
       }),
     };

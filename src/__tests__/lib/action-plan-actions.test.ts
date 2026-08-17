@@ -18,9 +18,9 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: createClientMock,
 }));
 
-vi.mock("@/lib/validation/sanitize", () => ({
+vi.mock("@/lib/validation/sanitize", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/validation/sanitize")>()),
   sanitizeText: vi.fn((value: unknown) => String(value ?? "")),
-  sanitizedString: vi.fn(),
 }));
 
 vi.mock("@/lib/errors", () => ({
@@ -40,6 +40,15 @@ describe("action-plan permissions", () => {
 
   it("requires plans.create when creating an item", async () => {
     checkPermissionMock.mockResolvedValue(false);
+    createClientMock.mockResolvedValue({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn().mockResolvedValue({ data: { tenant_id: "tenant-1" } }),
+          })),
+        })),
+      })),
+    });
 
     const formData = new FormData();
     formData.set("planId", "550e8400-e29b-41d4-a716-446655440000");
@@ -48,13 +57,21 @@ describe("action-plan permissions", () => {
 
     const result = await upsertItem({}, formData);
 
-    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_CREATE);
-    expect(createClientMock).not.toHaveBeenCalled();
+    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_CREATE, "tenant-1");
     expect(result).toEqual({ message: "Acesso negado. Permissão insuficiente." });
   });
 
   it("requires plans.update when editing an item", async () => {
     checkPermissionMock.mockResolvedValue(false);
+    createClientMock.mockResolvedValue({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn().mockResolvedValue({ data: { tenant_id: "tenant-1" } }),
+          })),
+        })),
+      })),
+    });
 
     const formData = new FormData();
     formData.set("itemId", "550e8400-e29b-41d4-a716-446655440001");
@@ -64,18 +81,27 @@ describe("action-plan permissions", () => {
 
     const result = await upsertItem({}, formData);
 
-    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE);
-    expect(createClientMock).not.toHaveBeenCalled();
+    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE, "tenant-1");
     expect(result).toEqual({ message: "Acesso negado. Permissão insuficiente." });
   });
 
   it("requires plans.update before changing item status", async () => {
     checkPermissionMock.mockResolvedValue(false);
+    createClientMock.mockResolvedValue({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn().mockResolvedValue({
+              data: { plan_id: "550e8400-e29b-41d4-a716-446655440000", action_plans: { tenant_id: "tenant-1" } },
+            }),
+          })),
+        })),
+      })),
+    });
 
     const result = await updateItemStatus("550e8400-e29b-41d4-a716-446655440001", 4);
 
-    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE);
-    expect(createClientMock).not.toHaveBeenCalled();
+    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE, "tenant-1");
     expect(result).toEqual({ message: "Acesso negado. Permissão insuficiente." });
   });
 
@@ -145,7 +171,7 @@ describe("action-plan permissions", () => {
 
     const result = await updatePlan({}, formData);
 
-    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE);
+    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE, "tenant-1");
     expect(updateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Plano atualizado",
