@@ -135,7 +135,7 @@ export async function resetPassword(
     const { data, error } = await adminClient.auth.admin.generateLink({
       type: "recovery",
       email: validated.data.email,
-      options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
+      options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/confirm?next=/auth/update-password` },
     });
 
     if (error || !data.properties?.action_link) {

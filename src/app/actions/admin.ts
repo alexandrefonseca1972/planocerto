@@ -61,7 +61,7 @@ async function sendRecoveryEmail(
   const { data, error } = await adminClient.auth.admin.generateLink({
     type: "recovery",
     email,
-    options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
+    options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/confirm?next=/auth/update-password` },
   });
   if (error || !data.properties?.action_link) return "no_link";
   const ec = buildAuthEmail(kind, data.properties.action_link, email);

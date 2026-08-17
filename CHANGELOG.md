@@ -20,6 +20,14 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.8.1-isolated] - 2026-08-17
+
+### Corrigido
+- **Reset de senha quebrado**: o link de recovery (self-service, disparado por admin
+  e e-mail de boas-vindas de usuário novo) apontava direto para `/auth/update-password`,
+  que não troca o token pela sessão. Agora passa por `/auth/confirm?next=/auth/update-password`
+  (mesmo fluxo já usado pelo magic link), estabelecendo a sessão antes de `updateUser`.
+
 ## [2.8.0-isolated] - 2026-08-04
 
 Linha de release **isolada de produção** (`release/v2.8.0-isolated`). A `main` /
