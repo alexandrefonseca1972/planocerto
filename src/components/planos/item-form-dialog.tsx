@@ -23,9 +23,9 @@ import {
   resolveInitialItemArea 
 } from "@/components/planos/plan-item-form-helpers";
 import { 
-  buildMacroActionOptions, 
-  orderParentGroupsByMacroCatalog, 
-  isValidActionText 
+  buildMacroActionOptions,
+  collectParentGroups,
+  isValidActionText
 } from "@/components/planos/planos-page-helpers";
 import { getItemAuditLog } from "@/app/actions/action-plan";
 import { formatAuditEntryDate, getAuditEntryMarker, getAuditEntrySummary, getAuditEntryTone } from "@/components/planos/item-history-helpers";
@@ -76,10 +76,7 @@ export function ItemFormDialog({
   const [aiModel, setAiModel] = useState("");
 
   const allItems = flattenItems(items);
-  const groups = orderParentGroupsByMacroCatalog(
-    allItems.filter((i) => i.id !== item?.id && (i.children?.length || 0) > 0),
-    catalogMacroAcoes,
-  );
+  const groups = collectParentGroups(items, item?.id);
 
   const currentMacroAcao = parentId ? allItems.find((currentItem) => currentItem.id === parentId)?.action || "" : "";
   const derivedArea = resolveInitialItemArea({

@@ -3,8 +3,11 @@ import * as XLSX from "xlsx";
 import * as fs from "fs";
 import * as path from "path";
 
-const SUPABASE_URL = "https://tzpcjhrjzbkjkocjddwg.supabase.co";
-const SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6cGNqaHJqemJramtvY2pkZHdnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzc2NzMxMCwiZXhwIjoyMDkzMzQzMzEwfQ.vtKXpXspZu-o2-u6az0Vx2XCvnQTrs1VDhCKUvHuLHI";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_URL || !SERVICE_KEY) {
+  throw new Error("Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.");
+}
 
 const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },

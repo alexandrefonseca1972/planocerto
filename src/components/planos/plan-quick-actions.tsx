@@ -36,7 +36,7 @@ export function PlanQuickActions({ plan, plans, toast, router }: Props) {
       </Button>
 
       {menuOpen && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900 py-1">
+        <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900 py-1">
           <button
             onClick={() => { setMenuOpen(false); setShowClone(true); }}
             className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"

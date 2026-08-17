@@ -22,7 +22,7 @@ describe("usePlanosUrlParams", () => {
 
   it("parseia os query params presentes", () => {
     h.searchParams = new URLSearchParams(
-      "q=teste&status=5&plan_year=2026&view=kanban&plan_status=archived&plan_visibility=restricted&plan=p1",
+      "q=teste&status=5&plan_year=2026&view=kanban&plan_status=archived&plan_visibility=restricted&plan=p1&tipo_pa=Vestibular&macro=Trade",
     );
     const { result } = renderHook(() => usePlanosUrlParams());
     expect(result.current.searchQuery).toBe("teste");
@@ -32,6 +32,8 @@ describe("usePlanosUrlParams", () => {
     expect(result.current.planStatusFilter).toBe("archived");
     expect(result.current.visibilityFilter).toBe("restricted");
     expect(result.current.requestedPlanId).toBe("p1");
+    expect(result.current.tipoPaFilter).toBe("Vestibular");
+    expect(result.current.macroAcaoFilter).toBe("Trade");
   });
 
   it("usa defaults quando ausentes", () => {
@@ -40,12 +42,22 @@ describe("usePlanosUrlParams", () => {
     expect(result.current.statusFilter).toBeNull();
     expect(result.current.viewMode).toBe("table");
     expect(result.current.exercicioFilter).toBeNull();
+    expect(result.current.tipoPaFilter).toBe("");
+    expect(result.current.macroAcaoFilter).toBe("");
   });
 
   it("setSearchQuery chama router.replace com a query string", () => {
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.setSearchQuery("abc");
     expect(h.replace).toHaveBeenCalledWith("/planos?q=abc", { scroll: false });
+  });
+
+  it("setTipoPaFilter e setMacroAcaoFilter gravam na URL", () => {
+    const { result } = renderHook(() => usePlanosUrlParams());
+    result.current.setTipoPaFilter("Vestibular");
+    expect(h.replace).toHaveBeenCalledWith("/planos?tipo_pa=Vestibular", { scroll: false });
+    result.current.setMacroAcaoFilter("Trade");
+    expect(h.replace).toHaveBeenCalledWith("/planos?macro=Trade", { scroll: false });
   });
 
   it("createQueryString remove chaves nulas/vazias e preserva o resto", () => {

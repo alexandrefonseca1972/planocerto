@@ -37,6 +37,11 @@ export async function login(
       };
     }
 
+    const limit = rateLimit(`login:${validated.data.email}`, 8, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return { message: "Muitas tentativas. Aguarde alguns minutos." };
+    }
+
     const supabase = await createClient();
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -61,9 +66,16 @@ export async function login(
     }
   } catch (error) {
     console.error("[login] Erro:", error);
+    const cause = error instanceof Error ? error.cause : undefined;
+    const causeCode = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "";
+    const isNetwork =
+      causeCode === "ENOTFOUND" ||
+      causeCode === "ECONNREFUSED" ||
+      (error instanceof Error && /fetch failed|ENOTFOUND|ECONNREFUSED/i.test(error.message));
     return {
-      message:
-        "Serviço indisponível no momento. Tente novamente em alguns instantes.",
+      message: isNetwork
+        ? "Não foi possível conectar ao servidor de autenticação. Confira a conexão e as variáveis do Supabase."
+        : "Serviço indisponível no momento. Tente novamente em alguns instantes.",
     };
   }
 

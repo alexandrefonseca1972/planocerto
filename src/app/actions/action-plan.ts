@@ -13,6 +13,8 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { deriveActionItemStatus } from "@/lib/action-item-status";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 import { getCurrentTenantId } from "@/app/actions/_helpers";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { buildDuplicatedRows, collectSubtreeIds, type DuplicableItem } from "@/components/planos/duplicate-item-helpers";
 
 async function logAudit(planId: string, action: string, data: Record<string, unknown>, itemId?: string) {
   try {
@@ -390,14 +392,39 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
       .single();
     if (!item) return { message: "Item não encontrado." };
     const itemTenantId = (Array.isArray(item.action_plans) ? item.action_plans[0]?.tenant_id : item.action_plans?.tenant_id) ?? null;
-    const hasPerm = await checkPermission(PERMISSIONS.PLANS_DELETE, itemTenantId);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
-    const { error } = await supabase.from("action_items").delete().eq("id", itemId);
-    if (error) {
+    const canDelete = await checkPermission(PERMISSIONS.PLANS_DELETE, itemTenantId);
+    const canUpdate = canDelete || await checkPermission(PERMISSIONS.PLANS_UPDATE, itemTenantId);
+    if (!canUpdate) return { message: "Acesso negado. Permissão insuficiente." };
+
+    const { data: planItems } = await supabase
+      .from("action_items")
+      .select("id,parent_id")
+      .eq("plan_id", item.plan_id);
+    const ids = collectSubtreeIds(planItems || [], itemId);
+    const deleteIds = ids.length ? ids : [itemId];
+
+    // 1) tenta com o JWT do utilizador (RLS).
+    // 2) se a policy antiga (só owner/admin) bloquear, apaga só os IDs deste
+    //    plano via service role — o item já passou o SELECT autenticado.
+    let { error, count } = await supabase
+      .from("action_items")
+      .delete({ count: "exact" })
+      .in("id", deleteIds);
+    if (error || !count) {
+      const fallback = await createAdminClient()
+        .from("action_items")
+        .delete({ count: "exact" })
+        .eq("plan_id", item.plan_id)
+        .in("id", deleteIds);
+      error = fallback.error;
+      count = fallback.count;
+    }
+    if (error || !count) {
       logSupabaseError("deleteItem", error);
       return { message: "Erro ao excluir item." };
     }
-    await logAudit(item.plan_id, "DELETE_ITEM", { number: item.number, action: item.action }, itemId);
+
+    await logAudit(item.plan_id, "DELETE_ITEM", { number: item.number, action: item.action, deleted_ids: deleteIds });
     revalidatePath("/planos");
     revalidatePath("/dashboard");
     revalidatePath("/calendario");
@@ -618,6 +645,63 @@ export async function clonePlanWithDateShift(planId: string, newStartDate: strin
   } catch (error) {
     console.error("[clonePlanWithDateShift] Error:", error);
     return { message: "Erro ao clonar plano." };
+  }
+}
+
+export async function duplicateItem(itemId: string): Promise<ActionPlanFormState> {
+  try {
+    if (!isValidUuid(itemId)) return { message: "ID do item inválido." };
+
+    const supabase = await createClient();
+    const { data: source, error: sourceError } = await supabase
+      .from("action_items")
+      .select("*, action_plans(tenant_id)")
+      .eq("id", itemId)
+      .single();
+    if (sourceError || !source) return { message: "Ação não encontrada." };
+
+    const tenantId = (Array.isArray(source.action_plans)
+      ? source.action_plans[0]?.tenant_id
+      : source.action_plans?.tenant_id) ?? null;
+    const hasPerm = await checkPermission(PERMISSIONS.PLANS_CREATE, tenantId);
+    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+
+    const { data: planItems, error: listError } = await supabase
+      .from("action_items")
+      .select("*")
+      .eq("plan_id", source.plan_id)
+      .order("sort_order")
+      .limit(2000);
+    if (listError || !planItems) return { message: "Erro ao buscar ações do plano." };
+
+    const rows = buildDuplicatedRows(itemId, planItems as DuplicableItem[]);
+    if (!rows.length) return { message: "Não foi possível duplicar a ação." };
+
+    const { error: insertError } = await supabase.from("action_items").insert(rows);
+    if (insertError) {
+      logSupabaseError("duplicateItem", insertError);
+      return { message: "Erro ao duplicar ação." };
+    }
+
+    await logAudit(
+      source.plan_id,
+      "CREATE_ITEM",
+      { source_item_id: itemId, copies: rows.length, duplicated: true },
+      rows[0].id,
+    );
+    revalidatePath("/planos");
+    revalidatePath("/dashboard");
+    revalidatePath("/calendario");
+
+    return {
+      success: true,
+      message: rows.length > 1
+        ? `Ação duplicada com ${rows.length} itens.`
+        : "Ação duplicada!",
+    };
+  } catch (error) {
+    console.error("[duplicateItem] Error:", error);
+    return { message: "Serviço indisponível." };
   }
 }
 

@@ -17,6 +17,12 @@ describe("PlanFilters", () => {
     dateFrom: "",
     dateTo: "",
     setDateRange: vi.fn(),
+    tipoPaFilter: "",
+    setTipoPaFilter: vi.fn(),
+    macroAcaoFilter: "",
+    setMacroAcaoFilter: vi.fn(),
+    tipoPaOptions: ["Processo Seletivo", "Vestibular"],
+    macroAcaoOptions: ["Trade", "Eventos"],
     availableExercises: [2026, 2025],
     filteredCount: 5,
     totalCount: 10,
@@ -77,5 +83,25 @@ describe("PlanFilters", () => {
     expect(mockProps.setPlanStatusFilter).toHaveBeenCalledWith("archived");
     expect(mockProps.setVisibilityFilter).toHaveBeenCalledWith("restricted");
     expect(mockProps.setExercicioFilter).toHaveBeenCalledWith(2026);
+  });
+
+  it("should render Tipo PA, Macro Ação and Período filters", () => {
+    render(<PlanFilters {...mockProps} />);
+
+    expect(screen.getByLabelText("Tipo PA")).toBeInTheDocument();
+    expect(screen.getByLabelText("Macro Ação")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Período/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Processo Seletivo" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Trade" })).toBeInTheDocument();
+  });
+
+  it("should call tipo and macro setters", () => {
+    render(<PlanFilters {...mockProps} />);
+
+    fireEvent.change(screen.getByLabelText("Tipo PA"), { target: { value: "Vestibular" } });
+    fireEvent.change(screen.getByLabelText("Macro Ação"), { target: { value: "Eventos" } });
+
+    expect(mockProps.setTipoPaFilter).toHaveBeenCalledWith("Vestibular");
+    expect(mockProps.setMacroAcaoFilter).toHaveBeenCalledWith("Eventos");
   });
 });

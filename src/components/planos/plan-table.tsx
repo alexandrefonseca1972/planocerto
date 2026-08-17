@@ -13,6 +13,7 @@ import {
   Pencil, 
   Check, 
   Trash2, 
+  CopyPlus,
   X 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,8 @@ interface PlanTableProps {
   onEdit: (item: ActionItem) => void;
   onShowForm: (show: boolean) => void;
   onDelete: (item: ActionItem) => void;
+  onDuplicate: (item: ActionItem) => void;
+  duplicatingId?: string | null;
   onOpenTab: (item: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => void;
   inlineAction: (p: FormData) => void;
   isInlineSaving: boolean;
@@ -101,6 +104,8 @@ export function PlanTable({
   onEdit,
   onShowForm,
   onDelete,
+  onDuplicate,
+  duplicatingId = null,
   onOpenTab,
   inlineAction,
   isInlineSaving,
@@ -262,6 +267,8 @@ export function PlanTable({
                           onEdit={onEdit}
                           onShowForm={onShowForm}
                           onDelete={onDelete}
+                          onDuplicate={onDuplicate}
+                          duplicating={duplicatingId === item.id}
                           setInlineEditId={setInlineEditId}
                           inlineEditId={inlineEditId}
                           onOpenTab={onOpenTab}
@@ -371,6 +378,8 @@ function ViewRow({
   onEdit,
   onShowForm,
   onDelete,
+  onDuplicate,
+  duplicating,
   setInlineEditId,
   inlineEditId,
   onOpenTab,
@@ -383,6 +392,8 @@ function ViewRow({
   onEdit: (i: ActionItem) => void;
   onShowForm: (s: boolean) => void;
   onDelete: (i: ActionItem) => void;
+  onDuplicate: (i: ActionItem) => void;
+  duplicating: boolean;
   setInlineEditId: (id: string | null) => void;
   inlineEditId: string | null;
   onOpenTab: (i: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => void;
@@ -504,7 +515,12 @@ function ViewRow({
       <td className="sticky right-0 z-20 bg-inherit px-1 sm:px-2 py-2.5 text-right align-top" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={`Ações da linha ${item.number || item.action}`}
+              className="h-6 w-6 p-0 opacity-70 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+            >
               <MoreVertical className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
@@ -531,6 +547,10 @@ function ViewRow({
             <DropdownMenuItem onClick={() => setInlineEditId(item.id)}>
               <Check className="h-4 w-4" />
               <span>Edição rápida</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDuplicate(item)} disabled={duplicating}>
+              <CopyPlus className="h-4 w-4" />
+              <span>{duplicating ? "Duplicando..." : "Duplicar ação"}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onDelete(item)} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30">
