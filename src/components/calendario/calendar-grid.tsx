@@ -446,14 +446,9 @@ function DayCell({
               </span>
             </div>
             <ul className="max-h-56 space-y-1 overflow-y-auto pr-1">
-              {items.slice(0, 8).map((it) => (
+              {items.map((it) => (
                 <ItemRow key={it.id} item={it} />
               ))}
-              {items.length > 8 && (
-                <li className="pt-1 text-center text-[10px] text-zinc-400">
-                  + {items.length - 8} ação(ões)
-                </li>
-              )}
             </ul>
           </div>
         </div>
