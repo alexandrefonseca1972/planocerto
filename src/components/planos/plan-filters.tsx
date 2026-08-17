@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search, X, Tag, Layers, ChevronDown } from "lucide-react";
+import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,12 @@ interface PlanFiltersProps {
   dateFrom: string;
   dateTo: string;
   setDateRange: (from: string, to: string) => void;
+  tipoPaFilter: string;
+  setTipoPaFilter: (value: string) => void;
+  macroAcaoFilter: string;
+  setMacroAcaoFilter: (value: string) => void;
+  tipoPaOptions: string[];
+  macroAcaoOptions: string[];
   availableExercises: number[];
   filteredCount: number;
   totalCount: number;
@@ -73,6 +80,61 @@ function FilterSelect({
   );
 }
 
+function IconFilterSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  ariaLabel,
+  icon,
+  widthClass,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  ariaLabel: string;
+  icon: ReactNode;
+  widthClass: string;
+}) {
+  // Garante que o valor atual apareça no <select> mesmo se sumir das opções
+  // (ex.: catálogo mudou), para não desincronizar o dropdown do filtro ativo.
+  const displayOptions = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <div className="relative shrink-0">
+      <span className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400">
+        {icon}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        className={cn(
+          "h-10 appearance-none rounded-md border border-zinc-200 bg-white pl-8 pr-8 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 dark:border-zinc-700 dark:bg-zinc-900",
+          widthClass,
+          value ? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400",
+        )}
+      >
+        <option value="">{placeholder}</option>
+        {displayOptions.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="absolute right-7 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-accent-500 text-white hover:bg-accent-600"
+          aria-label={`Limpar filtro ${placeholder}`}
+        >
+          <X className="h-2.5 w-2.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function PlanFilters({
   searchQuery,
   setSearchQuery,
@@ -87,6 +149,12 @@ export function PlanFilters({
   dateFrom,
   dateTo,
   setDateRange,
+  tipoPaFilter,
+  setTipoPaFilter,
+  macroAcaoFilter,
+  setMacroAcaoFilter,
+  tipoPaOptions,
+  macroAcaoOptions,
   availableExercises,
   filteredCount,
   totalCount,
@@ -94,7 +162,12 @@ export function PlanFilters({
   totalPlanCount,
 }: PlanFiltersProps) {
   const hasDateRange = Boolean(dateFrom && dateTo);
-  const hasItemFilters = Boolean(searchQuery) || statusFilter !== null || hasDateRange;
+  const hasItemFilters =
+    Boolean(searchQuery) ||
+    statusFilter !== null ||
+    hasDateRange ||
+    Boolean(tipoPaFilter) ||
+    Boolean(macroAcaoFilter);
   const hasPlanFilters = planStatusFilter !== null || visibilityFilter !== null || exercicioFilter !== null;
 
   function clearAllPlanFilters() {
@@ -107,6 +180,8 @@ export function PlanFilters({
     setSearchQuery("");
     setStatusFilter(null);
     setDateRange("", "");
+    setTipoPaFilter("");
+    setMacroAcaoFilter("");
   }
 
   return (
@@ -159,25 +234,43 @@ export function PlanFilters({
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
             placeholder="Buscar ações..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(sanitize(e.target.value))}
-            className="pl-8 h-9 text-sm"
+            className="h-10 pl-8 text-sm"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-2.5 text-zinc-400 hover:text-zinc-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               title="Limpar busca"
             >
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
+        <IconFilterSelect
+          value={tipoPaFilter}
+          onChange={setTipoPaFilter}
+          options={tipoPaOptions}
+          placeholder="Tipo PA"
+          ariaLabel="Tipo PA"
+          icon={<Tag className="h-4 w-4" />}
+          widthClass="w-36"
+        />
+        <IconFilterSelect
+          value={macroAcaoFilter}
+          onChange={setMacroAcaoFilter}
+          options={macroAcaoOptions}
+          placeholder="Macro Ação"
+          ariaLabel="Macro Ação"
+          icon={<Layers className="h-4 w-4" />}
+          widthClass="w-40"
+        />
         <DateRangePicker from={dateFrom} to={dateTo} onChange={setDateRange} />
         {hasItemFilters && (
           <Button

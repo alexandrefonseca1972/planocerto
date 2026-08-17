@@ -14,6 +14,7 @@ import {
   deleteItem,
   updateItemStatus,
   quickUpdateItemAction,
+  duplicateItem,
 } from "@/app/actions/action-plan";
 import type { ActionPlan, ActionItem, ActionPlanFormState } from "@/types/action-plan";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,19 @@ import { AlertDialog } from "@/components/ui/alert-dialog";
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { cn } from "@/lib/utils";
 import { flattenItems, calculatePlanFinancials } from "@/components/planos/plan-utils";
-import { resolveSelectedPlanId, filterCatalogByAccess, filterPlansByGovernance, getAvailablePlanExercises, filterItemTree } from "@/components/planos/planos-page-helpers";
+import {
+  resolveSelectedPlanId,
+  filterCatalogByAccess,
+  filterPlansByGovernance,
+  getAvailablePlanExercises,
+  filterItemTree,
+  getActionById,
+  getParentById,
+  itemMatchesTipoPa,
+  itemMatchesMacroAcao,
+  collectItemClassificationOptions,
+  mergeCatalogNames,
+} from "@/components/planos/planos-page-helpers";
 import { isWithinRange } from "@/lib/date-range";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { GanttChart } from "@/components/planos/plan-gantt";
@@ -60,6 +73,7 @@ export default function PlanosPage() {
   const [editingItem, setEditingItem] = useState<ActionItem | null>(null);
   const [editingItemTab, setEditingItemTab] = useState<"modelo" | "anexos" | "comentarios" | "historico">("modelo");
   const [deletingItem, setDeletingItem] = useState<ActionItem | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   // Server actions
   const [planCreateState, planCreateAction, isPlanCreating] = useActionState(createPlan, init);
@@ -67,7 +81,7 @@ export default function PlanosPage() {
   const [, planDeleteAction, isPlanDeleting] = useActionState(deletePlan, init);
   const [itemState, itemAction, isItemSaving] = useActionState(upsertItem, init);
   const [inlineState, inlineAction, isInlineSaving] = useActionState(quickUpdateItemAction, init);
-  const [, itemDeleteAction, isItemDeleting] = useActionState(deleteItem, init);
+  const [isItemDeleting, setIsItemDeleting] = useState(false);
 
   // Filtered plans
   const filteredPlans = useMemo(() => {
@@ -183,13 +197,26 @@ export default function PlanosPage() {
     [data.items, plan?.budget_limit],
   );
 
-  // Filtros de item (busca + status + intervalo de prazo) aplicados à árvore,
-  // preservando a hierarquia pai/filho. As três views consomem `visibleItems`.
+  // Filtros de item (busca + status + intervalo + Tipo PA + Macro Ação)
+  // aplicados à árvore, preservando a hierarquia pai/filho.
   const hasItemFilters =
-    Boolean(url.searchQuery) || url.statusFilter !== null || Boolean(url.dateFrom && url.dateTo);
+    Boolean(url.searchQuery) ||
+    url.statusFilter !== null ||
+    Boolean(url.dateFrom && url.dateTo) ||
+    Boolean(url.tipoPaFilter) ||
+    Boolean(url.macroAcaoFilter);
+  const classificationOptions = useMemo(() => {
+    const fromItems = collectItemClassificationOptions(data.items);
+    return {
+      tiposPa: mergeCatalogNames(data.catalogTiposPa, fromItems.tiposPa),
+      macroAcoes: mergeCatalogNames(data.catalogMacroAcoes, fromItems.macroAcoes),
+    };
+  }, [data.items, data.catalogTiposPa, data.catalogMacroAcoes]);
   const visibleItems = useMemo(() => {
     if (!hasItemFilters) return data.items;
     const q = url.searchQuery.toLowerCase();
+    const actionById = getActionById(data.items);
+    const parentById = getParentById(data.items);
     const matchesSearch = (i: ActionItem) =>
       !url.searchQuery ||
       i.action.toLowerCase().includes(q) ||
@@ -198,9 +225,14 @@ export default function PlanosPage() {
     const matchesStatus = (i: ActionItem) => url.statusFilter === null || i.status === url.statusFilter;
     return filterItemTree(
       data.items,
-      (i) => matchesSearch(i) && matchesStatus(i) && isWithinRange(i.planned_end, url.dateFrom || null, url.dateTo || null),
+      (i) =>
+        matchesSearch(i) &&
+        matchesStatus(i) &&
+        isWithinRange(i.planned_end, url.dateFrom || null, url.dateTo || null) &&
+        itemMatchesTipoPa(i, url.tipoPaFilter || null) &&
+        itemMatchesMacroAcao(i, url.macroAcaoFilter || null, actionById, parentById),
     );
-  }, [data.items, hasItemFilters, url.searchQuery, url.statusFilter, url.dateFrom, url.dateTo]);
+  }, [data.items, hasItemFilters, url.searchQuery, url.statusFilter, url.dateFrom, url.dateTo, url.tipoPaFilter, url.macroAcaoFilter]);
   const filteredCount = useMemo(() => flattenItems(visibleItems).length, [visibleItems]);
 
   const counts = {
@@ -289,6 +321,43 @@ export default function PlanosPage() {
     setEditingItem(it);
     setEditingItemTab(tab);
     setShowItemForm(true);
+  };
+
+  const handleConfirmDeleteItem = async (formData: FormData) => {
+    if (isItemDeleting) return;
+    setIsItemDeleting(true);
+    try {
+      const result = await deleteItem({}, formData);
+      if (result.success) {
+        toast(result.message || "Item excluído!");
+        setDeletingItem(null);
+        if (selectedPlanId) await data.refreshItems(selectedPlanId);
+      } else {
+        toast(result.message || "Erro ao excluir ação.", "error");
+      }
+    } catch {
+      toast("Serviço indisponível.", "error");
+    } finally {
+      setIsItemDeleting(false);
+    }
+  };
+
+  const handleDuplicateItem = async (item: ActionItem) => {
+    if (duplicatingId) return;
+    setDuplicatingId(item.id);
+    try {
+      const result = await duplicateItem(item.id);
+      if (result.success) {
+        toast(result.message || "Ação duplicada!");
+        if (selectedPlanId) await data.refreshItems(selectedPlanId);
+      } else {
+        toast(result.message || "Erro ao duplicar ação.", "error");
+      }
+    } catch {
+      toast("Serviço indisponível.", "error");
+    } finally {
+      setDuplicatingId(null);
+    }
   };
 
   return (
@@ -407,6 +476,12 @@ export default function PlanosPage() {
           dateFrom={url.dateFrom}
           dateTo={url.dateTo}
           setDateRange={url.setDateRange}
+          tipoPaFilter={url.tipoPaFilter}
+          setTipoPaFilter={url.setTipoPaFilter}
+          macroAcaoFilter={url.macroAcaoFilter}
+          setMacroAcaoFilter={url.setMacroAcaoFilter}
+          tipoPaOptions={classificationOptions.tiposPa}
+          macroAcaoOptions={classificationOptions.macroAcoes}
           filteredCount={filteredCount}
           totalCount={allItems.length}
           filteredPlanCount={filteredPlans.length}
@@ -460,6 +535,8 @@ export default function PlanosPage() {
               onEdit={setEditingItem}
               onShowForm={setShowItemForm}
               onDelete={setDeletingItem}
+              onDuplicate={handleDuplicateItem}
+              duplicatingId={duplicatingId}
               onOpenTab={handleOpenTab}
               inlineAction={inlineAction}
               isInlineSaving={isInlineSaving}
@@ -493,7 +570,20 @@ export default function PlanosPage() {
       )}
 
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
-        {deletingItem && <ConfirmActionDialog title="Excluir acao" msg={`Excluir "${deletingItem.action}"?`} name="itemId" value={deletingItem.id} action={itemDeleteAction} pending={isItemDeleting} />}
+        {deletingItem && (
+          <ConfirmActionDialog
+            title="Excluir acao"
+            msg={
+              deletingItem.children?.length
+                ? `Excluir "${deletingItem.action}" e as subações desta cópia?`
+                : `Excluir "${deletingItem.action}"?`
+            }
+            name="itemId"
+            value={deletingItem.id}
+            action={handleConfirmDeleteItem}
+            pending={isItemDeleting}
+          />
+        )}
       </AlertDialog>
 
       {showUploadDialog && (

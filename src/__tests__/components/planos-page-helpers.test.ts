@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMacroActionOptions, filterCatalogByAccess, filterItemTree, filterPlansByGovernance, getAvailablePlanExercises, isValidActionText, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
+import { buildMacroActionOptions, collectItemClassificationOptions, collectParentGroups, filterCatalogByAccess, filterItemTree, filterPlansByGovernance, getActionById, getAvailablePlanExercises, getParentById, isValidActionText, itemMatchesMacroAcao, itemMatchesTipoPa, mergeCatalogNames, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
 import { isWithinRange } from "@/lib/date-range";
 import type { ActionItem } from "@/types/action-plan";
 import type { ActionPlan } from "@/types/action-plan";
@@ -76,6 +76,26 @@ describe("orderParentGroupsByMacroCatalog", () => {
     ];
 
     expect(orderParentGroupsByMacroCatalog(groups)).toEqual(groups);
+  });
+});
+
+describe("collectParentGroups", () => {
+  it("inclui raízes mesmo sem filhos e nós que já são grupo", () => {
+    const tree = [
+      item({ id: "g1", action: "Trade", children: [item({ id: "c1", parent_id: "g1", action: "Campanha" })] }),
+      item({ id: "g2", action: "Eventos" }),
+      item({ id: "leaf", parent_id: "g1", action: "não deve aparecer no topo" }),
+    ];
+
+    expect(collectParentGroups(tree).map((g) => g.action)).toEqual(["Trade", "Eventos"]);
+  });
+
+  it("exclui o item em edição", () => {
+    const tree = [
+      item({ id: "g1", action: "Trade" }),
+      item({ id: "g2", action: "Eventos" }),
+    ];
+    expect(collectParentGroups(tree, "g1").map((g) => g.id)).toEqual(["g2"]);
   });
 });
 
@@ -190,5 +210,52 @@ describe("filterItemTree", () => {
   it("filtra folhas de topo por status", () => {
     const result = filterItemTree(tree, (i) => i.status === 5);
     expect(result.map((i) => i.id)).toEqual(["leaf"]);
+  });
+});
+
+describe("item classification filters", () => {
+  const tree: ActionItem[] = [
+    item({
+      id: "g1", action: "Trade", children: [
+        item({
+          id: "c1", parent_id: "g1", tipo_pa: "Vestibular", action: "Campanha", children: [
+            item({ id: "n1", parent_id: "c1", tipo_pa: "Vestibular", action: "Neto" }),
+          ],
+        }),
+        item({ id: "c2", parent_id: "g1", tipo_pa: "ENEM", action: "Prova" }),
+      ],
+    }),
+    item({ id: "leaf", tipo_pa: "Vestibular", action: "Avulsa" }),
+  ];
+
+  it("itemMatchesTipoPa ignora filtro vazio e compara sem case", () => {
+    expect(itemMatchesTipoPa(tree[1], null)).toBe(true);
+    expect(itemMatchesTipoPa(tree[1], "vestibular")).toBe(true);
+    expect(itemMatchesTipoPa(tree[1], "ENEM")).toBe(false);
+  });
+
+  it("itemMatchesMacroAcao casa o grupo e os descendentes em qualquer profundidade", () => {
+    const actionById = getActionById(tree);
+    const parentById = getParentById(tree);
+    expect(itemMatchesMacroAcao(tree[0], "Trade", actionById, parentById)).toBe(true);
+    expect(itemMatchesMacroAcao(tree[0].children![0], "Trade", actionById, parentById)).toBe(true);
+    expect(itemMatchesMacroAcao(tree[0].children![0].children![0], "Trade", actionById, parentById)).toBe(true);
+    expect(itemMatchesMacroAcao(tree[1], "Trade", actionById, parentById)).toBe(false);
+    expect(itemMatchesMacroAcao(tree[1], null, actionById, parentById)).toBe(true);
+  });
+
+  it("collectItemClassificationOptions extrai tipos e grupos", () => {
+    expect(collectItemClassificationOptions(tree)).toEqual({
+      tiposPa: ["ENEM", "Vestibular"],
+      macroAcoes: ["Campanha", "Trade"],
+    });
+  });
+
+  it("mergeCatalogNames coloca o catálogo na frente e evita duplicata", () => {
+    expect(mergeCatalogNames([{ name: "Vestibular" }, { name: "Concurso" }], ["ENEM", "vestibular"])).toEqual([
+      "Vestibular",
+      "Concurso",
+      "ENEM",
+    ]);
   });
 });
