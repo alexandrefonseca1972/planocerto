@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserTenants } from "@/app/actions/tenant";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
+import { getCurrentUserPlanScope } from "@/app/actions/action-plan";
+import { filterUnitsByScope, filterAreasByScope } from "@/components/dashboard/dashboard-access";
+import type { FilterArea, FilterUnit } from "@/components/dashboard/area-unit-filter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, Building2 } from "lucide-react";
 import {
@@ -33,6 +36,8 @@ export default async function CalendarioPage({
   let currentTenantName = "";
   let noTenant = false;
   const items: CalendarDeadlineItem[] = [];
+  let filterAreas: FilterArea[] = [];
+  let filterUnits: FilterUnit[] = [];
 
   try {
     const supabase = await createClient();
@@ -77,6 +82,26 @@ export default async function CalendarioPage({
       noTenant = true;
     } else {
       currentTenantName = activeTenant.name;
+
+      // Catálogo de áreas/unidades para o filtro (mesmo escopo do dashboard)
+      const [{ data: areaRows }, { data: unitRows }, scope] = await Promise.all([
+        supabase
+          .from("areas")
+          .select("id,name")
+          .or(`tenant_id.eq.${activeTenant.id},tenant_id.is.null`),
+        supabase
+          .from("units")
+          .select("id,name,uf,area_id")
+          .eq("tenant_id", activeTenant.id)
+          .eq("active", true),
+        getCurrentUserPlanScope(),
+      ]);
+      filterUnits = filterUnitsByScope((unitRows || []) as FilterUnit[], scope);
+      filterAreas = filterAreasByScope(
+        (areaRows || []) as FilterArea[],
+        filterUnits,
+        scope,
+      );
 
       const { data: allPlans } = await supabase
         .from("action_plans")
@@ -180,6 +205,8 @@ export default async function CalendarioPage({
 
       <CalendarGrid
         items={items}
+        areas={filterAreas}
+        units={filterUnits}
         filterKinds={initialFilter ? [initialFilter] : undefined}
       />
     </div>

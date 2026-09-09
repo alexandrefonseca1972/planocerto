@@ -3,6 +3,8 @@
 import { useActionState, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
+import { AreaUnitFilter } from "@/components/dashboard/area-unit-filter";
+import { filterUnitsByScope, filterAreasByScope } from "@/components/dashboard/dashboard-access";
 import { useToast } from "@/components/ui/toast";
 import { usePlanosUrlParams } from "@/lib/hooks/use-planos-url-params";
 import { usePlanosData } from "@/lib/hooks/use-planos-data";
@@ -55,7 +57,7 @@ import { Plus, Pencil, Trash2, ClipboardList, Building2, CalendarDays, Lock, Arc
 const init: ActionPlanFormState = { message: undefined, errors: {} };
 
 export default function PlanosPage() {
-  const { currentTenant, selectedUnitIds } = useTenant();
+  const { currentTenant, selectedUnitIds, setSelectedUnitIds } = useTenant();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -82,6 +84,20 @@ export default function PlanosPage() {
   const [itemState, itemAction, isItemSaving] = useActionState(upsertItem, init);
   const [inlineState, inlineAction, isInlineSaving] = useActionState(quickUpdateItemAction, init);
   const [isItemDeleting, setIsItemDeleting] = useState(false);
+
+  // Áreas/unidades visíveis ao usuário (mesma semântica de escopo do dashboard)
+  const filterScope = useMemo(
+    () => ({ areaIds: data.userAreaIds, unitIds: data.userUnitIds }),
+    [data.userAreaIds, data.userUnitIds],
+  );
+  const scopedUnits = useMemo(
+    () => filterUnitsByScope(data.catalogUnits, filterScope),
+    [data.catalogUnits, filterScope],
+  );
+  const scopedAreas = useMemo(
+    () => filterAreasByScope(data.catalogAreas, scopedUnits, filterScope),
+    [data.catalogAreas, scopedUnits, filterScope],
+  );
 
   // Filtered plans
   const filteredPlans = useMemo(() => {
@@ -394,12 +410,6 @@ export default function PlanosPage() {
             {plan.unit && <Badge variant="outline" className="text-xs"><Building2 className="mr-1 h-3 w-3" />{plan.unit}</Badge>}
             {plan.director && <Badge variant="outline" className="text-xs"><UserCircle className="mr-1 h-3 w-3" />{plan.director}</Badge>}
             {plan.goal && <Badge variant="default" className="text-xs"><Target className="mr-1 h-3 w-3" />{plan.goal}</Badge>}
-            {selectedUnitIds.length > 0 && (
-              <Badge variant="outline" className="text-xs border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/50">
-                <Building2 className="mr-1 h-3 w-3" />
-                {selectedUnitIds.length === 1 ? "1 unidade" : `${selectedUnitIds.length} unidades`} · filtro do dashboard
-              </Badge>
-            )}
           </div>
 
           <BudgetHealthBar totalCost={totalCost} budgetLimit={plan.budget_limit || 0} isOverBudget={isOverBudget} percentUsed={percentUsed} />
@@ -462,6 +472,16 @@ export default function PlanosPage() {
       {/* Filters + Views */}
       {!data.loadingItems && <>
         <PlanFilters
+          leading={
+            <div className="min-w-0 flex-1 sm:max-w-md">
+              <AreaUnitFilter
+                areas={scopedAreas}
+                units={scopedUnits.map((u) => ({ id: u.id, name: u.name, area_id: u.area_id, uf: u.uf }))}
+                selectedUnitIds={selectedUnitIds}
+                onChangeUnits={setSelectedUnitIds}
+              />
+            </div>
+          }
           searchQuery={url.searchQuery}
           setSearchQuery={url.setSearchQuery}
           statusFilter={url.statusFilter}

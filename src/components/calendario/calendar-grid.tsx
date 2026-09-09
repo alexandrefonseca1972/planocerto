@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTenant } from "@/lib/contexts/tenant-context";
+import { AreaUnitFilter, type FilterArea, type FilterUnit } from "@/components/dashboard/area-unit-filter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ const MONTH_NAMES = [
 
 interface Props {
   items: CalendarDeadlineItem[];
+  areas?: FilterArea[];
+  units?: FilterUnit[];
   initialMonth?: { year: number; month: number };
   filterKinds?: DeadlineKind[];
   defaultView?: "calendar" | "list";
@@ -51,11 +54,13 @@ interface Props {
 
 export function CalendarGrid({
   items: rawItems,
+  areas = [],
+  units = [],
   initialMonth,
   filterKinds,
   defaultView = "calendar",
 }: Props) {
-  const { selectedUnitIds } = useTenant();
+  const { selectedUnitIds, setSelectedUnitIds } = useTenant();
 
   // Apply unit filter from dashboard
   const items = useMemo(() => {
@@ -171,10 +176,14 @@ export function CalendarGrid({
 
   return (
     <div className="space-y-4">
-      {selectedUnitIds.length > 0 && (
-        <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-400">
-          <Building2 className="h-3.5 w-3.5 shrink-0" />
-          Filtro de {selectedUnitIds.length === 1 ? "1 unidade" : `${selectedUnitIds.length} unidades`} ativo — configurado no Dashboard.
+      {units.length > 0 && (
+        <div className="min-w-0 sm:max-w-md">
+          <AreaUnitFilter
+            areas={areas}
+            units={units}
+            selectedUnitIds={selectedUnitIds}
+            onChangeUnits={setSelectedUnitIds}
+          />
         </div>
       )}
       {/* Toolbar */}

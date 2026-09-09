@@ -10,6 +10,8 @@ import { STATUS_FAROL } from "@/types/action-plan";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 interface PlanFiltersProps {
+  /** Slot no início da linha de filtros de plano (ex.: filtro de áreas/unidades). */
+  leading?: ReactNode;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   statusFilter: number | null;
@@ -136,6 +138,7 @@ function IconFilterSelect({
 }
 
 export function PlanFilters({
+  leading,
   searchQuery,
   setSearchQuery,
   statusFilter,
@@ -187,6 +190,7 @@ export function PlanFilters({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
+        {leading}
         <FilterSelect
           value={planStatusFilter || ""}
           onChange={(v) => setPlanStatusFilter((v || null) as "active" | "archived" | null)}
