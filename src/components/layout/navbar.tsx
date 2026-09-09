@@ -18,6 +18,7 @@ import { FontControl } from "@/components/layout/font-control";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { UserMenu } from "@/components/layout/user-menu";
+import { useTenant } from "@/lib/contexts/tenant-context";
 
 interface NavbarProps {
   user: User;
@@ -27,6 +28,7 @@ interface NavbarProps {
 
 export function Navbar({ user, userPermissions, role }: NavbarProps) {
   const pathname = usePathname();
+  const { setSelectedUnitIds, setSelectedTenantIds, activeTenantId } = useTenant();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -64,7 +66,13 @@ export function Navbar({ user, userPermissions, role }: NavbarProps) {
     <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/90 backdrop-blur-md dark:border-zinc-700/80 dark:bg-zinc-900/90">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
         <div className="flex h-14 items-center gap-4">
-          <PlanocertoLogo href="/dashboard" />
+          <PlanocertoLogo
+            href="/dashboard"
+            onClick={() => {
+              setSelectedUnitIds([]);
+              if (activeTenantId) setSelectedTenantIds([activeTenantId]);
+            }}
+          />
           <div className="hidden items-center gap-1 sm:flex">
             <TenantSwitcher userPermissions={userPermissions} />
           </div>

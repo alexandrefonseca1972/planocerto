@@ -5,9 +5,10 @@ import { TrendingUp } from "lucide-react";
 interface PlanocertoLogoProps {
   className?: string;
   href?: string;
+  onClick?: () => void;
 }
 
-export function PlanocertoLogo({ className, href }: PlanocertoLogoProps) {
+export function PlanocertoLogo({ className, href, onClick }: PlanocertoLogoProps) {
   const content = (
     <div className={cn("flex items-center gap-2 select-none", className)}>
       <div className="flex h-8 w-8 items-center justify-center rounded-md bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-900">
@@ -21,7 +22,7 @@ export function PlanocertoLogo({ className, href }: PlanocertoLogoProps) {
 
   if (href) {
     return (
-      <Link href={href} className="inline-block">
+      <Link href={href} onClick={onClick} className="inline-block">
         {content}
       </Link>
     );

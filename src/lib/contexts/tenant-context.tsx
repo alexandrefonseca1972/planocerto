@@ -19,6 +19,8 @@ const UNIT_FILTER_KEY = "selected_unit_ids";
 
 interface TenantContextType {
   currentTenant: Tenant | null;
+  /** Empresa ativa na sessão (cookie), independente da multi-seleção. */
+  activeTenantId: string | null;
   allTenants: Tenant[];
   selectedTenantIds: string[];
   setSelectedTenantIds: (ids: string[]) => void;
@@ -162,6 +164,7 @@ export function TenantProvider({
     <TenantContext.Provider
       value={{
         currentTenant,
+        activeTenantId,
         allTenants: initialTenants,
         selectedTenantIds,
         setSelectedTenantIds,
