@@ -381,28 +381,7 @@ export default function PlanosPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          {filteredPlans.length > 1 ? (
-            <div className="flex flex-col gap-1">
-              <label htmlFor="plan-selector" className="text-xs font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                Plano de acao
-              </label>
-              <select
-                id="plan-selector"
-                value={selectedPlanId ?? ""}
-                onChange={(e) => setSelectedPlanId(e.target.value)}
-                disabled={data.loadingItems}
-                className="h-10 w-full max-w-sm rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-              >
-                {filteredPlans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.unit ? `${p.unit} — ` : ""}{p.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">{plan.title || "Planos de Acao"}</h1>
-          )}
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">{plan.title || "Planos de Acao"}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {plan.exercicio && <Badge variant="secondary" className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"><CalendarDays className="mr-1 h-3 w-3" />{plan.exercicio}</Badge>}
             {plan.visibility === "restricted" && <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50"><Lock className="mr-1 h-3 w-3" />Restrito</Badge>}
