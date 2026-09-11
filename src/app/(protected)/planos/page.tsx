@@ -4,7 +4,7 @@ import { useActionState, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { AreaUnitFilter } from "@/components/dashboard/area-unit-filter";
-import { filterUnitsByScope, filterAreasByScope } from "@/components/dashboard/dashboard-access";
+import { filterUnitsByScope, filterAreasByScope, filterByUnitIds } from "@/components/dashboard/dashboard-access";
 import { useToast } from "@/components/ui/toast";
 import { usePlanosUrlParams } from "@/lib/hooks/use-planos-url-params";
 import { usePlanosData } from "@/lib/hooks/use-planos-data";
@@ -39,11 +39,11 @@ import {
   itemMatchesMacroAcao,
   collectItemClassificationOptions,
   mergeCatalogNames,
+  hasActiveItemFilters,
 } from "@/components/planos/planos-page-helpers";
 import { isWithinRange } from "@/lib/date-range";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
 import { GanttChart } from "@/components/planos/plan-gantt";
-import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { BudgetHealthBar } from "@/components/planos/budget-health-bar";
 import { UploadPlanosDialog } from "@/components/planos/upload-planos-dialog";
 import { PlanFormDialog } from "@/components/planos/plan-form-dialog";
@@ -100,26 +100,41 @@ export default function PlanosPage() {
   );
 
   // Filtered plans
-  const filteredPlans = useMemo(() => {
-    const byGovernance = filterPlansByGovernance(data.allPlans, {
-      exercicio: url.exercicioFilter,
-      visibility: url.visibilityFilter,
-      status: url.planStatusFilter,
-    });
-    if (selectedUnitIds.length === 0) return byGovernance;
-    const unitSet = new Set(selectedUnitIds);
-    return byGovernance.filter((p) => p.unit_id && unitSet.has(p.unit_id));
-  }, [data.allPlans, url.exercicioFilter, url.visibilityFilter, url.planStatusFilter, selectedUnitIds]);
+  const filteredPlans = useMemo(
+    () =>
+      filterByUnitIds(
+        filterPlansByGovernance(data.allPlans, {
+          exercicio: url.exercicioFilter,
+          visibility: url.visibilityFilter,
+          status: url.planStatusFilter,
+        }),
+        selectedUnitIds,
+      ),
+    [data.allPlans, url.exercicioFilter, url.visibilityFilter, url.planStatusFilter, selectedUnitIds],
+  );
 
   const availableExercises = useMemo(() => getAvailablePlanExercises(data.allPlans), [data.allPlans]);
-  const hasGovernanceFilters = url.planStatusFilter !== null || url.visibilityFilter !== null || url.exercicioFilter !== null;
+  const hasPlanFilters =
+    url.planStatusFilter !== null || url.visibilityFilter !== null || url.exercicioFilter !== null || selectedUnitIds.length > 0;
+  // Limpa governança (URL) e unidades (contexto) juntos: são o mesmo recorte para o usuário.
+  const clearPlanFilters = () => {
+    url.clearFilters();
+    setSelectedUnitIds([]);
+  };
 
   // Resolve selected plan
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   useEffect(() => {
+    const resolved = resolveSelectedPlanId(filteredPlans, url.requestedPlanId);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedPlanId(resolveSelectedPlanId(filteredPlans, url.requestedPlanId));
-  }, [filteredPlans, url.requestedPlanId]);
+    setSelectedPlanId(resolved);
+    // O plano da URL saiu do recorte: realinha a URL para o plano exibido
+    // (só após os planos carregarem, senão apagaria ?plan= no primeiro render).
+    if (!data.loading && url.requestedPlanId && resolved !== url.requestedPlanId) {
+      url.setSelectedPlan(resolved);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredPlans, url.requestedPlanId, data.loading]);
 
   // Load plan items when selected plan changes
   useEffect(() => {
@@ -215,12 +230,7 @@ export default function PlanosPage() {
 
   // Filtros de item (busca + status + intervalo + Tipo PA + Macro Ação)
   // aplicados à árvore, preservando a hierarquia pai/filho.
-  const hasItemFilters =
-    Boolean(url.searchQuery) ||
-    url.statusFilter !== null ||
-    Boolean(url.dateFrom && url.dateTo) ||
-    Boolean(url.tipoPaFilter) ||
-    Boolean(url.macroAcaoFilter);
+  const hasItemFilters = hasActiveItemFilters(url);
   const classificationOptions = useMemo(() => {
     const fromItems = collectItemClassificationOptions(data.items);
     return {
@@ -287,7 +297,7 @@ export default function PlanosPage() {
             </h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 max-w-sm">
               {hasPlansWithoutMatch ? (
-                <>Ajuste os filtros de governanca para localizar um plano ja existente em <strong>{currentTenant?.name}</strong>.</>
+                <>Ajuste os filtros de plano ou de areas/unidades para localizar um plano ja existente em <strong>{currentTenant?.name}</strong>.</>
               ) : (
                 <>Crie um plano de acao 5W2H para a empresa <strong>{currentTenant?.name}</strong>.</>
               )}
@@ -298,8 +308,8 @@ export default function PlanosPage() {
                   <Plus className="h-4 w-4 mr-2" /> Criar plano de acao
                 </Button>
               )}
-              {hasGovernanceFilters && (
-                <Button size="lg" variant="outline" onClick={url.clearFilters}>
+              {hasPlanFilters && (
+                <Button size="lg" variant="outline" onClick={clearPlanFilters}>
                   Limpar filtros
                 </Button>
               )}
@@ -458,6 +468,8 @@ export default function PlanosPage() {
                 units={scopedUnits.map((u) => ({ id: u.id, name: u.name, area_id: u.area_id, uf: u.uf }))}
                 selectedUnitIds={selectedUnitIds}
                 onChangeUnits={setSelectedUnitIds}
+                single
+                placeholder={plan.unit || undefined}
               />
             </div>
           }
@@ -485,14 +497,9 @@ export default function PlanosPage() {
           totalCount={allItems.length}
           filteredPlanCount={filteredPlans.length}
           totalPlanCount={data.allPlans.length}
+          onClearPlanFilters={clearPlanFilters}
+          onClearItemFilters={url.clearItemFilters}
         />
-
-        {!plan && (
-          <div className="flex items-center gap-2">
-            <CopyPlanButton plan={null} plans={data.allPlans} toast={toast} router={router} />
-            <span className="text-[11px] text-zinc-400">Clonar um plano existente</span>
-          </div>
-        )}
 
         {url.viewMode === "gantt" ? (
           visibleItems.length === 0 ? (

@@ -232,3 +232,21 @@ export function mergeCatalogNames(catalog: { name: string }[], fromItems: string
   }
   return out;
 }
+
+/** Algum filtro de ações (busca, farol, prazo, tipo PA, macro) está ativo? */
+export function hasActiveItemFilters(f: {
+  searchQuery: string;
+  statusFilter: number | null;
+  dateFrom: string;
+  dateTo: string;
+  tipoPaFilter: string;
+  macroAcaoFilter: string;
+}): boolean {
+  return (
+    Boolean(f.searchQuery) ||
+    f.statusFilter !== null ||
+    Boolean(f.dateFrom && f.dateTo) ||
+    Boolean(f.tipoPaFilter) ||
+    Boolean(f.macroAcaoFilter)
+  );
+}

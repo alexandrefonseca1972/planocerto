@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PlanFilters } from "@/components/planos/plan-filters";
 
@@ -28,6 +28,8 @@ describe("PlanFilters", () => {
     totalCount: 10,
     filteredPlanCount: 2,
     totalPlanCount: 4,
+    onClearPlanFilters: vi.fn(),
+    onClearItemFilters: vi.fn(),
   };
 
   it("should render search input and status buttons", () => {
@@ -44,12 +46,27 @@ describe("PlanFilters", () => {
     expect(screen.getByText(/Concluído/i)).toBeInTheDocument();
   });
 
-  it("should call setSearchQuery on input change", () => {
+  it("should call setSearchQuery on input change (debounced)", async () => {
     render(<PlanFilters {...mockProps} />);
     const input = screen.getByPlaceholderText(/buscar ações/i);
-    
+
     fireEvent.change(input, { target: { value: "teste" } });
-    expect(mockProps.setSearchQuery).toHaveBeenCalledWith("teste");
+    expect(mockProps.setSearchQuery).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockProps.setSearchQuery).toHaveBeenCalledWith("teste"));
+  });
+
+  it("limpar filtros de plano e de ações dispara um único callback cada", () => {
+    render(<PlanFilters {...mockProps} planStatusFilter="archived" searchQuery="x" />);
+    fireEvent.click(screen.getByRole("button", { name: /^limpar filtros$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^limpar$/i }));
+    expect(mockProps.onClearPlanFilters).toHaveBeenCalledTimes(1);
+    expect(mockProps.onClearItemFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it("X do select de governança limpa aquele filtro", () => {
+    render(<PlanFilters {...mockProps} planStatusFilter="archived" />);
+    fireEvent.click(screen.getByRole("button", { name: /limpar filtro situação do plano/i }));
+    expect(mockProps.setPlanStatusFilter).toHaveBeenCalledWith(null);
   });
 
   it("should call setStatusFilter when clicking a status button", () => {

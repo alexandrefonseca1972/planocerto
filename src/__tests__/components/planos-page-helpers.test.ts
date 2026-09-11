@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMacroActionOptions, collectItemClassificationOptions, collectParentGroups, filterCatalogByAccess, filterItemTree, filterPlansByGovernance, getActionById, getAvailablePlanExercises, getParentById, isValidActionText, itemMatchesMacroAcao, itemMatchesTipoPa, mergeCatalogNames, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
+import { buildMacroActionOptions, collectItemClassificationOptions, collectParentGroups, filterCatalogByAccess, filterItemTree, filterPlansByGovernance, getActionById, getAvailablePlanExercises, getParentById, hasActiveItemFilters, isValidActionText, itemMatchesMacroAcao, itemMatchesTipoPa, mergeCatalogNames, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
 import { isWithinRange } from "@/lib/date-range";
 import type { ActionItem } from "@/types/action-plan";
 import type { ActionPlan } from "@/types/action-plan";
@@ -257,5 +257,18 @@ describe("item classification filters", () => {
       "Concurso",
       "ENEM",
     ]);
+  });
+});
+
+describe("hasActiveItemFilters", () => {
+  const none = { searchQuery: "", statusFilter: null, dateFrom: "", dateTo: "", tipoPaFilter: "", macroAcaoFilter: "" };
+  it("é falso sem filtros e com intervalo incompleto", () => {
+    expect(hasActiveItemFilters(none)).toBe(false);
+    expect(hasActiveItemFilters({ ...none, dateFrom: "2026-01-01" })).toBe(false);
+  });
+  it("é verdadeiro com qualquer filtro", () => {
+    expect(hasActiveItemFilters({ ...none, statusFilter: 0 })).toBe(true);
+    expect(hasActiveItemFilters({ ...none, dateFrom: "2026-01-01", dateTo: "2026-02-01" })).toBe(true);
+    expect(hasActiveItemFilters({ ...none, macroAcaoFilter: "x" })).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTenant } from "@/lib/contexts/tenant-context";
 import { AreaUnitFilter, type FilterArea, type FilterUnit } from "@/components/dashboard/area-unit-filter";
+import { filterByUnitIds } from "@/components/dashboard/dashboard-access";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,11 +64,7 @@ export function CalendarGrid({
   const { selectedUnitIds, setSelectedUnitIds } = useTenant();
 
   // Apply unit filter from dashboard
-  const items = useMemo(() => {
-    if (selectedUnitIds.length === 0) return rawItems;
-    const unitSet = new Set(selectedUnitIds);
-    return rawItems.filter((i) => i.unit_id && unitSet.has(i.unit_id));
-  }, [rawItems, selectedUnitIds]);
+  const items = useMemo(() => filterByUnitIds(rawItems, selectedUnitIds), [rawItems, selectedUnitIds]);
 
   const todayDate = useMemo(() => {
     const d = new Date();

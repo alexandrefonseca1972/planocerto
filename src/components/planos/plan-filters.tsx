@@ -1,7 +1,9 @@
 "use client";
 
 import { Search, X, Tag, Layers, ChevronDown } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useDebounce } from "@/lib/hooks/use-debounce";
+import { hasActiveItemFilters } from "@/components/planos/planos-page-helpers";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -36,6 +38,9 @@ interface PlanFiltersProps {
   totalCount: number;
   filteredPlanCount: number;
   totalPlanCount: number;
+  /** Limpam TODOS os filtros do grupo em um único replace de URL. */
+  onClearPlanFilters: () => void;
+  onClearItemFilters: () => void;
 }
 
 function FilterSelect({
@@ -59,7 +64,7 @@ function FilterSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={ariaLabel ?? placeholder}
-        className="h-9 rounded-md border border-zinc-200 bg-white pl-3 pr-7 text-sm text-zinc-700 shadow-sm appearance-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+        className="h-9 rounded-md border border-zinc-200 bg-white pl-3 pr-8 text-sm text-zinc-700 shadow-sm appearance-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
       >
         <option value="">{placeholder}</option>
         {options.map((opt) => (
@@ -68,9 +73,10 @@ function FilterSelect({
       </select>
       {value && showClear && (
         <button
-          onClick={(e) => { e.stopPropagation(); onChange(""); }}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-          title="Limpar filtro"
+          type="button"
+          onClick={() => onChange("")}
+          className="absolute right-7 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          aria-label={`Limpar filtro ${ariaLabel ?? placeholder}`}
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -163,29 +169,26 @@ export function PlanFilters({
   totalCount,
   filteredPlanCount,
   totalPlanCount,
+  onClearPlanFilters,
+  onClearItemFilters,
 }: PlanFiltersProps) {
-  const hasDateRange = Boolean(dateFrom && dateTo);
-  const hasItemFilters =
-    Boolean(searchQuery) ||
-    statusFilter !== null ||
-    hasDateRange ||
-    Boolean(tipoPaFilter) ||
-    Boolean(macroAcaoFilter);
+  const hasItemFilters = hasActiveItemFilters({ searchQuery, statusFilter, dateFrom, dateTo, tipoPaFilter, macroAcaoFilter });
   const hasPlanFilters = planStatusFilter !== null || visibilityFilter !== null || exercicioFilter !== null;
 
-  function clearAllPlanFilters() {
-    setPlanStatusFilter(null);
-    setVisibilityFilter(null);
-    setExercicioFilter(null);
-  }
-
-  function clearAllItemFilters() {
-    setSearchQuery("");
-    setStatusFilter(null);
-    setDateRange("", "");
-    setTipoPaFilter("");
-    setMacroAcaoFilter("");
-  }
+  // Busca: estado local + debounce para não navegar a cada tecla.
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  const debouncedSearch = useDebounce(searchInput, 300);
+  useEffect(() => {
+    if (debouncedSearch !== searchQuery) setSearchQuery(debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+  useEffect(() => {
+    // URL mudou por fora (limpar, voltar): sincroniza o campo. Se a URL só está
+    // alcançando o que acabamos de enviar, não mexe (evita engolir tecla digitada).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (searchQuery !== debouncedSearch) setSearchInput(searchQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   return (
     <div className="space-y-3">
@@ -225,7 +228,7 @@ export function PlanFilters({
           <Button
             variant="ghost"
             size="sm"
-            onClick={clearAllPlanFilters}
+            onClick={onClearPlanFilters}
             className="h-7 text-[11px] text-zinc-400 hover:text-zinc-600"
           >
             <X className="mr-1 h-3 w-3" />
@@ -243,13 +246,14 @@ export function PlanFilters({
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
             placeholder="Buscar ações..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(sanitize(e.target.value))}
+            value={searchInput}
+            onChange={(e) => setSearchInput(sanitize(e.target.value))}
             className="h-10 pl-8 text-sm"
           />
-          {searchQuery && (
+          {searchInput && (
             <button
-              onClick={() => setSearchQuery("")}
+              type="button"
+              onClick={() => { setSearchInput(""); setSearchQuery(""); }}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               title="Limpar busca"
             >
@@ -280,7 +284,7 @@ export function PlanFilters({
           <Button
             variant="ghost"
             size="sm"
-            onClick={clearAllItemFilters}
+            onClick={onClearItemFilters}
             className="h-7 text-[11px] text-zinc-400 hover:text-zinc-600 shrink-0"
           >
             <X className="mr-1 h-3 w-3" />

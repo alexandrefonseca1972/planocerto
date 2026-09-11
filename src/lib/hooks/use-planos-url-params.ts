@@ -3,26 +3,44 @@
 import { useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
+type Params = Record<string, string | number | null>;
+
+/** Número inteiro positivo ou null (descarta "abc", "", "0", "-1"). */
+function parseIntParam(value: string | null): number | null {
+  const n = Number(value);
+  return value && Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function oneOf<T extends string>(value: string | null, allowed: readonly T[]): T | null {
+  return allowed.includes(value as T) ? (value as T) : null;
+}
+
+export const PLAN_FILTER_KEYS = ["plan_status", "plan_visibility", "plan_year"] as const;
+export const ITEM_FILTER_KEYS = ["q", "status", "date_from", "date_to", "tipo_pa", "macro"] as const;
+
 export function usePlanosUrlParams() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const searchQuery = searchParams.get("q") || "";
-  const statusFilter = searchParams.get("status") ? Number(searchParams.get("status")) : null;
-  const viewMode = (searchParams.get("view") as "table" | "kanban" | "gantt") || "table";
-  const planStatusFilter = (searchParams.get("plan_status") as "active" | "archived" | null) || null;
-  const visibilityFilter = (searchParams.get("plan_visibility") as "public" | "restricted" | null) || null;
-  const exercicioFilter = searchParams.get("plan_year") ? Number(searchParams.get("plan_year")) : null;
-  const dateFrom = searchParams.get("date_from") || "";
-  const dateTo = searchParams.get("date_to") || "";
+  const statusFilter = parseIntParam(searchParams.get("status"));
+  const viewMode = oneOf(searchParams.get("view"), ["table", "kanban", "gantt"] as const) || "table";
+  const planStatusFilter = oneOf(searchParams.get("plan_status"), ["active", "archived"] as const);
+  const visibilityFilter = oneOf(searchParams.get("plan_visibility"), ["public", "restricted"] as const);
+  const exercicioFilter = parseIntParam(searchParams.get("plan_year"));
+  // Intervalo só vale com as duas pontas; meia seleção é ignorada.
+  const rawFrom = searchParams.get("date_from") || "";
+  const rawTo = searchParams.get("date_to") || "";
+  const dateFrom = rawFrom && rawTo ? rawFrom : "";
+  const dateTo = rawFrom && rawTo ? rawTo : "";
   const tipoPaFilter = searchParams.get("tipo_pa") || "";
   const macroAcaoFilter = searchParams.get("macro") || "";
   const requestedPlanId = searchParams.get("plan");
   const requestedItemId = searchParams.get("item");
 
   const createQueryString = useCallback(
-    (params: Record<string, string | number | null>) => {
+    (params: Params) => {
       const newSearchParams = new URLSearchParams(searchParams.toString());
       for (const [key, value] of Object.entries(params)) {
         if (value === null || value === "") {
@@ -36,45 +54,17 @@ export function usePlanosUrlParams() {
     [searchParams]
   );
 
-  const setSearchQuery = (query: string) => {
-    router.replace(`${pathname}?${createQueryString({ q: query })}`, { scroll: false });
-  };
+  /** Aplica várias chaves em UM único replace (setters encadeados se sobrescrevem). */
+  const setParams = useCallback(
+    (params: Params) => {
+      const qs = createQueryString(params);
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [createQueryString, pathname, router]
+  );
 
-  const setStatusFilter = (status: number | null) => {
-    router.replace(`${pathname}?${createQueryString({ status })}`, { scroll: false });
-  };
-
-  const setViewMode = (view: "table" | "kanban" | "gantt") => {
-    router.replace(`${pathname}?${createQueryString({ view })}`, { scroll: false });
-  };
-
-  const setPlanStatusFilter = (status: "active" | "archived" | null) => {
-    router.replace(`${pathname}?${createQueryString({ plan_status: status })}`, { scroll: false });
-  };
-
-  const setVisibilityFilter = (visibility: "public" | "restricted" | null) => {
-    router.replace(`${pathname}?${createQueryString({ plan_visibility: visibility })}`, { scroll: false });
-  };
-
-  const setExercicioFilter = (exercicio: number | null) => {
-    router.replace(`${pathname}?${createQueryString({ plan_year: exercicio })}`, { scroll: false });
-  };
-
-  const setDateRange = (from: string, to: string) => {
-    router.replace(`${pathname}?${createQueryString({ date_from: from || null, date_to: to || null })}`, { scroll: false });
-  };
-
-  const setTipoPaFilter = (tipoPa: string) => {
-    router.replace(`${pathname}?${createQueryString({ tipo_pa: tipoPa || null })}`, { scroll: false });
-  };
-
-  const setMacroAcaoFilter = (macroAcao: string) => {
-    router.replace(`${pathname}?${createQueryString({ macro: macroAcao || null })}`, { scroll: false });
-  };
-
-  const clearFilters = () => {
-    router.replace(`${pathname}?${createQueryString({ plan_status: null, plan_visibility: null, plan_year: null })}`, { scroll: false });
-  };
+  const clearKeys = (keys: readonly string[]) =>
+    setParams(Object.fromEntries(keys.map((k) => [k, null])));
 
   return {
     searchQuery,
@@ -90,15 +80,19 @@ export function usePlanosUrlParams() {
     requestedPlanId,
     requestedItemId,
     createQueryString,
-    setSearchQuery,
-    setStatusFilter,
-    setViewMode,
-    setPlanStatusFilter,
-    setVisibilityFilter,
-    setExercicioFilter,
-    setDateRange,
-    setTipoPaFilter,
-    setMacroAcaoFilter,
-    clearFilters,
+    setParams,
+    setSearchQuery: (q: string) => setParams({ q }),
+    setStatusFilter: (status: number | null) => setParams({ status }),
+    setViewMode: (view: "table" | "kanban" | "gantt") => setParams({ view }),
+    setPlanStatusFilter: (status: "active" | "archived" | null) => setParams({ plan_status: status }),
+    setVisibilityFilter: (visibility: "public" | "restricted" | null) => setParams({ plan_visibility: visibility }),
+    setExercicioFilter: (exercicio: number | null) => setParams({ plan_year: exercicio }),
+    setDateRange: (from: string, to: string) =>
+      setParams(from && to ? { date_from: from, date_to: to } : { date_from: null, date_to: null }),
+    setTipoPaFilter: (tipoPa: string) => setParams({ tipo_pa: tipoPa }),
+    setMacroAcaoFilter: (macroAcao: string) => setParams({ macro: macroAcao }),
+    setSelectedPlan: (planId: string | null) => setParams({ plan: planId, item: null }),
+    clearFilters: () => clearKeys(PLAN_FILTER_KEYS),
+    clearItemFilters: () => clearKeys(ITEM_FILTER_KEYS),
   };
 }

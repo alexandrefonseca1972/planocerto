@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   filterUnitsByScope,
+  filterByUnitIds,
   filterAreasByScope,
   isScoped,
 } from "@/components/dashboard/dashboard-access";
@@ -67,5 +68,15 @@ describe("filterAreasByScope", () => {
     expect(filterAreasByScope(areas, visible, { areaIds: [], unitIds: ["u3"] })).toEqual([
       { id: "a2" },
     ]);
+  });
+});
+
+describe("filterByUnitIds", () => {
+  const rows = [{ id: "a", unit_id: "u1" }, { id: "b", unit_id: "u2" }, { id: "c", unit_id: null }];
+  it("seleção vazia devolve tudo", () => {
+    expect(filterByUnitIds(rows, [])).toBe(rows);
+  });
+  it("com seleção mantém só as unidades escolhidas e descarta sem unidade", () => {
+    expect(filterByUnitIds(rows, ["u2"]).map((r) => r.id)).toEqual(["b"]);
   });
 });

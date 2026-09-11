@@ -76,3 +76,52 @@ describe("usePlanosUrlParams", () => {
     expect(h.replace).toHaveBeenCalledWith("/planos?q=keep", { scroll: false });
   });
 });
+
+describe("usePlanosUrlParams — correções de filtros", () => {
+  beforeEach(() => {
+    h.replace.mockClear();
+    h.searchParams = new URLSearchParams("");
+  });
+
+  it("clearItemFilters remove todos os filtros de ações em UM replace", () => {
+    h.searchParams = new URLSearchParams(
+      "q=x&status=3&date_from=2026-01-01&date_to=2026-02-01&tipo_pa=A&macro=B&plan_status=active&plan=p1",
+    );
+    const { result } = renderHook(() => usePlanosUrlParams());
+    result.current.clearItemFilters();
+    expect(h.replace).toHaveBeenCalledTimes(1);
+    expect(h.replace).toHaveBeenCalledWith("/planos?plan_status=active&plan=p1", { scroll: false });
+  });
+
+  it("sem query restante navega para o pathname puro", () => {
+    h.searchParams = new URLSearchParams("q=x");
+    const { result } = renderHook(() => usePlanosUrlParams());
+    result.current.setSearchQuery("");
+    expect(h.replace).toHaveBeenCalledWith("/planos", { scroll: false });
+  });
+
+  it("ignora intervalo de datas incompleto e valores inválidos", () => {
+    h.searchParams = new URLSearchParams("date_from=2026-01-01&status=abc&plan_year=0&view=x&plan_status=nope");
+    const { result } = renderHook(() => usePlanosUrlParams());
+    expect(result.current.dateFrom).toBe("");
+    expect(result.current.dateTo).toBe("");
+    expect(result.current.statusFilter).toBeNull();
+    expect(result.current.exercicioFilter).toBeNull();
+    expect(result.current.viewMode).toBe("table");
+    expect(result.current.planStatusFilter).toBeNull();
+  });
+
+  it("setDateRange com uma ponta só limpa as duas", () => {
+    h.searchParams = new URLSearchParams("date_from=2026-01-01&date_to=2026-02-01");
+    const { result } = renderHook(() => usePlanosUrlParams());
+    result.current.setDateRange("2026-03-01", "");
+    expect(h.replace).toHaveBeenCalledWith("/planos", { scroll: false });
+  });
+
+  it("setSelectedPlan troca o plano e descarta o item", () => {
+    h.searchParams = new URLSearchParams("plan=p1&item=i1&q=k");
+    const { result } = renderHook(() => usePlanosUrlParams());
+    result.current.setSelectedPlan("p2");
+    expect(h.replace).toHaveBeenCalledWith("/planos?plan=p2&q=k", { scroll: false });
+  });
+});

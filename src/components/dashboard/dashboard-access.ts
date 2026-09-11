@@ -57,3 +57,16 @@ export function filterAreasByScope<A extends { id: string }>(
   );
   return areas.filter((a) => referenced.has(a.id));
 }
+
+/**
+ * Recorte por unidades selecionadas no filtro de áreas/unidades (Planos e
+ * Calendário). Seleção vazia = tudo; com seleção, registros sem unidade saem.
+ */
+export function filterByUnitIds<T extends { unit_id?: string | null }>(
+  rows: T[],
+  selectedUnitIds: string[],
+): T[] {
+  if (selectedUnitIds.length === 0) return rows;
+  const unitSet = new Set(selectedUnitIds);
+  return rows.filter((r) => r.unit_id && unitSet.has(r.unit_id));
+}
