@@ -32,8 +32,6 @@ interface AreaUnitFilterProps {
   /** Lista de unidades selecionadas. Vazia = todas. */
   selectedUnitIds: string[];
   onChangeUnits: (ids: string[]) => void;
-  /** Seleção única: escolher uma unidade substitui a anterior e fecha o popup. */
-  single?: boolean;
   /** Texto do trigger quando nada está selecionado (default: "Todas as áreas e unidades"). */
   placeholder?: string;
 }
@@ -53,7 +51,6 @@ export function AreaUnitFilter({
   units,
   selectedUnitIds,
   onChangeUnits,
-  single = false,
   placeholder = "Todas as áreas e unidades",
 }: AreaUnitFilterProps) {
   const [open, setOpen] = useState(false);
@@ -147,11 +144,6 @@ export function AreaUnitFilter({
   }
 
   function toggleUnit(id: string) {
-    if (single) {
-      onChangeUnits(selectedSet.has(id) ? [] : [id]);
-      setOpen(false);
-      return;
-    }
     if (selectedSet.has(id)) {
       onChangeUnits(selectedUnitIds.filter((x) => x !== id));
     } else {
@@ -160,7 +152,6 @@ export function AreaUnitFilter({
   }
 
   function toggleArea(g: typeof groups[number]) {
-    if (single) return toggleCollapse(g.areaKey);
     const ids = g.units.map((u) => u.id);
     const idsSet = new Set(ids);
     const state = areaState(g);
@@ -306,7 +297,7 @@ export function AreaUnitFilter({
               {selectedCount}/{totalUnits} unidade{totalUnits === 1 ? "" : "s"}
             </span>
             <div className="flex gap-2">
-              {!single && selectedCount < totalUnits && (
+              {selectedCount < totalUnits && (
                 <button
                   type="button"
                   onClick={selectAll}

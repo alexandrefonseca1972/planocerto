@@ -16,21 +16,4 @@ describe("AreaUnitFilter", () => {
     fireEvent.click(screen.getByRole("option", { name: /sorocaba/i }));
     expect(onChange).toHaveBeenCalledWith(["u1", "u2"]);
   });
-
-  it("single: substitui a seleção, fecha e mostra o placeholder", () => {
-    const onChange = vi.fn();
-    render(
-      <AreaUnitFilter areas={areas} units={units} selectedUnitIds={["u1"]} onChangeUnits={onChange} single placeholder="Campinas" />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /campinas/i }));
-    expect(screen.queryByText(/marcar tudo/i)).toBeNull();
-    fireEvent.click(screen.getByRole("option", { name: /sorocaba/i }));
-    expect(onChange).toHaveBeenCalledWith(["u2"]);
-    expect(screen.queryByRole("listbox")).toBeNull();
-  });
-
-  it("single: sem seleção exibe o placeholder", () => {
-    render(<AreaUnitFilter areas={areas} units={units} selectedUnitIds={[]} onChangeUnits={vi.fn()} single placeholder="Campinas" />);
-    expect(screen.getByRole("button", { name: /campinas/i })).toBeInTheDocument();
-  });
 });
