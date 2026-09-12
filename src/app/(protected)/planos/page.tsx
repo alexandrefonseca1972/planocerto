@@ -99,18 +99,22 @@ export default function PlanosPage() {
     [data.catalogAreas, scopedUnits, filterScope],
   );
 
-  // Filtered plans
+  // Filtered plans. Sem cidade marcada = nenhum plano (mesma regra do
+  // Dashboard/Calendário): o usuário escolhe o recorte antes de carregar.
+  const noSelection = selectedUnitIds.length === 0;
   const filteredPlans = useMemo(
     () =>
-      filterByUnitIds(
-        filterPlansByGovernance(data.allPlans, {
-          exercicio: url.exercicioFilter,
-          visibility: url.visibilityFilter,
-          status: url.planStatusFilter,
-        }),
-        selectedUnitIds,
-      ),
-    [data.allPlans, url.exercicioFilter, url.visibilityFilter, url.planStatusFilter, selectedUnitIds],
+      noSelection
+        ? []
+        : filterByUnitIds(
+            filterPlansByGovernance(data.allPlans, {
+              exercicio: url.exercicioFilter,
+              visibility: url.visibilityFilter,
+              status: url.planStatusFilter,
+            }),
+            selectedUnitIds,
+          ),
+    [data.allPlans, url.exercicioFilter, url.visibilityFilter, url.planStatusFilter, selectedUnitIds, noSelection],
   );
 
   const availableExercises = useMemo(() => getAvailablePlanExercises(data.allPlans), [data.allPlans]);
@@ -125,6 +129,14 @@ export default function PlanosPage() {
   // Resolve selected plan
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   useEffect(() => {
+    // Deep link (?plan=) para um plano fora do recorte (ex.: vindo de Minhas
+    // Tarefas sem cidade marcada): marca a cidade do plano e deixa o efeito
+    // rodar de novo já com o recorte certo.
+    const requested = url.requestedPlanId ? data.allPlans.find((p) => p.id === url.requestedPlanId) : null;
+    if (!data.loading && requested?.unit_id && !selectedUnitIds.includes(requested.unit_id)) {
+      setSelectedUnitIds([requested.unit_id]);
+      return;
+    }
     const resolved = resolveSelectedPlanId(filteredPlans, url.requestedPlanId);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedPlanId(resolved);
@@ -134,7 +146,7 @@ export default function PlanosPage() {
       url.setSelectedPlan(resolved);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredPlans, url.requestedPlanId, data.loading]);
+  }, [filteredPlans, url.requestedPlanId, data.loading, data.allPlans, selectedUnitIds]);
 
   // Várias cidades MARCADAS → vários planos: exibe as ações de todos combinadas.
   // Sem seleção o recorte é o tenant inteiro, mas a página segue mostrando um plano.
@@ -290,7 +302,9 @@ export default function PlanosPage() {
 
   // No plan selected
   if (!plan) {
-    const hasPlansWithoutMatch = data.allPlans.length > 0 && filteredPlans.length === 0;
+    const hasPlans = data.allPlans.length > 0;
+    const hasPlansWithoutMatch = hasPlans && !noSelection && filteredPlans.length === 0;
+    const askSelection = hasPlans && noSelection;
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -299,21 +313,37 @@ export default function PlanosPage() {
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{currentTenant?.name || "Sem empresa"}</p>
           </div>
         </div>
+        {hasPlans && (
+          <div className="min-w-0 sm:max-w-md">
+            <AreaUnitFilter
+              areas={scopedAreas}
+              units={scopedUnits.map((u) => ({ id: u.id, name: u.name, area_id: u.area_id, uf: u.uf }))}
+              selectedUnitIds={selectedUnitIds}
+              onChangeUnits={setSelectedUnitIds}
+            />
+          </div>
+        )}
         <Card>
           <CardContent className="flex flex-col items-center py-20 text-center">
-            <ClipboardList className="mb-4 h-16 w-16 text-zinc-200 dark:text-zinc-700" />
+            {askSelection ? (
+              <Building2 className="mb-4 h-16 w-16 text-zinc-200 dark:text-zinc-700" />
+            ) : (
+              <ClipboardList className="mb-4 h-16 w-16 text-zinc-200 dark:text-zinc-700" />
+            )}
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {hasPlansWithoutMatch ? "Nenhum plano corresponde aos filtros" : "Nenhum plano cadastrado"}
+              {askSelection ? "Selecione as cidades" : hasPlansWithoutMatch ? "Nenhum plano corresponde aos filtros" : "Nenhum plano cadastrado"}
             </h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 max-w-sm">
-              {hasPlansWithoutMatch ? (
+              {askSelection ? (
+                <>Marque uma ou mais cidades no filtro acima para ver os planos de acao.</>
+              ) : hasPlansWithoutMatch ? (
                 <>Ajuste os filtros de plano ou de areas/unidades para localizar um plano ja existente em <strong>{currentTenant?.name}</strong>.</>
               ) : (
                 <>Crie um plano de acao 5W2H para a empresa <strong>{currentTenant?.name}</strong>.</>
               )}
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              {!hasPlansWithoutMatch && (
+              {(!hasPlans || askSelection) && (
                 <Button size="lg" onClick={() => setShowPlanForm(true)}>
                   <Plus className="h-4 w-4 mr-2" /> Criar plano de acao
                 </Button>
