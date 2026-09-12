@@ -392,18 +392,6 @@ export default function PlanosPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">{plan.title || "Planos de Acao"}</h1>
-          {filteredPlans.length > 1 && (
-            <select
-              value={plan.id}
-              onChange={(e) => url.setSelectedPlan(e.target.value)}
-              aria-label="Plano exibido"
-              className="mt-1 h-8 max-w-full rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-            >
-              {filteredPlans.map((p) => (
-                <option key={p.id} value={p.id}>{p.title}{p.unit ? ` — ${p.unit}` : ""}</option>
-              ))}
-            </select>
-          )}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {plan.exercicio && <Badge variant="secondary" className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"><CalendarDays className="mr-1 h-3 w-3" />{plan.exercicio}</Badge>}
             {plan.visibility === "restricted" && <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50"><Lock className="mr-1 h-3 w-3" />Restrito</Badge>}
