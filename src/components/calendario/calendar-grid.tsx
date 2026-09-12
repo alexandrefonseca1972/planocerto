@@ -63,8 +63,13 @@ export function CalendarGrid({
 }: Props) {
   const { selectedUnitIds, setSelectedUnitIds } = useTenant();
 
-  // Apply unit filter from dashboard
-  const items = useMemo(() => filterByUnitIds(rawItems, selectedUnitIds), [rawItems, selectedUnitIds]);
+  // Recorte por cidades (mesma seleção do Dashboard/Planos). Vazio = nenhuma:
+  // o usuário marca as cidades antes de ver os prazos.
+  const noSelection = units.length > 0 && selectedUnitIds.length === 0;
+  const items = useMemo(
+    () => (selectedUnitIds.length === 0 ? [] : filterByUnitIds(rawItems, selectedUnitIds)),
+    [rawItems, selectedUnitIds],
+  );
 
   const todayDate = useMemo(() => {
     const d = new Date();
@@ -183,6 +188,17 @@ export function CalendarGrid({
           />
         </div>
       )}
+      {noSelection ? (
+        <Card>
+          <CardContent className="flex flex-col items-center py-12 text-center">
+            <Building2 className="h-10 w-10 text-zinc-300 dark:text-zinc-600" />
+            <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">Selecione as cidades</h3>
+            <p className="mt-1 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
+              Marque uma ou mais cidades no filtro acima para ver os prazos.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (<>
       {/* Toolbar */}
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
@@ -295,6 +311,7 @@ export function CalendarGrid({
           month={month}
         />
       )}
+      </>)}
     </div>
   );
 }
