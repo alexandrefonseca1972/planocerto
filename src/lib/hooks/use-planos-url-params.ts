@@ -40,7 +40,11 @@ export function usePlanosUrlParams() {
 
   const createQueryString = useCallback(
     (params: Params) => {
-      const newSearchParams = new URLSearchParams(searchParams.toString());
+      // Parte de window.location (síncrono) e não de useSearchParams: o Next
+      // aplica o replaceState ao router em startTransition, então o hook fica
+      // defasado por um instante e dois cliques seguidos perderiam o primeiro.
+      const current = typeof window === "undefined" ? searchParams.toString() : window.location.search;
+      const newSearchParams = new URLSearchParams(current);
       for (const [key, value] of Object.entries(params)) {
         if (value === null || value === "") {
           newSearchParams.delete(key);
