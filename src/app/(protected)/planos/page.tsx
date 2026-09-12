@@ -136,7 +136,19 @@ export default function PlanosPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredPlans, url.requestedPlanId, data.loading]);
 
-  // Load plan items when selected plan changes
+  // Várias cidades no filtro → vários planos: exibe as ações de todos combinadas.
+  const multi = filteredPlans.length > 1;
+  const activePlanIds = useMemo(
+    () => (multi ? filteredPlans.map((p) => p.id) : selectedPlanId ? [selectedPlanId] : []),
+    [multi, filteredPlans, selectedPlanId],
+  );
+  const activeKey = activePlanIds.join(",");
+  const unitByPlanId = useMemo(
+    () => Object.fromEntries(filteredPlans.map((p) => [p.id, p.unit || p.title])),
+    [filteredPlans],
+  );
+
+  // Load plan items when the active plan set changes
   useEffect(() => {
     if (!selectedPlanId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -146,13 +158,10 @@ export default function PlanosPage() {
       data.setContasSummary({});
       return;
     }
-    const selectedPlan = data.allPlans.find((p) => p.id === selectedPlanId) || null;
-    setPlan(selectedPlan);
-    if (selectedPlan?.id) {
-      data.loadPlanItems(selectedPlan.id);
-    }
+    setPlan(data.allPlans.find((p) => p.id === selectedPlanId) || null);
+    if (activePlanIds.length) data.loadPlanItems(activePlanIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPlanId]);
+  }, [selectedPlanId, activeKey]);
 
   // Deep-link: ?item=<id> abre a ação diretamente assim que os itens carregam
   // (usado pelos cards/listas do dashboard "ir direto para a ação").
@@ -198,14 +207,14 @@ export default function PlanosPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowItemForm(false);
     setEditingItem(null);
-    if (selectedPlanId) data.refreshItems(selectedPlanId);
+    if (activePlanIds.length) data.refreshItems(activePlanIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemState.success]);
 
   useEffect(() => {
     if (!inlineState.success) return;
     toast(inlineState.message || "Item salvo!");
-    if (selectedPlanId) data.refreshItems(selectedPlanId);
+    if (activePlanIds.length) data.refreshItems(activePlanIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inlineState.success]);
 
@@ -214,12 +223,12 @@ export default function PlanosPage() {
     function handleKey(e: globalThis.KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "n") {
         e.preventDefault();
-        if (plan) { setEditingItem(null); setShowItemForm(true); }
+        if (plan && !multi) { setEditingItem(null); setShowItemForm(true); }
       }
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [plan]);
+  }, [plan, multi]);
 
   // Computed item values
   const allItems = useMemo(() => flattenItems(data.items), [data.items]);
@@ -343,6 +352,9 @@ export default function PlanosPage() {
     );
   }
 
+  // Criar ação / importar exigem um plano só: com várias cidades, orienta.
+  const requireSinglePlan = () => toast("Selecione uma única cidade para adicionar ou importar ações.", "error");
+
   const handleOpenTab = (it: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => {
     setEditingItem(it);
     setEditingItemTab(tab);
@@ -357,7 +369,7 @@ export default function PlanosPage() {
       if (result.success) {
         toast(result.message || "Item excluído!");
         setDeletingItem(null);
-        if (selectedPlanId) await data.refreshItems(selectedPlanId);
+        if (activePlanIds.length) await data.refreshItems(activePlanIds);
       } else {
         toast(result.message || "Erro ao excluir ação.", "error");
       }
@@ -375,7 +387,7 @@ export default function PlanosPage() {
       const result = await duplicateItem(item.id);
       if (result.success) {
         toast(result.message || "Ação duplicada!");
-        if (selectedPlanId) await data.refreshItems(selectedPlanId);
+        if (activePlanIds.length) await data.refreshItems(activePlanIds);
       } else {
         toast(result.message || "Erro ao duplicar ação.", "error");
       }
@@ -391,29 +403,38 @@ export default function PlanosPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">{plan.title || "Planos de Acao"}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">
+            {multi ? `${filteredPlans.length} planos` : plan.title || "Planos de Acao"}
+          </h1>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            {plan.exercicio && <Badge variant="secondary" className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"><CalendarDays className="mr-1 h-3 w-3" />{plan.exercicio}</Badge>}
-            {plan.visibility === "restricted" && <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50"><Lock className="mr-1 h-3 w-3" />Restrito</Badge>}
-            {plan.status === "archived" && <Badge variant="outline" className="text-xs border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"><Archive className="mr-1 h-3 w-3" />Arquivado</Badge>}
-            {plan.unit && <Badge variant="outline" className="text-xs"><Building2 className="mr-1 h-3 w-3" />{plan.unit}</Badge>}
-            {plan.director && <Badge variant="outline" className="text-xs"><UserCircle className="mr-1 h-3 w-3" />{plan.director}</Badge>}
-            {plan.goal && <Badge variant="default" className="text-xs"><Target className="mr-1 h-3 w-3" />{plan.goal}</Badge>}
+            {multi && filteredPlans.map((p) => (
+              <Badge key={p.id} variant="outline" className="text-xs"><Building2 className="mr-1 h-3 w-3" />{p.unit || p.title}</Badge>
+            ))}
+            {!multi && plan.exercicio && <Badge variant="secondary" className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"><CalendarDays className="mr-1 h-3 w-3" />{plan.exercicio}</Badge>}
+            {!multi && plan.visibility === "restricted" && <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50"><Lock className="mr-1 h-3 w-3" />Restrito</Badge>}
+            {!multi && plan.status === "archived" && <Badge variant="outline" className="text-xs border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"><Archive className="mr-1 h-3 w-3" />Arquivado</Badge>}
+            {!multi && plan.unit && <Badge variant="outline" className="text-xs"><Building2 className="mr-1 h-3 w-3" />{plan.unit}</Badge>}
+            {!multi && plan.director && <Badge variant="outline" className="text-xs"><UserCircle className="mr-1 h-3 w-3" />{plan.director}</Badge>}
+            {!multi && plan.goal && <Badge variant="default" className="text-xs"><Target className="mr-1 h-3 w-3" />{plan.goal}</Badge>}
           </div>
 
-          <BudgetHealthBar totalCost={totalCost} budgetLimit={plan.budget_limit || 0} isOverBudget={isOverBudget} percentUsed={percentUsed} />
+          {!multi && (
+            <BudgetHealthBar totalCost={totalCost} budgetLimit={plan.budget_limit || 0} isOverBudget={isOverBudget} percentUsed={percentUsed} />
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <Button variant="outline" size="sm" onClick={() => { setPlan(null); setShowPlanForm(true); }}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Novo Plano
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowPlanForm(true)}>
-            <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
-          </Button>
-          <Button variant="outline" size="sm" className="text-red-600" onClick={() => setDeletingPlan(plan)}>
-            <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
-          </Button>
-          <PlanQuickActions plan={plan} plans={data.allPlans} toast={toast} router={router} />
+          {!multi && <>
+            <Button variant="outline" size="sm" onClick={() => setShowPlanForm(true)}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
+            </Button>
+            <Button variant="outline" size="sm" className="text-red-600" onClick={() => setDeletingPlan(plan)}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
+            </Button>
+            <PlanQuickActions plan={plan} plans={data.allPlans} toast={toast} router={router} />
+          </>}
         </div>
       </div>
 
@@ -424,8 +445,8 @@ export default function PlanosPage() {
         setViewMode={url.setViewMode}
         showHistory={showHistory}
         setShowHistory={setShowHistory}
-        setShowUploadDialog={setShowUploadDialog}
-        setShowItemForm={setShowItemForm}
+        setShowUploadDialog={multi ? requireSinglePlan : setShowUploadDialog}
+        setShowItemForm={multi ? requireSinglePlan : setShowItemForm}
         setEditingItem={setEditingItem}
       />
 
@@ -527,7 +548,7 @@ export default function PlanosPage() {
                   {hasItemFilters ? "Tente ajustar os filtros." : "Adicione acoes ao plano 5W2H."}
                 </p>
                 {!hasItemFilters && (
-                  <Button className="mt-4" onClick={() => { setEditingItem(null); setShowItemForm(true); }}>
+                  <Button className="mt-4" onClick={() => { if (multi) return requireSinglePlan(); setEditingItem(null); setShowItemForm(true); }}>
                     <Plus className="h-4 w-4 mr-1" /> Adicionar primeira acao
                   </Button>
                 )}
@@ -545,6 +566,7 @@ export default function PlanosPage() {
               onOpenTab={handleOpenTab}
               inlineAction={inlineAction}
               isInlineSaving={isInlineSaving}
+              unitByPlanId={multi ? unitByPlanId : undefined}
             />
           )
         )}
@@ -565,8 +587,10 @@ export default function PlanosPage() {
       </AlertDialog>
 
       {showItemForm && (
-        <ItemFormDialog item={editingItem} planId={plan.id} items={data.items} initialTab={editingItemTab}
-          planUnit={plan.unit}
+        <ItemFormDialog item={editingItem} planId={editingItem?.plan_id ?? plan.id}
+          items={editingItem ? data.items.filter((i) => i.plan_id === editingItem.plan_id) : data.items}
+          initialTab={editingItemTab}
+          planUnit={(multi && editingItem ? data.allPlans.find((p) => p.id === editingItem.plan_id)?.unit : undefined) ?? plan.unit}
           catalogAreas={filterCatalogByAccess(data.catalogAreas, data.userAreaIds)}
           catalogUnits={filterCatalogByAccess(data.catalogUnits, data.userUnitIds)}
           catalogTiposPa={data.catalogTiposPa} catalogMacroAcoes={data.catalogMacroAcoes}
@@ -597,7 +621,7 @@ export default function PlanosPage() {
           planId={plan.id}
           planTitle={plan.title}
           onSuccess={() => {
-            if (selectedPlanId) data.refreshItems(selectedPlanId);
+            if (activePlanIds.length) data.refreshItems(activePlanIds);
           }}
         />
       )}

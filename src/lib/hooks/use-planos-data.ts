@@ -56,13 +56,18 @@ export function usePlanosData({ tenantId }: UsePlanosDataParams) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId]);
 
-  async function loadPlanItems(planId: string) {
+  /** Carrega ações/histórico/contas de um ou mais planos e combina. */
+  async function loadPlanItems(planIds: string[]) {
     setLoadingItems(true);
     try {
-      const { items: i, auditLog: a, contasSummary: cs } = await getPlanItemsBundle(planId);
-      setItems(i);
-      setAuditLog(a);
-      setContasSummary(cs);
+      const bundles = await Promise.all(planIds.map(getPlanItemsBundle));
+      setItems(bundles.flatMap((b) => b.items));
+      setAuditLog(
+        bundles
+          .flatMap((b) => b.auditLog)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+      );
+      setContasSummary(Object.assign({}, ...bundles.map((b) => b.contasSummary)));
     } catch {
       toast("Erro ao carregar ações do plano.", "error");
     } finally {
@@ -77,9 +82,9 @@ export function usePlanosData({ tenantId }: UsePlanosDataParams) {
     return plans;
   }
 
-  async function refreshItems(planId: string) {
-    const i = await getItems(planId);
-    setItems(i);
+  async function refreshItems(planIds: string[]) {
+    const lists = await Promise.all(planIds.map(getItems));
+    setItems(lists.flat());
   }
 
   return {

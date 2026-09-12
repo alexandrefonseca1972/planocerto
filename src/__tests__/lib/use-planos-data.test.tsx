@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
@@ -65,5 +65,25 @@ describe("usePlanosData", () => {
     const { result } = renderHook(() => usePlanosData({ tenantId: "tenant-1" }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(m.toast).toHaveBeenCalledWith("Erro ao carregar planos. Tente novamente.", "error");
+  });
+
+  it("loadPlanItems combina ações, histórico e contas de vários planos", async () => {
+    m.getPlanItemsBundle
+      .mockResolvedValueOnce({
+        items: [{ id: "i1", plan_id: "p1" }],
+        auditLog: [{ id: "a1", created_at: "2026-01-01" }],
+        contasSummary: { i1: { count: 1 } },
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: "i2", plan_id: "p2" }],
+        auditLog: [{ id: "a2", created_at: "2026-02-01" }],
+        contasSummary: { i2: { count: 2 } },
+      });
+    const { result } = renderHook(() => usePlanosData({ tenantId: "tenant-1" }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(() => result.current.loadPlanItems(["p1", "p2"]));
+    expect(result.current.items.map((i) => i.id)).toEqual(["i1", "i2"]);
+    expect(result.current.auditLog.map((a) => a.id)).toEqual(["a2", "a1"]);
+    expect(Object.keys(result.current.contasSummary)).toEqual(["i1", "i2"]);
   });
 });

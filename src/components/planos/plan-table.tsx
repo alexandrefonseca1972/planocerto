@@ -61,6 +61,8 @@ interface PlanTableProps {
   onOpenTab: (item: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => void;
   inlineAction: (p: FormData) => void;
   isInlineSaving: boolean;
+  /** Vários planos combinados: nome da cidade por plan_id, exibido na linha raiz. */
+  unitByPlanId?: Record<string, string>;
 }
 
 // Hoisted para fora do render: componentes não podem ser criados durante o render
@@ -109,6 +111,7 @@ export function PlanTable({
   onOpenTab,
   inlineAction,
   isInlineSaving,
+  unitByPlanId,
 }: PlanTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
@@ -273,6 +276,7 @@ export function PlanTable({
                           inlineEditId={inlineEditId}
                           onOpenTab={onOpenTab}
                           contasSummary={contasSummary[item.id]}
+                          unitLabel={depth === 0 ? unitByPlanId?.[item.plan_id] : undefined}
                         />
                       )}
                     </tr>
@@ -384,6 +388,7 @@ function ViewRow({
   inlineEditId,
   onOpenTab,
   contasSummary,
+  unitLabel,
 }: {
   item: ActionItem;
   depth: number;
@@ -398,6 +403,7 @@ function ViewRow({
   inlineEditId: string | null;
   onOpenTab: (i: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => void;
   contasSummary?: ItemContasSummary;
+  unitLabel?: string;
 }) {
   return (
     <>
@@ -430,6 +436,11 @@ function ViewRow({
           >
             {item.action}
           </p>
+          {unitLabel && (
+            <span className="mt-0.5 inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+              {unitLabel}
+            </span>
+          )}
           {!isGroup && item.why && (
             <p className="mt-0.5 truncate text-[11px] text-zinc-400 dark:text-zinc-500" title={item.why}>{item.why}</p>
           )}
