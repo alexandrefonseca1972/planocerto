@@ -371,9 +371,11 @@ export function DashboardClient({
     [areas, selectedTenantIds],
   );
 
-  // 2ª camada: filtra por Unidades selecionadas (vazio = todas)
+  // 2ª camada: filtra por Unidades selecionadas (vazio = nenhuma; o usuário
+  // escolhe o recorte no filtro antes de ver indicadores)
+  const noSelection = selectedUnitIds.length === 0;
   const filteredByUnit = useMemo(() => {
-    if (selectedUnitIds.length === 0) return tenantScopedUnits;
+    if (selectedUnitIds.length === 0) return [];
     const set = new Set(selectedUnitIds);
     return tenantScopedUnits.filter((u) => set.has(u.id));
   }, [tenantScopedUnits, selectedUnitIds]);
@@ -459,11 +461,11 @@ export function DashboardClient({
   // totais (empresa, unidades, Tipo PA / Macro Ação) e o bucket de status.
   const modalActions = useMemo(() => {
     if (!statusModal) return [];
-    const unitSet = selectedUnitIds.length ? new Set(selectedUnitIds) : null;
+    const unitSet = new Set(selectedUnitIds);
     return actionRows
       .filter((r) => {
         if (!r.tenantId || !selectedTenantIds.includes(r.tenantId)) return false;
-        if (unitSet && !unitSet.has(r.unitId)) return false;
+        if (!unitSet.has(r.unitId)) return false;
         if (effectiveTipoPa) {
           if (r.tipoPa !== effectiveTipoPa) return false;
         } else if (effectiveMacroAcao) {
@@ -637,6 +639,7 @@ export function DashboardClient({
 
         {/* TAB 1 — Indicadores: KPI Row + Status Row */}
         <TabsContent value="indicadores" className="space-y-3">
+          {noSelection ? <SelectUnitsHint /> : (<>
           {/* KPI Row — métricas do plano */}
           <DndContext id="dnd-kpi" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleKpiDragEnd}>
             <SortableContext items={kpiOrder} strategy={rectSortingStrategy}>
@@ -832,10 +835,13 @@ export function DashboardClient({
             />
             <DeadlinesCard deadlines={filteredDeadlines} />
           </div>
+          </>
+          )}
         </TabsContent>
 
         {/* TAB 2 — Unidades por Área */}
         <TabsContent value="unidades" className="space-y-3">
+          {noSelection ? <SelectUnitsHint /> : (<>
           {filteredUnits.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-sm text-zinc-500">
@@ -936,10 +942,13 @@ export function DashboardClient({
               </DndContext>
             </>
           )}
+          </>
+          )}
         </TabsContent>
 
         {/* TAB 3 — Detalhamento: tabela completa */}
         <TabsContent value="analise" className="space-y-3">
+          {noSelection ? <SelectUnitsHint /> : (<>
           <DetailTable
             units={filteredUnits.map((u) => ({
               id: u.id,
@@ -952,6 +961,8 @@ export function DashboardClient({
               overdue: u.overdue,
             }))}
           />
+          </>
+          )}
         </TabsContent>
 
         {/* TAB 4 — Minhas Tarefas */}
@@ -1858,5 +1869,19 @@ function MyTaskRow({ task }: { task: MyTaskItem }) {
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function SelectUnitsHint() {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center py-12 text-center">
+        <MapPin className="h-10 w-10 text-zinc-300 dark:text-zinc-600" />
+        <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">Selecione as cidades</h3>
+        <p className="mt-1 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
+          Marque uma ou mais cidades no filtro acima para ver os indicadores.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
