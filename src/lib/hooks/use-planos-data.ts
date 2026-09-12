@@ -2,16 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
-import {
-  getPlans,
-  getItems,
-  getAuditLog,
-  getCurrentUserPlanScope,
-  recalculateAndGetItems,
-} from "@/app/actions/action-plan";
-import { getTiposPA } from "@/app/actions/tipos-pa";
-import { getAreas, getMacroAcoes, getUnits } from "@/app/actions/catalog";
-import { getContasSummaryByPlan, type ItemContasSummary } from "@/app/actions/contas-pagar";
+import { getPlans, getItems, getPlanosBootstrap, getPlanItemsBundle } from "@/app/actions/action-plan";
+import type { ItemContasSummary } from "@/app/actions/contas-pagar";
 import type { ActionPlan, ActionItem, AuditEntry } from "@/types/action-plan";
 import type { Area, Unit } from "@/types/catalog";
 
@@ -44,18 +36,12 @@ export function usePlanosData({ tenantId }: UsePlanosDataParams) {
       setAuditLog([]);
       setContasSummary({});
       try {
-        const [plans, tiposPa, macroAcoes, units, areas, scope] = await Promise.all([
-          getPlans(tenantId),
-          getTiposPA(),
-          getMacroAcoes(),
-          getUnits(),
-          getAreas(),
-          getCurrentUserPlanScope(),
-        ]);
+        // Uma única server action (um POST, uma passagem pelo middleware).
+        const { plans, tiposPa, macroAcoes, units, areas, scope } = await getPlanosBootstrap(tenantId);
         if (cancelled) return;
         setAllPlans(plans);
-        setCatalogTiposPa(tiposPa.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
-        setCatalogMacroAcoes(macroAcoes.map((m: { id: string; name: string }) => ({ id: m.id, name: m.name })));
+        setCatalogTiposPa(tiposPa);
+        setCatalogMacroAcoes(macroAcoes);
         setCatalogUnits(units.filter((item) => item.active));
         setCatalogAreas(areas.filter((item) => item.active));
         setUserAreaIds(scope.areaIds);
@@ -73,11 +59,7 @@ export function usePlanosData({ tenantId }: UsePlanosDataParams) {
   async function loadPlanItems(planId: string) {
     setLoadingItems(true);
     try {
-      const [i, a, cs] = await Promise.all([
-        recalculateAndGetItems(planId),
-        getAuditLog(planId),
-        getContasSummaryByPlan(planId),
-      ]);
+      const { items: i, auditLog: a, contasSummary: cs } = await getPlanItemsBundle(planId);
       setItems(i);
       setAuditLog(a);
       setContasSummary(cs);

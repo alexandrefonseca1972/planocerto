@@ -7,7 +7,6 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: h.replace }),
   usePathname: () => "/planos",
   useSearchParams: () => h.searchParams,
 }));
@@ -18,6 +17,7 @@ describe("usePlanosUrlParams", () => {
   beforeEach(() => {
     h.replace.mockClear();
     h.searchParams = new URLSearchParams("");
+    vi.spyOn(window.history, "replaceState").mockImplementation((...args) => h.replace(args[2]));
   });
 
   it("parseia os query params presentes", () => {
@@ -46,18 +46,18 @@ describe("usePlanosUrlParams", () => {
     expect(result.current.macroAcaoFilter).toBe("");
   });
 
-  it("setSearchQuery chama router.replace com a query string", () => {
+  it("setSearchQuery grava a query string na URL via replaceState", () => {
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.setSearchQuery("abc");
-    expect(h.replace).toHaveBeenCalledWith("/planos?q=abc", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos?q=abc");
   });
 
   it("setTipoPaFilter e setMacroAcaoFilter gravam na URL", () => {
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.setTipoPaFilter("Vestibular");
-    expect(h.replace).toHaveBeenCalledWith("/planos?tipo_pa=Vestibular", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos?tipo_pa=Vestibular");
     result.current.setMacroAcaoFilter("Trade");
-    expect(h.replace).toHaveBeenCalledWith("/planos?macro=Trade", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos?macro=Trade");
   });
 
   it("createQueryString remove chaves nulas/vazias e preserva o resto", () => {
@@ -73,7 +73,7 @@ describe("usePlanosUrlParams", () => {
     );
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.clearFilters();
-    expect(h.replace).toHaveBeenCalledWith("/planos?q=keep", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos?q=keep");
   });
 });
 
@@ -81,6 +81,7 @@ describe("usePlanosUrlParams — correções de filtros", () => {
   beforeEach(() => {
     h.replace.mockClear();
     h.searchParams = new URLSearchParams("");
+    vi.spyOn(window.history, "replaceState").mockImplementation((...args) => h.replace(args[2]));
   });
 
   it("clearItemFilters remove todos os filtros de ações em UM replace", () => {
@@ -90,14 +91,14 @@ describe("usePlanosUrlParams — correções de filtros", () => {
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.clearItemFilters();
     expect(h.replace).toHaveBeenCalledTimes(1);
-    expect(h.replace).toHaveBeenCalledWith("/planos?plan_status=active&plan=p1", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos?plan_status=active&plan=p1");
   });
 
   it("sem query restante navega para o pathname puro", () => {
     h.searchParams = new URLSearchParams("q=x");
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.setSearchQuery("");
-    expect(h.replace).toHaveBeenCalledWith("/planos", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos");
   });
 
   it("ignora intervalo de datas incompleto e valores inválidos", () => {
@@ -115,13 +116,13 @@ describe("usePlanosUrlParams — correções de filtros", () => {
     h.searchParams = new URLSearchParams("date_from=2026-01-01&date_to=2026-02-01");
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.setDateRange("2026-03-01", "");
-    expect(h.replace).toHaveBeenCalledWith("/planos", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos");
   });
 
   it("setSelectedPlan troca o plano e descarta o item", () => {
     h.searchParams = new URLSearchParams("plan=p1&item=i1&q=k");
     const { result } = renderHook(() => usePlanosUrlParams());
     result.current.setSelectedPlan("p2");
-    expect(h.replace).toHaveBeenCalledWith("/planos?plan=p2&q=k", { scroll: false });
+    expect(h.replace).toHaveBeenCalledWith("/planos?plan=p2&q=k");
   });
 });

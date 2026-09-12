@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 
 type Params = Record<string, string | number | null>;
 
@@ -19,7 +19,6 @@ export const PLAN_FILTER_KEYS = ["plan_status", "plan_visibility", "plan_year"] 
 export const ITEM_FILTER_KEYS = ["q", "status", "date_from", "date_to", "tipo_pa", "macro"] as const;
 
 export function usePlanosUrlParams() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -54,13 +53,17 @@ export function usePlanosUrlParams() {
     [searchParams]
   );
 
-  /** Aplica várias chaves em UM único replace (setters encadeados se sobrescrevem). */
+  /**
+   * Aplica várias chaves em UM único replace (setters encadeados se sobrescrevem).
+   * history.replaceState em vez de router.replace: o Next sincroniza useSearchParams
+   * sem ir ao servidor (router.replace passava pelo middleware a cada filtro).
+   */
   const setParams = useCallback(
     (params: Params) => {
       const qs = createQueryString(params);
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
     },
-    [createQueryString, pathname, router]
+    [createQueryString, pathname]
   );
 
   const clearKeys = (keys: readonly string[]) =>

@@ -15,6 +15,10 @@ import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 import { getCurrentTenantId } from "@/app/actions/_helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildDuplicatedRows, collectSubtreeIds, type DuplicableItem } from "@/components/planos/duplicate-item-helpers";
+import { getTiposPA } from "@/app/actions/tipos-pa";
+import { getAreas, getMacroAcoes, getUnits } from "@/app/actions/catalog";
+import { getContasSummaryByPlan } from "@/app/actions/contas-pagar";
+import type { Area, Unit } from "@/types/catalog";
 
 async function logAudit(planId: string, action: string, data: Record<string, unknown>, itemId?: string) {
   try {
@@ -134,21 +138,24 @@ export async function getPlans(tenantId: string): Promise<ActionPlan[]> {
   } catch (error) { console.error("[getPlans] Error:", error); return []; }
 }
 
+function buildItemTree(items: ActionItem[]): ActionItem[] {
+  const map = new Map<string, ActionItem>();
+  const roots: ActionItem[] = [];
+  for (const item of items) { map.set(item.id, { ...item, children: [] }); }
+  for (const item of items) {
+    const node = map.get(item.id)!;
+    if (item.parent_id && map.has(item.parent_id)) {
+      map.get(item.parent_id)!.children!.push(node);
+    } else { roots.push(node); }
+  }
+  return roots;
+}
+
 export async function getItems(planId: string): Promise<ActionItem[]> {
   try {
     const supabase = await createClient();
     const { data } = await supabase.from("action_items").select("*").eq("plan_id", planId).order("sort_order").limit(2000);
-    const items = (data || []) as ActionItem[];
-    const map = new Map<string, ActionItem>();
-    const roots: ActionItem[] = [];
-    for (const item of items) { map.set(item.id, { ...item, children: [] }); }
-    for (const item of items) {
-      const node = map.get(item.id)!;
-      if (item.parent_id && map.has(item.parent_id)) {
-        map.get(item.parent_id)!.children!.push(node);
-      } else { roots.push(node); }
-    }
-    return roots;
+    return buildItemTree((data || []) as ActionItem[]);
   } catch (error) { console.error("[getItems] Error:", error); return []; }
 }
 
@@ -768,55 +775,71 @@ export async function bulkUpdateStatus(planId: string, itemIds: string[], _statu
 export async function recalculateAndGetItems(planId: string): Promise<ActionItem[]> {
   try {
     const supabase = await createClient();
-    const { data: items } = await supabase
+    const { data } = await supabase
       .from("action_items")
       .select("*")
       .eq("plan_id", planId)
       .order("sort_order")
       .limit(2000);
 
-    if (!items || items.length === 0) return [];
+    const items = (data || []) as ActionItem[];
+    if (items.length === 0) return [];
 
     const today = new Date();
-    const updates: { id: string; status: number }[] = [];
-
+    const updatedAt = today.toISOString();
+    const changed: ActionItem[] = [];
     for (const item of items) {
       const newStatus = deriveActionItemStatus(item, today);
-      if (newStatus !== item.status) {
-        updates.push({ id: item.id, status: newStatus });
-      }
+      if (newStatus === item.status) continue;
+      // Aplica em memória e persiste; sem re-select (economiza uma ida ao banco).
+      item.status = newStatus;
+      item.updated_at = updatedAt;
+      changed.push(item);
     }
+    await Promise.all(changed.map((item) =>
+      supabase.from("action_items").update({ status: item.status, updated_at: updatedAt }).eq("id", item.id),
+    ));
 
-    if (updates.length > 0) {
-      // Batch update in parallel
-      const promises = updates.map(({ id, status }) =>
-        supabase.from("action_items").update({ status, updated_at: new Date().toISOString() }).eq("id", id)
-      );
-      await Promise.all(promises);
-    }
-
-    // Re-fetch with updated statuses and build tree
-    const { data: updatedItems } = await supabase
-      .from("action_items")
-      .select("*")
-      .eq("plan_id", planId)
-      .order("sort_order")
-      .limit(2000);
-
-    const rows = (updatedItems || []) as ActionItem[];
-    const map = new Map<string, ActionItem>();
-    const roots: ActionItem[] = [];
-    for (const item of rows) { map.set(item.id, { ...item, children: [] }); }
-    for (const item of rows) {
-      const node = map.get(item.id)!;
-      if (item.parent_id && map.has(item.parent_id)) {
-        map.get(item.parent_id)!.children!.push(node);
-      } else { roots.push(node); }
-    }
-
-    return roots;
+    return buildItemTree(items);
   } catch (error) {
     console.error("[recalculateAndGetItems] Error:", error);
     return [];
   }
+}
+
+/** Tudo que a tela de Planos precisa no primeiro paint, em UMA server action. */
+export async function getPlanosBootstrap(tenantId: string): Promise<{
+  plans: ActionPlan[];
+  tiposPa: { id: string; name: string }[];
+  macroAcoes: { id: string; name: string }[];
+  units: Unit[];
+  areas: Area[];
+  scope: { areaIds: string[]; unitIds: string[] };
+}> {
+  const [plans, tiposPa, macroAcoes, units, areas, scope] = await Promise.all([
+    getPlans(tenantId),
+    getTiposPA(),
+    getMacroAcoes(),
+    getUnits(),
+    getAreas(),
+    getCurrentUserPlanScope(),
+  ]);
+  return {
+    plans,
+    tiposPa: tiposPa.map((t) => ({ id: t.id, name: t.name })),
+    macroAcoes: macroAcoes.map((m) => ({ id: m.id, name: m.name })),
+    units,
+    areas,
+    scope,
+  };
+}
+
+/** Ações, histórico e resumo financeiro de um plano, em UMA server action. */
+export async function getPlanItemsBundle(planId: string) {
+  const [items, auditLog, contasSummary] = await Promise.all([
+    recalculateAndGetItems(planId),
+    getAuditLog(planId),
+    getContasSummaryByPlan(planId),
+  ]);
+  return { items, auditLog, contasSummary };
 }

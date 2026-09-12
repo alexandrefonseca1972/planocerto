@@ -272,20 +272,8 @@ export async function getContasSummaryByPlan(
   try {
     const supabase = await createClient();
 
-    // Confirma ownership: só retorna se o plano pertence ao tenant ativo
-    // do usuário (RLS de action_plans já filtra, mas explicitamos para
-    // evitar retorno parcial em caso de mudança de policy futura).
-    const tenantId = await getCurrentTenantId();
-    if (!tenantId) return {};
-
-    const { data: plan } = await supabase
-      .from("action_plans")
-      .select("id")
-      .eq("id", planId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (!plan) return {};
-
+    // RLS de contas_pagar (tenant-scoped) já limita ao que o usuário pode ver;
+    // sem checagem extra de tenant/plano (eram 3 idas ao banco a mais).
     const { data } = await supabase
       .from("contas_pagar")
       .select(
