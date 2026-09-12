@@ -36,6 +36,8 @@ export function usePlanosUrlParams() {
   const tipoPaFilter = searchParams.get("tipo_pa") || "";
   const macroAcaoFilter = searchParams.get("macro") || "";
   const requestedPlanId = searchParams.get("plan");
+  /** Atalho do dashboard (card da cidade): marca a cidade ao entrar. */
+  const requestedUnitId = searchParams.get("unit");
   const requestedItemId = searchParams.get("item");
 
   const createQueryString = useCallback(
@@ -85,6 +87,7 @@ export function usePlanosUrlParams() {
     tipoPaFilter,
     macroAcaoFilter,
     requestedPlanId,
+    requestedUnitId,
     requestedItemId,
     createQueryString,
     setParams,

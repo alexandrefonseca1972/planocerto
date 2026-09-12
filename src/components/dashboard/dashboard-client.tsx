@@ -1046,12 +1046,10 @@ function UnitMiniCard({ unit }: { unit: UnitSummary }) {
   const total = unit.totalActions;
   const isDone = total > 0 && unit.progress >= 100;
   const isEmpty = total === 0;
-  const { setSelectedUnitIds } = useTenant();
   const router = useRouter();
 
   function handleClick() {
-    setSelectedUnitIds([unit.id]);
-    router.push("/planos");
+    router.push(`/planos?unit=${unit.id}`);
   }
 
   return (

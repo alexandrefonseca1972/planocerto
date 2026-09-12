@@ -126,6 +126,18 @@ export default function PlanosPage() {
     setSelectedUnitIds([]);
   };
 
+  // /planos inicia sem cidade marcada (não herda a seleção do Dashboard),
+  // salvo atalhos: ?unit= marca a cidade; ?plan= é tratado pelo efeito abaixo.
+  useEffect(() => {
+    if (url.requestedUnitId) {
+      setSelectedUnitIds([url.requestedUnitId]);
+      url.setParams({ unit: null });
+    } else if (!url.requestedPlanId) {
+      setSelectedUnitIds([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Resolve selected plan
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   useEffect(() => {
