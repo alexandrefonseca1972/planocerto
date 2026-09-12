@@ -136,8 +136,9 @@ export default function PlanosPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredPlans, url.requestedPlanId, data.loading]);
 
-  // Várias cidades no filtro → vários planos: exibe as ações de todos combinadas.
-  const multi = filteredPlans.length > 1;
+  // Várias cidades MARCADAS → vários planos: exibe as ações de todos combinadas.
+  // Sem seleção o recorte é o tenant inteiro, mas a página segue mostrando um plano.
+  const multi = selectedUnitIds.length > 1 && filteredPlans.length > 1;
   const activePlanIds = useMemo(
     () => (multi ? filteredPlans.map((p) => p.id) : selectedPlanId ? [selectedPlanId] : []),
     [multi, filteredPlans, selectedPlanId],
