@@ -20,6 +20,21 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.7.16] - 2026-11-16
+
+### Alterado
+- Produção migrada para VPS com Caddy, systemd, Cloudflare e Supabase self-hosted.
+- URLs da aplicação e do Auth atualizadas para `planocerto.app`.
+- Chamadas da página inicial alinhadas ao acesso por administrador, sem prometer auto-cadastro.
+- Grafo navegável do projeto atualizado.
+
+### Corrigido
+- Lint não analisa mais ferramentas auxiliares de `.local`.
+
+### Segurança
+- Next.js atualizado para 16.4.6 e demais dependências corrigidas pelo npm audit.
+- `xlsx` permanece como exceção conhecida, sem correção oficial disponível.
+
 ## [2.2.1] - 2026-06-03
 
 Correções de produção: empresa ativa na importação de planos, sanitização sem

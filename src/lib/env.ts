@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 // Segredos vão direto para headers HTTP (Authorization: Bearer <key>, etc.).
-// Valores colados no painel do Vercel costumam carregar \n ou espaços nas
-// pontas, e qualquer whitespace torna o header inválido — o construtor do
-// Resend, por exemplo, lança "Headers.append ... invalid header value" já na
+// Valores colados em painéis de deploy ou arquivos de ambiente costumam
+// carregar \n ou espaços nas pontas, e qualquer whitespace torna o header
+// inválido — o construtor do Resend, por exemplo, lança "Headers.append ... invalid header value" já na
 // avaliação do módulo, derrubando o build. Removemos todo whitespace na
 // fonte para que nenhum consumidor precise sanitizar de novo.
 const secret = (fallback: string) =>

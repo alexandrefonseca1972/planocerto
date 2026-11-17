@@ -10,7 +10,7 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 - **Validação:** Zod, react-hook-form
 - **Exportação:** xlsx (Excel), HTML formatado (PDF)
 - **Testes:** Vitest + Testing Library
-- **Deploy:** Vercel
+- **Deploy:** VPS com Caddy + systemd e Cloudflare
 
 ## Funcionalidades
 
@@ -84,13 +84,16 @@ npm run build
 
 ## Deploy
 
-O projeto está configurado para deploy automático via Vercel + GitHub. Cada push na branch `main` dispara o deploy de produção.
+O projeto roda na VPS com Next.js, Caddy e systemd. A Cloudflare fornece DNS e proxy para `planocerto.app` e `www.planocerto.app`.
 
-Para deploy manual:
+Para atualizar a aplicação na VPS:
 ```bash
+npm ci
 npm run build
-vercel --prod
+systemctl restart planocerto-web
 ```
+
+A operação, os backups e as configurações dos serviços estão documentados em `/opt/planocerto/OPERACAO.md`.
 
 ## Estrutura
 

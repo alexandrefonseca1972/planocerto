@@ -27,7 +27,7 @@ export default function HomePage() {
           <PlanocertoLogo />
           <div className="flex items-center gap-3">
             <Link href="/auth" className="inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50">Entrar</Link>
-            <Link href="/auth" className="inline-flex h-9 items-center justify-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-zinc-50 transition-all hover:bg-zinc-800 hover:shadow-md dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200">Criar conta</Link>
+            <Link href="/auth" className="inline-flex h-9 items-center justify-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-zinc-50 transition-all hover:bg-zinc-800 hover:shadow-md dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200">Acessar plataforma</Link>
           </div>
         </div>
       </header>
@@ -131,10 +131,10 @@ export default function HomePage() {
               Pronto para organizar seus planos?
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-zinc-500 dark:text-zinc-400">
-              Crie sua conta e comece a gerenciar planos de ação com metodologia 5W2H.
+              Acesse sua conta e gerencie planos de ação com metodologia 5W2H.
             </p>
             <Link href="/auth" className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-8 text-base font-semibold text-zinc-50 transition-all hover:bg-zinc-800 hover:shadow-lg dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200">
-              Criar minha conta <ArrowRight className="h-4 w-4" />
+              Acessar plataforma <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>
