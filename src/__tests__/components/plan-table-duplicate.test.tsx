@@ -64,5 +64,6 @@ describe("PlanTable duplicate action", () => {
     const menuItem = await screen.findByRole("menuitem", { name: /duplicar ação/i });
     fireEvent.click(menuItem);
     expect(onDuplicate).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }));
-  });
+  // Render completo da tabela passa de 5s com a suíte inteira em paralelo.
+  }, 15000);
 });

@@ -21,7 +21,9 @@ export const planSchema = z.object({
 export const itemSchema = z.object({
   action: sanitizedString({ min: 3, max: 500, minMsg: "Mínimo 3 caracteres." }),
   number: z.string().trim().min(1).max(20),
-  parent_id: z.string().optional(),
+  // null = item raiz (upsertItem envia `|| null`); sem nullable, criar ação
+  // raiz pela tela falhava com "Verifique os campos.".
+  parent_id: z.string().nullable().optional(),
   sort_order: z.coerce.number().int().default(0),
   // Classificação
   tipo_pa: sanitizedString({ max: 100 }).optional(),

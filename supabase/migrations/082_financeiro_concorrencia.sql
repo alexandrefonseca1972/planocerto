@@ -146,3 +146,6 @@ REVOKE ALL ON FUNCTION public.cancelar_conta(uuid, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.excluir_conta(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.cancelar_conta(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.excluir_conta(uuid) TO authenticated;
+
+-- Novas RPCs: o PostgREST só as enxerga após recarregar o cache de schema.
+NOTIFY pgrst, 'reload schema';

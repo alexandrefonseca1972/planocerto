@@ -64,6 +64,11 @@ describe("planSchema", () => {
 });
 
 describe("itemSchema", () => {
+  it("aceita parent_id null (ação raiz, como upsertItem envia)", () => {
+    const result = itemSchema.safeParse({ action: "Ação raiz", number: "1", parent_id: null });
+    expect(result.success).toBe(true);
+  });
+
   it("accepts valid payload", () => {
     const data = {
       action: "Implement new process",
