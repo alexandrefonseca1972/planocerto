@@ -2192,6 +2192,14 @@ export type Database = {
           similarity: number
         }[]
       }
+      cancelar_conta: {
+        Args: { p_conta_id: string; p_motivo?: string }
+        Returns: undefined
+      }
+      excluir_conta: {
+        Args: { p_conta_id: string }
+        Returns: undefined
+      }
       account_access_status: {
         Args: { p_user_id: string; p_now?: string }
         Returns: string

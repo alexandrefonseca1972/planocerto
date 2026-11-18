@@ -251,8 +251,8 @@ export function PlanFormDialog({
           <div className="space-y-1.5">
             <Label htmlFor="plan-visibility" className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Visibilidade</Label>
             <Select id="plan-visibility" name="visibility" value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "restricted")} className="rounded-lg h-9">
-              <option value="public">Público</option>
-              <option value="restricted">Restrito</option>
+              <option value="public">Público (todos da empresa)</option>
+              <option value="restricted">Restrito (só quem criou e administradores)</option>
             </Select>
           </div>
         </div>

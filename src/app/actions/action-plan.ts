@@ -19,6 +19,7 @@ import { getTiposPA } from "@/app/actions/tipos-pa";
 import { getAreas, getMacroAcoes, getUnits } from "@/app/actions/catalog";
 import { getContasSummaryByPlan } from "@/app/actions/contas-pagar";
 import type { Area, Unit } from "@/types/catalog";
+import { insertCopiedItems, remapItemIds } from "@/lib/plan-copy";
 
 async function logAudit(planId: string, action: string, data: Record<string, unknown>, itemId?: string) {
   try {
@@ -591,13 +592,11 @@ export async function clonePlanWithDateShift(planId: string, newStartDate: strin
       return d.toISOString().split("T")[0];
     };
 
-    // 3. Clonar itens em batch mantendo hierarquia
-    const idMap = new Map<string, string>();
+    // 3. Clonar itens num único INSERT, já com a hierarquia (#7)
+    const ids = remapItemIds(sourceItems);
     const batchItems = sourceItems.map(item => {
-      const newId = crypto.randomUUID();
-      idMap.set(item.id, newId);
       return {
-        id: newId,
+        id: ids.id(item.id),
         plan_id: newPlan.id,
         number: item.number,
         sort_order: item.sort_order,
@@ -610,7 +609,7 @@ export async function clonePlanWithDateShift(planId: string, newStartDate: strin
         why: item.why,
         where: item.where,
         responsible: item.responsible,
-        parent_id: null, // resolver depois
+        parent_id: ids.parent(item.parent_id),
         planned_start: shiftDate(item.planned_start),
         planned_end: shiftDate(item.planned_end),
         actual_start: null,
@@ -630,19 +629,10 @@ export async function clonePlanWithDateShift(planId: string, newStartDate: strin
       };
     });
 
-    await supabase.from("action_items").insert(batchItems);
-
-    // Batch update dos parent_ids
-    const parentUpdates = sourceItems
-      .filter(item => item.parent_id && idMap.has(item.parent_id))
-      .map(item => ({ id: idMap.get(item.id)!, parent_id: idMap.get(item.parent_id!)! }));
-
-    if (parentUpdates.length > 0) {
-      await Promise.all(
-        parentUpdates.map(({ id, parent_id }) =>
-          supabase.from("action_items").update({ parent_id }).eq("id", id),
-        ),
-      );
+    const itemsError = await insertCopiedItems(supabase, newPlan.id, batchItems);
+    if (itemsError) {
+      console.error("[clonePlanWithDateShift] Erro ao clonar itens:", itemsError);
+      return { message: "Erro ao clonar os itens do plano. Nada foi criado." };
     }
 
     await logAudit(newPlan.id, "CLONE_PLAN", { source_plan_id: planId, date_shift: dateShiftDays });

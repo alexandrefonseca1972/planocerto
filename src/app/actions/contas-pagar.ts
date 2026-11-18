@@ -670,21 +670,17 @@ export async function deleteConta(
     const guard = await requirePerm(PERMISSIONS.FINANCE_DELETE, await getContaTenantId(supabase, id));
     if (guard) return { message: guard };
 
-    const { data: parcelas } = await supabase
-      .from("parcelas_pagar")
-      .select("status")
-      .eq("conta_id", id);
-
-    const temPaga = (parcelas ?? []).some((p) => p.status === "pago");
-    if (temPaga) {
-      return {
-        message:
-          "Não é possível excluir uma conta com pagamentos registrados. Cancele a conta para preservar o histórico.",
-      };
+    // Checagem de pagamento e exclusão na mesma transação, com bloqueio (#5).
+    const { error } = await supabase.rpc("excluir_conta", { p_conta_id: id });
+    if (error) {
+      if (error.message?.includes("parcelas pagas")) {
+        return {
+          message:
+            "Não é possível excluir uma conta com pagamentos registrados. Cancele a conta para preservar o histórico.",
+        };
+      }
+      return { message: await mapPgError(error, "Conta") };
     }
-
-    const { error } = await supabase.from("contas_pagar").delete().eq("id", id);
-    if (error) return { message: await mapPgError(error, "Conta") };
 
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/contas-a-pagar");
@@ -705,29 +701,10 @@ export async function cancelarConta(
     const guard = await requirePerm(PERMISSIONS.FINANCE_UPDATE, await getContaTenantId(supabase, id));
     if (guard) return { message: guard };
 
-    const { data: existing } = await supabase
-      .from("contas_pagar")
-      .select("observacoes")
-      .eq("id", id)
-      .maybeSingle();
-
+    // Parcelas e conta na mesma transação (#6).
     const motivoTxt = await sanitizeText(motivo, 500);
-    const novaObs = motivoTxt
-      ? `${existing?.observacoes ?? ""}\n[Cancelada] ${motivoTxt}`.trim()
-      : existing?.observacoes ?? "";
-
-    const { error: errParcelas } = await supabase
-      .from("parcelas_pagar")
-      .update({ status: "cancelado" })
-      .eq("conta_id", id)
-      .eq("status", "pendente");
-    if (errParcelas) return { message: await mapPgError(errParcelas, "Conta") };
-
-    const { error: errConta } = await supabase
-      .from("contas_pagar")
-      .update({ status: "cancelado", observacoes: novaObs })
-      .eq("id", id);
-    if (errConta) return { message: await mapPgError(errConta, "Conta") };
+    const { error } = await supabase.rpc("cancelar_conta", { p_conta_id: id, p_motivo: motivoTxt });
+    if (error) return { message: await mapPgError(error, "Conta") };
 
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/contas-a-pagar");
@@ -778,9 +755,14 @@ export async function registrarPagamento(
         observacoes: await sanitizeText(v.data.observacoes ?? "", 500),
       })
       .eq("id", v.data.parcela_id)
+      // Só parcela ainda pendente: não sobrescreve pagamento concorrente (#10).
+      .eq("status", "pendente")
       .select("conta_id")
       .maybeSingle();
     if (error) return { message: await mapPgError(error, "Pagamento") };
+    if (!data) {
+      return { message: "Esta parcela não está mais pendente (já paga ou cancelada). Atualize a página." };
+    }
 
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/contas-a-pagar");
@@ -848,7 +830,7 @@ export async function pagarParcelasEmLote(
     // diferentes (valor_pago varia por linha) numa única chamada sem RPC.
     const failedIds: string[] = [];
     for (const p of parcelas) {
-      const { error } = await supabase
+      const { data: paid, error } = await supabase
         .from("parcelas_pagar")
         .update({
           status: "pago",
@@ -856,8 +838,11 @@ export async function pagarParcelasEmLote(
           valor_pago: p.valor,
           forma_pagamento: forma,
         })
-        .eq("id", p.id);
-      if (error) failedIds.push(p.id);
+        .eq("id", p.id)
+        // Paga só se ainda pendente: outra pessoa pode ter pago no meio (#10).
+        .eq("status", "pendente")
+        .select("id");
+      if (error || !paid?.length) failedIds.push(p.id);
     }
 
     const okCount = parcelas.length - failedIds.length;
@@ -902,9 +887,12 @@ export async function estornarPagamento(
         forma_pagamento: "",
       })
       .eq("id", parcelaId)
+      // Estorno só de parcela paga (não "reabre" parcela cancelada).
+      .eq("status", "pago")
       .select("conta_id")
       .maybeSingle();
     if (error) return { message: await mapPgError(error, "Pagamento") };
+    if (!data) return { message: "Esta parcela não está paga. Atualize a página." };
 
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/contas-a-pagar");

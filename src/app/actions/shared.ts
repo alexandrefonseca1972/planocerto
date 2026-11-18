@@ -8,6 +8,7 @@ import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
 import { sanitizedString } from "@/lib/validation/sanitize";
+import { insertCopiedItems, remapItemIds } from "@/lib/plan-copy";
 
 type ActionItemInsert = Database["public"]["Tables"]["action_items"]["Insert"];
 
@@ -56,18 +57,15 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
       return { success: true, message: "Plano copiado (sem itens)!" };
     }
 
-    // Map old IDs to new IDs
-    const idMap = new Map<string, string>();
+    // IDs novos antes do INSERT: a hierarquia vai no mesmo statement (#7).
+    const ids = remapItemIds(items);
     const batchItems: Record<string, unknown>[] = [];
 
     for (const item of items) {
-      const newId = crypto.randomUUID();
-      idMap.set(item.id, newId);
-
       batchItems.push({
-        id: newId,
+        id: ids.id(item.id),
         plan_id: newPlan.id,
-        parent_id: null,
+        parent_id: ids.parent(item.parent_id),
         number: item.number,
         sort_order: item.sort_order,
         tipo_pa: item.tipo_pa,
@@ -98,22 +96,10 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
       });
     }
 
-    await supabase.from("action_items").insert(batchItems as ActionItemInsert[]);
-
-    // Batch parent_id updates via upsert
-    const parentUpdates: Record<string, unknown>[] = [];
-    for (const item of items) {
-      if (item.parent_id && idMap.has(item.parent_id)) {
-        const newId = idMap.get(item.id);
-        const newParentId = idMap.get(item.parent_id);
-        if (newId && newParentId) {
-          parentUpdates.push({ id: newId, parent_id: newParentId });
-        }
-      }
-    }
-
-    if (parentUpdates.length > 0) {
-      await supabase.from("action_items").upsert(parentUpdates as ActionItemInsert[]);
+    const itemsError = await insertCopiedItems(supabase, newPlan.id, batchItems as ActionItemInsert[]);
+    if (itemsError) {
+      console.error("[copyPlan] Erro ao copiar itens:", itemsError);
+      return { message: "Erro ao copiar os itens do plano. Nada foi criado." };
     }
 
     revalidatePath("/planos");
@@ -279,18 +265,15 @@ export async function createPlanFromTemplate(templateId: string, tenantId: strin
       return { success: true, message: "Plano criado (sem itens)!" };
     }
 
-    // Map old IDs to new IDs and insert items
-    const idMap = new Map<string, string>();
+    // IDs novos antes do INSERT: a hierarquia vai no mesmo statement (#7).
+    const ids = remapItemIds(templateItems);
     const batchItems: Record<string, unknown>[] = [];
 
     for (const item of templateItems) {
-      const newId = crypto.randomUUID();
-      idMap.set(item.id, newId);
-
       batchItems.push({
-        id: newId,
+        id: ids.id(item.id),
         plan_id: newPlan.id,
-        parent_id: null,
+        parent_id: ids.parent(item.parent_id),
         number: item.number,
         sort_order: item.sort_order,
         action: item.action,
@@ -303,22 +286,10 @@ export async function createPlanFromTemplate(templateId: string, tenantId: strin
       });
     }
 
-    await supabase.from("action_items").insert(batchItems as ActionItemInsert[]);
-
-    // Update parent references
-    const parentUpdates: { id: string; parent_id: string }[] = [];
-    for (const item of templateItems) {
-      if (item.parent_id && idMap.has(item.parent_id)) {
-        const newId = idMap.get(item.id);
-        const newParentId = idMap.get(item.parent_id);
-        if (newId && newParentId) {
-          parentUpdates.push({ id: newId, parent_id: newParentId });
-        }
-      }
-    }
-
-    for (const update of parentUpdates) {
-      await supabase.from("action_items").update({ parent_id: update.parent_id }).eq("id", update.id);
+    const itemsError = await insertCopiedItems(supabase, newPlan.id, batchItems as ActionItemInsert[]);
+    if (itemsError) {
+      console.error("[createPlanFromTemplate] Erro ao criar itens:", itemsError);
+      return { message: "Erro ao criar os itens do template. Nada foi criado." };
     }
 
     revalidatePath("/planos");

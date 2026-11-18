@@ -21,6 +21,7 @@ export async function mapPgError(
     case "42501":
       return "Acesso negado pelo banco.";
     case "PGRST116":
+    case "P0002": // no_data_found, das funções SQL (082)
       return "Registro não encontrado.";
     default:
       return error.message || `Erro ao processar ${entityLabel}.`;
