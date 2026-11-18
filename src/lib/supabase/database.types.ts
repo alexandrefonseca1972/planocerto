@@ -2192,6 +2192,10 @@ export type Database = {
           similarity: number
         }[]
       }
+      account_access_status: {
+        Args: { p_user_id: string; p_now?: string }
+        Returns: string
+      }
       setup_new_user: {
         Args: {
           p_active_tenant_id: string

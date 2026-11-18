@@ -13,7 +13,7 @@ import {
   sanitizePermissions,
 } from "@/lib/validations/admin";
 import { PERMISSIONS, ALL_PERMISSIONS, hasPermission, getPermissionsMap, buildCustomRolesMap, type Permission } from "@/lib/permissions";
-import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, repointActiveTenant, getEffectiveRole, type RequesterScope } from "@/app/actions/_helpers";
+import { getRequesterScope, manageableUserIds, tenantsWithSingleOwner, repointActiveTenant, getEffectiveRole, getAccountAccessStatus, type RequesterScope } from "@/app/actions/_helpers";
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { isValidUuid } from "@/lib/validations/uuid";
 import { generateSecurePassword } from "@/lib/security/password";
@@ -150,24 +150,9 @@ export async function checkPermission(requiredPermission: Permission, tenantId?:
 
     if (userError || !user) return false;
 
-    let role: string;
-    let permissions: Record<string, boolean> | null;
-
-    if (tenantId) {
-      const effective = await getEffectiveRole(user.id, tenantId);
-      role = effective.role;
-      permissions = effective.permissions;
-    } else {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, permissions")
-        .eq("id", user.id)
-        .maybeSingle() as { data: UserProfile | null; error: unknown };
-
-      if (!profile) return false;
-      role = profile.role;
-      permissions = profile.permissions;
-    }
+    // getEffectiveRole também barra conta desativada/fora do horário.
+    const { role, permissions } = await getEffectiveRole(user.id, tenantId ?? null);
+    if (!role) return false;
 
     const customRoles = BUILTIN_ROLES.has(role)
       ? undefined
@@ -261,6 +246,13 @@ async function requirePermission(
     return {
       authorized: false,
       error: { message: "Acesso negado. Faça login novamente." },
+    };
+  }
+
+  if ((await getAccountAccessStatus(user.id)) !== "ok") {
+    return {
+      authorized: false,
+      error: { message: "Conta desativada ou fora do horário de acesso." },
     };
   }
 

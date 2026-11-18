@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { r2Delete, r2Put, r2SignedDownloadUrl } from "@/lib/r2";
 import { logSupabaseError } from "@/lib/errors";
 import { checkPermission } from "@/app/actions/admin";
 import { sanitizeText } from "@/lib/validation/sanitize";
@@ -978,11 +979,8 @@ export async function uploadAnexoConta(
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `${contaId}/${Date.now()}-${safeName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("contas-anexos")
-      .upload(storagePath, file, { cacheControl: "3600", upsert: false });
-    if (uploadError) {
-      console.error("[uploadAnexoConta] Storage error:", uploadError.message);
+    if (!(await r2Put("contas-anexos", storagePath, file))) {
+      console.error("[uploadAnexoConta] R2 PUT falhou:", storagePath);
       return { message: "Erro ao enviar arquivo." };
     }
 
@@ -996,7 +994,7 @@ export async function uploadAnexoConta(
       uploaded_by: user.id,
     });
     if (dbError) {
-      await supabase.storage.from("contas-anexos").remove([storagePath]);
+      await r2Delete("contas-anexos", storagePath).catch(() => false);
       return { message: await mapPgError(dbError, "Anexo") };
     }
 
@@ -1010,12 +1008,18 @@ export async function uploadAnexoConta(
 
 export async function getAnexoUrl(storagePath: string): Promise<string | null> {
   try {
+    // storage_path vem do cliente: só assina se a RLS deixa ler o registro.
     const supabase = await createClient();
-    const { data } = await supabase.storage
-      .from("contas-anexos")
-      .createSignedUrl(storagePath, 300);
-    return data?.signedUrl || null;
-  } catch {
+    const { data: anexo, error } = await supabase
+      .from("conta_attachments")
+      .select("storage_path, filename")
+      .eq("storage_path", storagePath)
+      .maybeSingle();
+    if (error) console.error("[getAnexoUrl] DB error:", error.message);
+    if (!anexo) return null;
+    return await r2SignedDownloadUrl("contas-anexos", anexo.storage_path, anexo.filename);
+  } catch (error) {
+    console.error("[getAnexoUrl] Error:", error);
     return null;
   }
 }
@@ -1037,15 +1041,19 @@ export async function deleteAnexo(
     );
     if (guard) return { message: guard };
 
-    if (anexo?.storage_path) {
-      await supabase.storage.from("contas-anexos").remove([anexo.storage_path]);
-    }
-
-    const { error } = await supabase
+    // Registro primeiro (RLS confirma permissão e a linha removida), depois o
+    // arquivo — sem registro apontando para arquivo inexistente (achado #9).
+    const { data: deleted, error } = await supabase
       .from("conta_attachments")
       .delete()
-      .eq("id", anexoId);
+      .eq("id", anexoId)
+      .select("storage_path");
     if (error) return { message: await mapPgError(error, "Anexo") };
+    if (!deleted?.length) return { message: "Anexo não encontrado ou sem permissão." };
+
+    if (!(await r2Delete("contas-anexos", deleted[0].storage_path).catch(() => false))) {
+      console.error("[deleteAnexo] R2 DELETE falhou (arquivo órfão):", deleted[0].storage_path);
+    }
 
     if (anexo?.conta_id) {
       revalidatePath(`/financeiro/contas-a-pagar/${anexo.conta_id}`);

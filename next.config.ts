@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  // Anexos de até 10MB passam por Server Action (achado #8): o padrão é 1MB
+  // nas actions e 10MB no buffer do proxy; folga para o overhead multipart.
+  experimental: {
+    serverActions: { bodySizeLimit: "11mb" },
+    proxyClientMaxBodySize: "11mb",
+  },
   images: {
     remotePatterns: [
       {

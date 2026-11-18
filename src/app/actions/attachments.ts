@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { r2Delete, r2Put, r2SignedDownloadUrl } from "@/lib/r2";
 
 const ALLOWED_MIMES = [
   "image/png", "image/jpeg", "image/webp", "image/gif",
@@ -32,12 +33,8 @@ export async function uploadAttachment(itemId: string, file: File): Promise<{ me
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `${itemId}/${Date.now()}-${safeName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("plan-attachments")
-      .upload(storagePath, file, { cacheControl: "3600", upsert: false });
-
-    if (uploadError) {
-      console.error("[uploadAttachment] Storage error:", uploadError.message);
+    if (!(await r2Put("plan-attachments", storagePath, file))) {
+      console.error("[uploadAttachment] R2 PUT falhou:", storagePath);
       return { message: "Erro ao enviar arquivo." };
     }
 
@@ -52,6 +49,8 @@ export async function uploadAttachment(itemId: string, file: File): Promise<{ me
 
     if (dbError) {
       console.error("[uploadAttachment] DB error:", dbError.message);
+      // Sem registro, o arquivo ficaria órfão no bucket (achado #9).
+      await r2Delete("plan-attachments", storagePath).catch(() => false);
       return { message: "Erro ao registrar arquivo." };
     }
 
@@ -69,15 +68,23 @@ export async function deleteAttachment(attachmentId: string): Promise<{ message:
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { message: "Não autenticado." };
 
-    const { data: attachment } = await supabase.from("plan_attachments").select("storage_path, uploaded_by").eq("id", attachmentId).single();
+    // Apaga o registro primeiro: a RLS decide quem pode (autor ou admin) e o
+    // retorno confirma que a linha saiu. Só então remove o arquivo (achado #9).
+    const { data: deleted, error: dbError } = await supabase
+      .from("plan_attachments")
+      .delete()
+      .eq("id", attachmentId)
+      .select("storage_path");
+    if (dbError) {
+      console.error("[deleteAttachment] DB error:", dbError.message);
+      return { message: "Erro ao remover anexo." };
+    }
+    if (!deleted?.length) return { message: "Anexo não encontrado ou sem permissão." };
 
-    if (!attachment) return { message: "Anexo não encontrado." };
-
-    // Delete from storage
-    await supabase.storage.from("plan-attachments").remove([attachment.storage_path as string]);
-
-    // Delete from database
-    await supabase.from("plan_attachments").delete().eq("id", attachmentId);
+    const storagePath = deleted[0].storage_path as string;
+    if (!(await r2Delete("plan-attachments", storagePath).catch(() => false))) {
+      console.error("[deleteAttachment] R2 DELETE falhou (arquivo órfão):", storagePath);
+    }
 
     revalidatePath("/planos");
     return { success: true, message: "Anexo removido." };
@@ -100,9 +107,15 @@ export async function getAttachments(itemId: string): Promise<{ id: string; file
 
 export async function getAttachmentUrl(storagePath: string): Promise<string | null> {
   try {
+    // storage_path vem do cliente: só assina se a RLS deixa ler o registro.
     const supabase = await createClient();
-    const { data } = await supabase.storage.from("plan-attachments").createSignedUrl(storagePath, 300);
-    return data?.signedUrl || null;
+    const { data: att } = await supabase
+      .from("plan_attachments")
+      .select("storage_path, filename")
+      .eq("storage_path", storagePath)
+      .maybeSingle();
+    if (!att) return null;
+    return await r2SignedDownloadUrl("plan-attachments", att.storage_path as string, att.filename as string);
   } catch {
     return null;
   }

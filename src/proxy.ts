@@ -23,8 +23,17 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    // Verifica restrições de perfil (conta ativa, horário de login)
-    if (user && isProtected && !isApi) {
+    // Verifica restrições de perfil (conta ativa, horário de login).
+    // Server Actions podem ser postadas em QUALQUER rota (o ID da action é
+    // global), então o header next-action é checado fora das rotas protegidas.
+    // Exceção: páginas de auth, para o bloqueado conseguir sair/trocar de
+    // conta; ali valem os gates de checkPermission/getRequesterScope e o
+    // pre-request do PostgREST (migration 078).
+    const isAction = request.headers.has("next-action") && !isAuth;
+    if (user && (isApi || isAction)) {
+      const { redirected } = await checkProfileRestrictions(request, user.id, "api");
+      if (redirected) return redirected;
+    } else if (user && isProtected) {
       const { redirected } = await checkProfileRestrictions(request, user.id);
       if (redirected) return redirected;
     }

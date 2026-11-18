@@ -27,6 +27,7 @@ export async function getRequesterScope(): Promise<RequesterScope> {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return empty;
+    if ((await getAccountAccessStatus(user.id)) !== "ok") return empty;
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -130,10 +131,28 @@ export async function tenantsWithSingleOwner(tenantIds: string[]): Promise<strin
  * `permissions` (overrides) continua sempre global, fora do escopo do
  * papel por-empresa.
  */
+export type AccountAccessStatus = "ok" | "inactive" | "outside_hours" | "missing";
+
+/**
+ * Conta ativa e dentro da janela de horário? Regra única em SQL
+ * (account_access_status, migration 078). Erro na consulta nega.
+ */
+export async function getAccountAccessStatus(userId: string): Promise<AccountAccessStatus> {
+  const { data, error } = await createAdminClient().rpc("account_access_status", { p_user_id: userId });
+  if (error) {
+    log.error({ error }, "Erro ao verificar status da conta");
+    return "missing";
+  }
+  return data as AccountAccessStatus;
+}
+
 export async function getEffectiveRole(
   userId: string,
   tenantId: string | null,
 ): Promise<{ role: string; permissions: Record<string, boolean> | null }> {
+  // Conta bloqueada não tem papel em lugar nenhum (achado #4).
+  if ((await getAccountAccessStatus(userId)) !== "ok") return { role: "", permissions: null };
+
   const adminClient = createAdminClient();
   const { data: profile } = await adminClient
     .from("profiles")
@@ -149,6 +168,20 @@ export async function getEffectiveRole(
   const permissions = (profile?.permissions as Record<string, boolean> | null) ?? null;
 
   if (!tenantId) return { role: globalRole, permissions };
+
+  // Espelha effective_role_for_tenant() (migration 076): sem vínculo com a
+  // empresa não há papel nela, exceto super_admin. "" nega tudo.
+  const { data: member } = await adminClient
+    .from("tenant_members")
+    .select("user_id")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!member) {
+    return globalRole === "super_admin"
+      ? { role: globalRole, permissions }
+      : { role: "", permissions: null };
+  }
 
   const { data: tenantRole } = await adminClient
     .from("tenant_member_roles")

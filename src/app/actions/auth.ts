@@ -15,6 +15,7 @@ import {
   changePasswordSchema,
 } from "@/lib/validations/auth";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { getAccountAccessStatus } from "@/app/actions/_helpers";
 import type { FormState } from "@/types/auth";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -44,10 +45,27 @@ export async function login(
 
     const supabase = await createClient();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signIn, error } = await supabase.auth.signInWithPassword({
       email: validated.data.email,
       password: validated.data.password,
     });
+
+    // Conta bloqueada: encerra a sessão e explica no próprio formulário. Sem
+    // isso o redirect para /dashboard era barrado pelo proxy sem mensagem.
+    if (!error && signIn.user) {
+      const status = await getAccountAccessStatus(signIn.user.id);
+      if (status !== "ok") {
+        await supabase.auth.signOut();
+        return {
+          message:
+            status === "inactive"
+              ? "Sua conta está desativada. Entre em contato com o administrador."
+              : status === "outside_hours"
+                ? "Fora do seu horário de acesso."
+                : "Não foi possível validar sua conta. Entre em contato com o administrador.",
+        };
+      }
+    }
 
     if (error) {
       const messages: Record<string, string> = {

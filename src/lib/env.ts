@@ -22,6 +22,11 @@ const envSchema = z.object({
   RESEND_API_KEY: secret("placeholder-key"),
   AUTH_EMAIL_FROM: z.string().min(1).default("PlanoCerto <acesso@planocerto.app>"),
   AUTH_EMAIL_REPLY_TO: z.string().email().optional().default("suporte@planocerto.app"),
+  // Cloudflare R2 (anexos). Vazio = anexos indisponíveis (r2.ts lança).
+  R2_ACCOUNT_ID: z.string().optional().default(""),
+  R2_ACCESS_KEY_ID: z.string().optional().default("").transform((v) => v.replace(/\s+/g, "")),
+  R2_SECRET_ACCESS_KEY: z.string().optional().default("").transform((v) => v.replace(/\s+/g, "")),
+  R2_BUCKET: z.string().optional().default(""),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .optional(),
