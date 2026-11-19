@@ -22,7 +22,7 @@ export default async function PendentePage() {
           Aguardando aprovação
         </h1>
         <p className="mt-2 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
-          Olá <strong>{userName}</strong>, sua conta foi criada mas ainda não possui acesso às empresas.
+          Olá, <strong>{userName}</strong>! Sua conta foi criada, mas ainda não possui acesso às empresas.
         </p>
         <p className="mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
           Um administrador precisa associar seu usuário a uma ou mais empresas para liberar o acesso.

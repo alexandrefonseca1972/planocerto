@@ -14,6 +14,7 @@ import { SortableTh, TablePagination, useDataTable } from "@/components/ui/data-
 import type { Company, CompanyFormState } from "@/types/company";
 import type { Unit } from "@/types/catalog";
 import { Plus, Pencil, Trash2, X, Save, Search, Building2, Link2, Unlink } from "lucide-react";
+import { enumLabel } from "@/lib/utils";
 
 type CompanySortKey =
   | "nome_fantasia"
@@ -410,7 +411,7 @@ export function CompaniesClient({ units }: { units: Unit[] }) {
                           CHANCE_BADGES[c.chance_contato] || ""
                         }`}
                       >
-                        {c.chance_contato}
+                        {enumLabel(c.chance_contato)}
                       </span>
                     ) : (
                       <span className="text-zinc-400">—</span>

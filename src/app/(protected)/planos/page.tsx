@@ -1,5 +1,6 @@
 "use client";
 
+import { macroAcaoKey } from "@/lib/macro-acao";
 import { useActionState, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTenant } from "@/lib/contexts/tenant-context";
@@ -215,7 +216,7 @@ export default function PlanosPage() {
       if (plans && plans[0]) setSelectedPlanId(plans[0].id);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planCreateState.success]);
+  }, [planCreateState]);
 
   useEffect(() => {
     if (!planUpdateState.success || !currentTenant?.id) return;
@@ -224,7 +225,7 @@ export default function PlanosPage() {
     setShowPlanForm(false);
     data.refreshPlans();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planUpdateState.success]);
+  }, [planUpdateState]);
 
   useEffect(() => {
     if (!itemState.success) return;
@@ -234,14 +235,31 @@ export default function PlanosPage() {
     setEditingItem(null);
     if (activePlanIds.length) data.refreshItems(activePlanIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemState.success]);
+  }, [itemState]);
 
   useEffect(() => {
     if (!inlineState.success) return;
     toast(inlineState.message || "Item salvo!");
     if (activePlanIds.length) data.refreshItems(activePlanIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inlineState.success]);
+  }, [inlineState]);
+
+  // Ao voltar para a aba, busca de novo planos e ações (mudanças feitas em outra aba ou por
+  // outra pessoa) — sem precisar recarregar a página. Não mexe com formulário aberto.
+  // ponytail: refetch no foco com intervalo mínimo; trocar por Realtime se precisar ser instantâneo.
+  const lastFocusRefresh = useRef(0);
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible" || showItemForm || showPlanForm) return;
+      if (Date.now() - lastFocusRefresh.current < FOCUS_REFRESH_MIN_MS) return;
+      lastFocusRefresh.current = Date.now();
+      data.refreshPlans();
+      if (activePlanIds.length) data.refreshItems(activePlanIds);
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey, showItemForm, showPlanForm]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -269,7 +287,7 @@ export default function PlanosPage() {
     const fromItems = collectItemClassificationOptions(data.items);
     return {
       tiposPa: mergeCatalogNames(data.catalogTiposPa, fromItems.tiposPa),
-      macroAcoes: mergeCatalogNames(data.catalogMacroAcoes, fromItems.macroAcoes),
+      macroAcoes: mergeCatalogNames(data.catalogMacroAcoes, fromItems.macroAcoes, macroAcaoKey),
     };
   }, [data.items, data.catalogTiposPa, data.catalogMacroAcoes]);
   const visibleItems = useMemo(() => {
@@ -321,7 +339,7 @@ export default function PlanosPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Planos de Acao</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Planos de Ação</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{currentTenant?.name || "Sem empresa"}</p>
           </div>
         </div>
@@ -347,17 +365,17 @@ export default function PlanosPage() {
             </h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 max-w-sm">
               {askSelection ? (
-                <>Marque uma ou mais cidades no filtro acima para ver os planos de acao.</>
+                <>Marque uma ou mais cidades no filtro acima para ver os planos de ação.</>
               ) : hasPlansWithoutMatch ? (
-                <>Ajuste os filtros de plano ou de areas/unidades para localizar um plano ja existente em <strong>{currentTenant?.name}</strong>.</>
+                <>Ajuste os filtros de plano ou de áreas/unidades para localizar um plano já existente em <strong>{currentTenant?.name}</strong>.</>
               ) : (
-                <>Crie um plano de acao 5W2H para a empresa <strong>{currentTenant?.name}</strong>.</>
+                <>Crie um plano de ação 5W2H para a empresa <strong>{currentTenant?.name}</strong>.</>
               )}
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               {(!hasPlans || askSelection) && (
                 <Button size="lg" onClick={() => setShowPlanForm(true)}>
-                  <Plus className="h-4 w-4 mr-2" /> Criar plano de acao
+                  <Plus className="h-4 w-4 mr-2" /> Criar plano de ação
                 </Button>
               )}
               {hasPlanFilters && (
@@ -447,11 +465,15 @@ export default function PlanosPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">
-            {multi ? `${filteredPlans.length} planos` : plan.title || "Planos de Acao"}
+            {multi ? `${filteredPlans.length} planos` : plan.title || "Planos de Ação"}
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            {multi && filteredPlans.map((p) => (
-              <Badge key={p.id} variant="outline" className="text-xs"><Building2 className="mr-1 h-3 w-3" />{p.unit || p.title}</Badge>
+            {/* Um chip por cidade (vários planos da mesma cidade mostram a quantidade). */}
+            {multi && [...countBy(filteredPlans, (p) => p.unit || p.title)].map(([unit, n]) => (
+              <Badge key={unit} variant="outline" className="text-xs">
+                <Building2 className="mr-1 h-3 w-3" />{unit}
+                {n > 1 && <span className="ml-1 text-zinc-400">· {n} planos</span>}
+              </Badge>
             ))}
             {!multi && plan.exercicio && <Badge variant="secondary" className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"><CalendarDays className="mr-1 h-3 w-3" />{plan.exercicio}</Badge>}
             {!multi && plan.visibility === "restricted" && <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50"><Lock className="mr-1 h-3 w-3" />Restrito</Badge>}
@@ -566,7 +588,7 @@ export default function PlanosPage() {
 
         {url.viewMode === "gantt" ? (
           visibleItems.length === 0 ? (
-            <Card><CardContent className="flex flex-col items-center py-16 text-center"><p className="text-sm text-zinc-500">Nenhuma acao para exibir.</p></CardContent></Card>
+            <Card><CardContent className="flex flex-col items-center py-16 text-center"><p className="text-sm text-zinc-500">Nenhuma ação para exibir.</p></CardContent></Card>
           ) : (
             <GanttChart items={visibleItems} />
           )
@@ -585,14 +607,14 @@ export default function PlanosPage() {
                   <ClipboardList className="h-7 w-7 text-zinc-400" />
                 </div>
                 <h3 className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                  {hasItemFilters ? "Nenhum resultado" : "Nenhuma acao"}
+                  {hasItemFilters ? "Nenhum resultado" : "Nenhuma ação"}
                 </h3>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  {hasItemFilters ? "Tente ajustar os filtros." : "Adicione acoes ao plano 5W2H."}
+                  {hasItemFilters ? "Tente ajustar os filtros." : "Adicione ações ao plano 5W2H."}
                 </p>
                 {!hasItemFilters && (
                   <Button className="mt-4" onClick={() => { if (multi) return requireSinglePlan(); setEditingItem(null); setShowItemForm(true); }}>
-                    <Plus className="h-4 w-4 mr-1" /> Adicionar primeira acao
+                    <Plus className="h-4 w-4 mr-1" /> Adicionar primeira ação
                   </Button>
                 )}
               </CardContent>
@@ -626,7 +648,7 @@ export default function PlanosPage() {
       )}
 
       <AlertDialog open={!!deletingPlan} onOpenChange={(o) => { if (!o) setDeletingPlan(null); }}>
-        {deletingPlan && <ConfirmActionDialog title="Excluir plano" msg={`Excluir "${deletingPlan.title}" e todas as acoes?`} name="planId" value={deletingPlan.id} action={planDeleteAction} pending={isPlanDeleting} />}
+        {deletingPlan && <ConfirmActionDialog title="Excluir plano" msg={`Excluir "${deletingPlan.title}" e todas as ações?`} name="planId" value={deletingPlan.id} action={planDeleteAction} pending={isPlanDeleting} />}
       </AlertDialog>
 
       {showItemForm && (
@@ -644,7 +666,7 @@ export default function PlanosPage() {
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
         {deletingItem && (
           <ConfirmActionDialog
-            title="Excluir acao"
+            title="Excluir ação"
             msg={
               deletingItem.children?.length
                 ? `Excluir "${deletingItem.action}" e as subações desta cópia?`
@@ -670,4 +692,13 @@ export default function PlanosPage() {
       )}
     </div>
   );
+}
+
+const FOCUS_REFRESH_MIN_MS = 30_000;
+
+/** Conta ocorrências por chave, preservando a ordem da primeira aparição. */
+function countBy<T>(list: T[], keyOf: (item: T) => string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const item of list) out.set(keyOf(item), (out.get(keyOf(item)) ?? 0) + 1);
+  return out;
 }

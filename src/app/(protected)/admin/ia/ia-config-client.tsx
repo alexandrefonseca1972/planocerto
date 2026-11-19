@@ -94,7 +94,7 @@ export function IaConfigClient({
     if (!state.success) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setApiKey("");
-  }, [state.success]);
+  }, [state]);
 
   function handleProviderChange(p: ProviderKey) {
     setProvider(p);

@@ -21,11 +21,11 @@
 
 | Camada | Tecnologia | Versão |
 |--------|-----------|--------|
-| **Frontend** | Next.js App Router | 16.2.4 |
+| **Frontend** | Next.js App Router | 16.4.6 |
 | | React | 19.2.4 |
 | | TypeScript | 5.x |
 | | Tailwind CSS | 4.x |
-| **Backend** | Supabase (PostgreSQL) | - |
+| **Backend** | PostgreSQL, Auth e PostgREST self-hosted | VPS |
 | | Authentication | JWT |
 | | RLS (Row-Level Security) | ✅ Ativada |
 | **Bibliotecas** | Zod | Validação |
@@ -35,7 +35,7 @@
 | | Resend | Email |
 | **Testes** | Vitest | Unit tests |
 | | Testing Library | Component tests |
-| **Deploy** | Vercel | CI/CD automático |
+| **Deploy** | VPS, Caddy e Cloudflare | systemd |
 
 ---
 
@@ -533,8 +533,10 @@ npm run build
 # Start produção local
 npm start
 
-# Deploy Vercel (automático via GitHub)
-git push origin main
+# Deploy na VPS
+npm ci
+npm run build
+systemctl restart planocerto-web
 ```
 
 ---
@@ -688,12 +690,12 @@ export async function deleteUser(userId: string) {
 **Solução:** Verify que o user está no tenant correto (`active_tenant_id`).
 
 ### Problema: "JWT inválido"
-**Solução:** Verifique se `@supabase/ssr` está configurado no layout.tsx.
+**Solução:** Verifique se o cliente SSR de Auth está configurado no layout.tsx.
 
 ### Problema: "Permissão negada"
 **Solução:** Verifique `permissions.ts` e a policy RLS.
 
-### Problema: Build fail no Vercel
+### Problema: Build fail na VPS
 **Solução:** Rode `npm run typecheck` localmente e `npm run lint`.
 
 ---

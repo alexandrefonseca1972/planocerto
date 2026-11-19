@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, enumLabel } from "@/lib/utils";
 import { formatBRL } from "@/lib/format-br";
 import {
   ArrowLeft,
@@ -108,7 +108,7 @@ export function InstituicaoDetailClient({ instituicao, detail, units }: Props) {
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <Badge variant="muted" className={getTipoBadgeClass(instituicao.tipo)}>
-              {instituicao.tipo}
+              {enumLabel(instituicao.tipo)}
             </Badge>
             {instituicao.nome_fantasia && (
               <span className="text-sm text-zinc-500 dark:text-zinc-400">

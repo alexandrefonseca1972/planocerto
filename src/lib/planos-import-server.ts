@@ -2,7 +2,7 @@
  * Lógica de inserção compartilhada pelas rotas de import de planos
  * (/api/plans/upload-batch e /api/plans/[id]/import).
  *
- * Server-only: usa Supabase + sanitização. A numeração/agrupamento vem de
+ * Server-only: usa o banco da VPS + sanitização. A numeração/agrupamento vem de
  * `parsePlanRows` (puro), garantindo o MESMO resultado nas duas rotas.
  */
 
@@ -18,6 +18,7 @@ import {
   parsePreco,
   trimStr,
 } from "@/lib/planos-import";
+import { MACRO_ACAO_MAX, macroAcaoError, macroAcaoKey } from "@/lib/macro-acao";
 
 type Client = SupabaseClient<Database>;
 
@@ -47,9 +48,19 @@ export async function importPlanItems(
   let created = 0;
   let skipped = 0;
 
+  const longMacros = groups.filter((g) => macroAcaoError(g.name)).map((g) => g.name);
+  if (longMacros.length > 0) {
+    return {
+      created: 0,
+      skipped: items.length,
+      errors: longMacros.map((name) => `Macro ação "${name}" excede ${MACRO_ACAO_MAX} caracteres. Encurte no arquivo e importe de novo.`),
+      groupCount: 0,
+    };
+  }
+
   // ── Grupos ────────────────────────────────────────────────────────────────
-  // groupMap é chaveado pelo nome CRU da MACRO AÇÃO — o mesmo valor usado no
-  // lookup dos filhos — para que a sanitização do texto não quebre o vínculo.
+  // groupMap é chaveado pela chave normalizada da MACRO AÇÃO (macroAcaoKey) — o mesmo
+  // valor usado no lookup dos filhos — para que a sanitização do texto não quebre o vínculo.
   const groupMap = new Map<string, string>();
   if (groups.length > 0) {
     const groupInserts = await Promise.all(
@@ -81,7 +92,7 @@ export async function importPlanItems(
     const numberToName = new Map(groups.map((g) => [g.number, g.name]));
     for (const gr of grupos) {
       const name = numberToName.get(trimStr(gr.number));
-      if (name) groupMap.set(name, gr.id as string);
+      if (name) groupMap.set(macroAcaoKey(name), gr.id as string);
     }
     created += grupos.length;
   }

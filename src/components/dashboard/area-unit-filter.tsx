@@ -341,7 +341,7 @@ export function AreaUnitFilter({
                         onClick={() => toggleCollapse(areaKey)}
                         className="rounded p-0.5 text-zinc-400 hover:text-zinc-600"
                         aria-label={
-                          collapsed ? "Expandir área" : "Colapsar área"
+                          collapsed ? "Expandir área" : "Recolher área"
                         }
                       >
                         <ChevronRight

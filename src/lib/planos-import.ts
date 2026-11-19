@@ -6,6 +6,8 @@
 
 // ─── Mapa FAROL → status numérico ─────────────────────────────────────────
 
+import { macroAcaoKey, normalizeMacroAcao } from "@/lib/macro-acao";
+
 export const FAROL_MAP: Record<string, number> = {
   "NÃO PROGRAMADO": 1, "NAO PROGRAMADO": 1,
   "NÃO INICIADA": 1,   "NAO INICIADA": 1,
@@ -243,7 +245,7 @@ export function parsePlanRows(dataRows: unknown[][]): {
   for (const raw of dataRows) {
     const row = raw as unknown[];
     if (!trimStr(row[COL.ACAO])) continue;
-    const macro = trimStr(row[COL.MACRO]);
+    const macro = macroAcaoKey(row[COL.MACRO]);
     if (macro && !groupIndex.has(macro)) {
       groupIndex.set(macro, groupIndex.size + 1);
     }
@@ -262,13 +264,13 @@ export function parsePlanRows(dataRows: unknown[][]): {
   for (const raw of dataRows) {
     const row = raw as unknown[];
     if (!trimStr(row[COL.ACAO])) continue;
-    const macro = trimStr(row[COL.MACRO]);
+    const macro = macroAcaoKey(row[COL.MACRO]);
 
     if (macro && !emitted.has(macro)) {
       emitted.add(macro);
       sort++;
       groups.push({
-        name: macro,
+        name: normalizeMacroAcao(row[COL.MACRO]),
         number: String(groupIndex.get(macro)),
         sortOrder: sort,
       });

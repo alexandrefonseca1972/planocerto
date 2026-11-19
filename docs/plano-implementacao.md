@@ -98,10 +98,10 @@ export function isValidUrl(url: string, allowedDomains?: string[]): boolean {
 □ npm run typecheck   → 0 errors
 □ npm run test        → todos passam, coverage ≥ meta da fase
 □ npm run build       → 0 errors
-□ Deploy preview      → vercel deploy (preview URL)
+□ Build homologação   → build validado na VPS
 □ Smoke test manual   → login, dashboard, planos, calendario
 □ Git tag             → git tag v1.X.0
-□ Deploy production   → vercel --prod
+□ Deploy production   → npm run build && systemctl restart planocerto-web
 ```
 
 ---

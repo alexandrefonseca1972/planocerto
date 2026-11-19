@@ -433,7 +433,7 @@ function TipoPAForm({
           label={values.active ? "Ativo" : "Inativo"}
         />
         <p className="mt-1 pl-11 text-xs text-zinc-500">
-          Tipos inativos ficam ocultos nos dropdowns mas mantêm o histórico.
+          Tipos inativos ficam ocultos nos dropdowns, mas mantêm o histórico.
         </p>
       </div>
     </FormDialog>

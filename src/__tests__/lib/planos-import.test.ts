@@ -44,16 +44,17 @@ describe("parsePlanRows", () => {
     ]);
   });
 
-  it("preserva o nome CRU do grupo (vínculo pai↔filho não depende de sanitização)", () => {
-    // Nome com espaço duplo: o parser não normaliza — a rota usa esse mesmo
-    // valor cru como chave do groupMap, garantindo o vínculo.
+  it("normaliza o nome do grupo e mantém o vínculo pai↔filho pela chave", () => {
+    // Espaços duplos e caixa mista: o grupo é gravado normalizado e os itens
+    // carregam a chave (macroAcaoKey), a mesma usada no groupMap da rota.
     const rows = [
-      mkRow({ macro: "MACRO  COM  ESPAÇOS", acao: "X" }),
-      mkRow({ macro: "MACRO  COM  ESPAÇOS", acao: "Y" }),
+      mkRow({ macro: "Macro  com  espaços", acao: "X" }),
+      mkRow({ macro: "MACRO COM ESPAÇOS", acao: "Y" }),
     ];
     const { groups, items } = parsePlanRows(rows);
-    expect(groups[0].name).toBe("MACRO  COM  ESPAÇOS");
-    expect(items.every((i) => i.macroAcao === "MACRO  COM  ESPAÇOS")).toBe(true);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe("MACRO COM ESPAÇOS");
+    expect(items.every((i) => i.macroAcao === "MACRO COM ESPACOS")).toBe(true);
     expect(items.map((i) => i.number)).toEqual(["1.1", "1.2"]);
   });
 

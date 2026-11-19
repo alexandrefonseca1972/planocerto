@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getUserTenants } from "@/app/actions/tenant";
+import { getSessionProfile, getSessionTenants } from "@/lib/supabase/session";
 import { checkPermission } from "@/app/actions/admin";
 import { PERMISSIONS } from "@/lib/permissions";
 import { getCurrentUserPlanScope } from "@/app/actions/action-plan";
@@ -41,21 +41,8 @@ export default async function CalendarioPage({
 
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    let activeTenantId = "";
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("active_tenant_id")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (profile?.active_tenant_id) activeTenantId = profile.active_tenant_id;
-    }
-
-    const tenants = await getUserTenants();
+    const [profile, tenants] = await Promise.all([getSessionProfile(), getSessionTenants()]);
+    const activeTenantId = profile?.active_tenant_id ?? "";
     const activeTenant =
       tenants.find((t) => t.id === activeTenantId) || tenants[0];
 
@@ -84,7 +71,7 @@ export default async function CalendarioPage({
       currentTenantName = activeTenant.name;
 
       // Catálogo de áreas/unidades para o filtro (mesmo escopo do dashboard)
-      const [{ data: areaRows }, { data: unitRows }, scope] = await Promise.all([
+      const [{ data: areaRows }, { data: unitRows }, scope, { data: allPlans }] = await Promise.all([
         supabase
           .from("areas")
           .select("id,name")
@@ -95,6 +82,10 @@ export default async function CalendarioPage({
           .eq("tenant_id", activeTenant.id)
           .eq("active", true),
         getCurrentUserPlanScope(),
+        supabase
+          .from("action_plans")
+          .select("id,tenant_id,title,unit_id")
+          .eq("tenant_id", activeTenant.id),
       ]);
       filterUnits = filterUnitsByScope((unitRows || []) as FilterUnit[], scope);
       filterAreas = filterAreasByScope(
@@ -103,10 +94,6 @@ export default async function CalendarioPage({
         scope,
       );
 
-      const { data: allPlans } = await supabase
-        .from("action_plans")
-        .select("id,tenant_id,title,unit_id")
-        .eq("tenant_id", activeTenant.id);
       const planMap = new Map(allPlans?.map((p) => [p.id, p]) || []);
       const planIds = allPlans?.map((p) => p.id) || [];
 
@@ -122,18 +109,19 @@ export default async function CalendarioPage({
       }[] = [];
       if (planIds.length > 0) {
         const PAGE = 1000;
-        for (let from = 0; ; from += PAGE) {
-          const { data: chunk, error } = await supabase
+        // Keyset por id (não por planned_end): ordena em memória depois.
+        let lastId: string | null = null;
+        for (;;) {
+          let q = supabase
             .from("action_items")
             .select(
               "id,plan_id,number,action,where,status,responsible,planned_end",
             )
             .not("planned_end", "is", null)
             .neq("status", 5)
-            .in("plan_id", planIds)
-            .order("planned_end")
-            .order("id")
-            .range(from, from + PAGE - 1);
+            .in("plan_id", planIds);
+          if (lastId) q = q.gt("id", lastId);
+          const { data: chunk, error } = await q.order("id").limit(PAGE);
           if (error) break;
           const rows = chunk || [];
           all.push(
@@ -144,8 +132,10 @@ export default async function CalendarioPage({
             })),
           );
           if (rows.length < PAGE) break;
-          if (from > 50000) break;
+          lastId = rows[rows.length - 1].id;
+          if (all.length > 50000) break;
         }
+        all.sort((a, b) => (a.planned_end < b.planned_end ? -1 : a.planned_end > b.planned_end ? 1 : a.id < b.id ? -1 : 1));
       }
 
       const today = new Date();

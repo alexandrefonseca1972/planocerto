@@ -5,7 +5,7 @@ Plataforma de Planos de Ação 5W2H com suporte multitenant, Kanban, integraçã
 ## Stack
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4
-- **Backend:** Supabase (PostgreSQL + Auth + Storage + RLS)
+- **Backend:** PostgreSQL, Auth e PostgREST self-hosted na VPS
 - **Componentes:** shadcn/ui (custom), Lucide Icons, @dnd-kit
 - **Validação:** Zod, react-hook-form
 - **Exportação:** xlsx (Excel), HTML formatado (PDF)
@@ -47,18 +47,21 @@ Acesse **[docs/](docs/README.md)** para documentação completa:
 ### Para Desenvolvedores
 - 🏗️ [Documentação Técnica](docs/DOCUMENTACAO-TECNICA.md) — Stack, estrutura, permissões, banco de dados
 - 🏗️ [Arquitetura](docs/ARQUITETURA.md) — Visão aprofundada da arquitetura e fluxos
-- 🔌 [API Reference](docs/API-REFERENCE.md) — Server Actions, Supabase, exemplos de código
+- 🔌 [API Reference](docs/API-REFERENCE.md) — Server Actions, Auth e exemplos de código
 - 📋 [Centro de Docs](docs/README.md) — Índice e navegação principal
 
 ## Variáveis de Ambiente
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://planocerto.app
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 RESEND_API_KEY=re_xxxxxxxxxxxx          # Notificações por email
 GOOGLE_CLIENT_ID=xxxxxxxx.apps.google... # Google Calendar sync
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxx      # Google Calendar sync
+```
+
+Os nomes das variáveis são mantidos por compatibilidade com as bibliotecas de Auth; os serviços rodam na VPS.
 
 ## Setup Local
 
@@ -69,8 +72,7 @@ npm install
 # Criar .env.local com as variáveis acima
 cp .env.local.example .env.local
 
-# Rodar migrations (se usar Supabase local)
-supabase db push
+# Aplicar migrations conforme /opt/planocerto/OPERACAO.md
 
 # Desenvolver
 npm run dev
@@ -113,7 +115,7 @@ src/
 │   ├── profile/         # Calendar integration
 │   └── ui/              # Reusable UI (button, card, toast, etc.)
 ├── lib/
-│   ├── supabase/        # Supabase clients (server, admin, browser) + types
+│   ├── supabase/        # Clients Auth/API (server, admin, browser) + types
 │   ├── validations/     # Zod schemas
 │   ├── email.ts         # Email notifications (Resend)
 │   ├── teams.ts         # Teams webhook
@@ -121,7 +123,7 @@ src/
 │   ├── errors.ts        # Error handling
 │   └── utils.ts         # cn(), formatDate, etc.
 ├── types/               # TypeScript interfaces
-└── __tests__/           # Test files (100 tests, 9 arquivos)
+└── __tests__/           # 349 testes em 45 arquivos
 
 supabase/
 └── migrations/          # 10 migrations SQL

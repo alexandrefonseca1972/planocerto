@@ -67,7 +67,7 @@ export function RegionalContextForm({
 
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
           <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-            Estes metadados alimentam o motor de IA para gerar sugestões de planos de ação ultra-contextualizados para esta região.
+            Estes metadados alimentam o motor de IA para gerar sugestões de planos de ação ultracontextualizados para esta região.
           </p>
 
           <div className="grid gap-6 sm:grid-cols-2">

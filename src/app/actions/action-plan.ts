@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logSupabaseError } from "@/lib/errors";
 import { isValidUuid } from "@/lib/validations/uuid";
@@ -9,6 +10,7 @@ import { planSchema, itemSchema } from "@/lib/schemas/action-plan-schemas";
 import type { ActionPlan, ActionItem, AuditEntry, ActionPlanFormState, ActionItemStatus } from "@/types/action-plan";
 import { notifyPlanAction } from "@/lib/teams";
 import { checkPermission } from "@/app/actions/admin";
+import { getSessionUser } from "@/lib/supabase/session";
 import { PERMISSIONS } from "@/lib/permissions";
 import { deriveActionItemStatus } from "@/lib/action-item-status";
 import { resolvePlanUnitReference } from "@/lib/action-plan-units";
@@ -18,6 +20,8 @@ import { buildDuplicatedRows, collectSubtreeIds, type DuplicableItem } from "@/c
 import { getTiposPA } from "@/app/actions/tipos-pa";
 import { getAreas, getMacroAcoes, getUnits } from "@/app/actions/catalog";
 import { getContasSummaryByPlan } from "@/app/actions/contas-pagar";
+import { macroAcaoError, macroAcaoKey, normalizeMacroAcao } from "@/lib/macro-acao";
+import { IDS_PER_QUERY, chunk, fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Area, Unit } from "@/types/catalog";
 import { insertCopiedItems, remapItemIds } from "@/lib/plan-copy";
 
@@ -35,6 +39,38 @@ async function logAudit(planId: string, action: string, data: Record<string, unk
   } catch (error) { console.error("[logAudit] Error:", error); }
 }
 
+
+// Teto anti-abuso; getPlans lista até 200 planos, e as consultas vão em lotes de IDS_PER_QUERY.
+const MAX_PLANS_PER_REQUEST = 500;
+
+/** Normaliza 1 ou N ids de plano: só UUIDs válidos, com teto (evita consultas gigantes). */
+function toIdList(planId: string | string[]): string[] {
+  const ids = (Array.isArray(planId) ? planId : [planId]).filter(isValidUuid);
+  if (ids.length > MAX_PLANS_PER_REQUEST) throw new Error(`Máximo de ${MAX_PLANS_PER_REQUEST} planos por consulta.`);
+  return ids;
+}
+
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+/** Todas as ações dos planos (lotes de ids, páginas de linhas). */
+async function fetchPlanItems(supabase: Supabase, ids: string[]): Promise<ActionItem[]> {
+  const parts = await Promise.all(
+    chunk(ids, IDS_PER_QUERY).map((part) =>
+      fetchAllRows((from, to) =>
+        supabase.from("action_items").select("*").in("plan_id", part).order("sort_order").order("id").range(from, to),
+      ),
+    ),
+  );
+  return parts.flat() as unknown as ActionItem[];
+}
+
+/** Agrupa ids por status, para gravar com um UPDATE por status. */
+function groupIdsByStatus(rows: { id: string; status: number }[]): Map<number, string[]> {
+  const out = new Map<number, string[]>();
+  for (const r of rows) out.set(r.status, [...(out.get(r.status) ?? []), r.id]);
+  return out;
+}
+
 async function resolveMacroActionGroupId(
   supabase: Awaited<ReturnType<typeof createClient>>,
   planId: string,
@@ -50,8 +86,10 @@ async function resolveMacroActionGroupId(
     .is("parent_id", null)
     .order("sort_order");
 
+  // Compara pela chave normalizada: "Empresa - Ação" e "EMPRESA-AÇÃO" são a mesma macro.
+  const key = macroAcaoKey(macroAction);
   const matchingGroup = (existingGroups || []).find(
-    (group) => group.id !== currentItemId && group.action.trim().toLowerCase() === macroAction.trim().toLowerCase(),
+    (group) => group.id !== currentItemId && macroAcaoKey(group.action) === key,
   );
 
   if (matchingGroup) return matchingGroup.id;
@@ -75,21 +113,19 @@ async function resolveMacroActionGroupId(
     // Concurrent insert may have created the group — recover instead of returning null
     const { data: retry } = await supabase
       .from("action_items")
-      .select("id")
+      .select("id,action")
       .eq("plan_id", planId)
-      .is("parent_id", null)
-      .ilike("action", macroAction.trim())
-      .maybeSingle();
-    return retry?.id ?? null;
+      .is("parent_id", null);
+    return (retry || []).find((group) => macroAcaoKey(group.action) === key)?.id ?? null;
   }
   return createdGroup.id;
 }
 
 export async function getCurrentUserPlanScope(): Promise<{ areaIds: string[]; unitIds: string[] }> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return { areaIds: [], unitIds: [] };
+    const supabase = await createClient();
 
     const [{ data: areaRows }, { data: unitRows }] = await Promise.all([
       supabase.from("user_areas").select("area_id").eq("user_id", user.id),
@@ -106,11 +142,19 @@ export async function getCurrentUserPlanScope(): Promise<{ areaIds: string[]; un
   }
 }
 
-export async function getAuditLog(planId: string): Promise<AuditEntry[]> {
+export async function getAuditLog(planId: string | string[]): Promise<AuditEntry[]> {
   try {
+    const ids = toIdList(planId);
     const supabase = await createClient();
-    const { data } = await supabase.from("plan_audit_log").select("*").eq("plan_id", planId).order("created_at", { ascending: false }).limit(50);
-    return (data || []) as AuditEntry[];
+    // Histórico recente: até 50 por plano, no máximo 1000 no total.
+    const max = Math.min(50 * ids.length, 1000);
+    const parts = await Promise.all(
+      chunk(ids, IDS_PER_QUERY).map(async (part) => {
+        const { data } = await supabase.from("plan_audit_log").select("*").in("plan_id", part).order("created_at", { ascending: false }).limit(max);
+        return (data || []) as AuditEntry[];
+      }),
+    );
+    return parts.flat().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, max);
   } catch (error) { console.error("[getAuditLog] Error:", error); return []; }
 }
 
@@ -152,11 +196,11 @@ function buildItemTree(items: ActionItem[]): ActionItem[] {
   return roots;
 }
 
-export async function getItems(planId: string): Promise<ActionItem[]> {
+export async function getItems(planId: string | string[]): Promise<ActionItem[]> {
   try {
+    const ids = toIdList(planId);
     const supabase = await createClient();
-    const { data } = await supabase.from("action_items").select("*").eq("plan_id", planId).order("sort_order").limit(2000);
-    return buildItemTree((data || []) as ActionItem[]);
+    return buildItemTree(await fetchPlanItems(supabase, ids));
   } catch (error) { console.error("[getItems] Error:", error); return []; }
 }
 
@@ -195,6 +239,25 @@ export async function createPlan(_prev: ActionPlanFormState, formData: FormData)
       sanitizeText(v.data.director || ""),
       sanitizeText(v.data.goal || ""),
     ]);
+
+    // Evita plano ativo com o mesmo título, na mesma unidade e exercício (ignora maiúsculas/minúsculas).
+    // ponytail: checagem na aplicação, sujeita a corrida entre requisições simultâneas; índice único parcial se virar problema.
+    if (resolvedUnit.unitId && v.data.status === "active") {
+      // Sem exercício informado, o banco grava o ano atual (default da coluna).
+      const exercicio = v.data.exercicio ?? new Date().getFullYear();
+      const { count, error: dupError } = await supabase
+        .from("action_plans")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("unit_id", resolvedUnit.unitId)
+        .eq("status", "active")
+        .eq("exercicio", exercicio)
+        .ilike("title", title.trim().replace(/[\\%_]/g, "\\$&"));
+      if (dupError) return { message: "Erro ao verificar planos existentes." };
+      if (count) {
+        return { message: `Já existe um plano ativo "${title.trim()}" de ${resolvedUnit.unitName} para o exercício ${exercicio}.` };
+      }
+    }
     const sanitized = {
       ...v.data,
       title,
@@ -328,7 +391,37 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
       sanitizeText(v.data.como || ""),
     ]);
     const sanitized = { ...v.data, action, why, where, responsible, cost, expected_result, actual_result, observations, tipo_pa, area, prioridade, subacao, como };
-    const macroAcao = await sanitizeText(typeof macroAcaoRaw === "string" ? macroAcaoRaw : "");
+    const macroAcao = normalizeMacroAcao(await sanitizeText(typeof macroAcaoRaw === "string" ? macroAcaoRaw : ""));
+    // Grupos (macros) raiz do plano: usados para aceitar nomes antigos já existentes
+    // (o limite de tamanho vale para criar/renomear, não para reutilizar) e para barrar duplicidade.
+    const { data: rootGroups } = await supabase.from("action_items").select("id,action").eq("plan_id", planId).is("parent_id", null);
+    const existingKeys = new Map((rootGroups || []).map((g) => [g.id, macroAcaoKey(g.action)]));
+    const keyExistsInPlan = (key: string, exceptId?: string) =>
+      [...existingKeys].some(([id, k]) => id !== exceptId && k === key);
+
+    if (macroAcao) {
+      const macroError = macroAcaoError(macroAcao);
+      if (macroError && !keyExistsInPlan(macroAcaoKey(macroAcao), itemId)) {
+        return { errors: { macro_acao: [macroError] }, message: macroError };
+      }
+    }
+    // Item agrupador (marcado como grupo ou que já tem filhos): o texto da ação É a macro ação.
+    let isGroupItem = formData.get("is_group") === "1";
+    if (!isGroupItem && itemId) {
+      const { count } = await supabase.from("action_items").select("id", { count: "exact", head: true }).eq("parent_id", itemId);
+      isGroupItem = !!count;
+    }
+    if (isGroupItem) {
+      sanitized.action = normalizeMacroAcao(sanitized.action);
+      const key = macroAcaoKey(sanitized.action);
+      const renamed = !itemId || existingKeys.get(itemId) !== key;
+      const groupError = renamed ? macroAcaoError(sanitized.action) : null;
+      if (groupError) return { errors: { action: [groupError] }, message: groupError };
+      if (keyExistsInPlan(key, itemId)) {
+        const dupMsg = `Já existe a macro ação "${sanitized.action}" neste plano.`;
+        return { errors: { action: [dupMsg] }, message: dupMsg };
+      }
+    }
     const resolvedParentId = macroAcao
       ? await resolveMacroActionGroupId(supabase, planId, macroAcao, itemId)
       : sanitized.parent_id || null;
@@ -349,11 +442,17 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
     revalidatePath("/dashboard");
     revalidatePath("/calendario");
 
-    // Teams notification
-    try {
-      const { data: plan } = await supabase.from("action_plans").select("tenant_id").eq("id", planId).single();
-      if (plan) {
-        const { data: tenant } = await supabase.from("tenants").select("name, teams_webhook_url").eq("id", plan.tenant_id).single();
+    // Notificações (Teams + e-mail) depois da resposta: o usuário não espera HTTP externo.
+    after(async () => {
+      const { data: plan } = await supabase
+        .from("action_plans")
+        .select("title, tenant_id, tenants(name, teams_webhook_url)")
+        .eq("id", planId)
+        .single();
+      if (!plan) return;
+      const tenant = plan.tenants as unknown as { name: string; teams_webhook_url: string | null } | null;
+
+      try {
         if (tenant?.teams_webhook_url) {
           await notifyPlanAction(tenant.teams_webhook_url, itemId ? "Atualizada" : "Criada", {
             number: payload.number, action: payload.action,
@@ -361,27 +460,25 @@ export async function upsertItem(_prev: ActionPlanFormState, formData: FormData)
             tenant: tenant.name,
           });
         }
-      }
-    } catch (error) { console.error("[upsertItem] Teams notification error:", error); }
+      } catch (error) { console.error("[upsertItem] Teams notification error:", error); }
 
-    // Email notification
-    try {
-      const { data: plan } = await supabase.from("action_plans").select("title, tenant_id").eq("id", planId).single();
-      if (plan && payload.responsible) {
-        const { data: profiles } = await supabase.from("profiles").select("email").eq("name", payload.responsible).limit(1);
-        const email = profiles?.[0]?.email;
-        if (email) {
-          const wasCompleted = Number(payload.status) === 5;
-          const { sendEmail, itemCreatedEmail, itemCompletedEmail } = await import("@/lib/email");
-          const itemData = { number: payload.number, action: payload.action, responsible: payload.responsible || "", planTitle: plan.title };
-          if (wasCompleted) {
-            await sendEmail(email, itemCompletedEmail(itemData).subject, itemCompletedEmail(itemData).html);
-          } else if (!itemId) {
-            await sendEmail(email, itemCreatedEmail(itemData).subject, itemCreatedEmail(itemData).html);
+      try {
+        if (payload.responsible) {
+          const { data: profiles } = await supabase.from("profiles").select("email").eq("name", payload.responsible).limit(1);
+          const email = profiles?.[0]?.email;
+          if (email) {
+            const wasCompleted = Number(payload.status) === 5;
+            const { sendEmail, itemCreatedEmail, itemCompletedEmail } = await import("@/lib/email");
+            const itemData = { number: payload.number, action: payload.action, responsible: payload.responsible || "", planTitle: plan.title };
+            if (wasCompleted) {
+              await sendEmail(email, itemCompletedEmail(itemData).subject, itemCompletedEmail(itemData).html);
+            } else if (!itemId) {
+              await sendEmail(email, itemCreatedEmail(itemData).subject, itemCreatedEmail(itemData).html);
+            }
           }
         }
-      }
-    } catch (error) { console.error("[upsertItem] Email notification error:", error); }
+      } catch (error) { console.error("[upsertItem] Email notification error:", error); }
+    });
 
     return { success: true, message: itemId ? "Item atualizado!" : "Item criado!" };
   } catch (error) { console.error("[upsertItem] Error:", error); return { message: "Serviço indisponível." }; }
@@ -400,8 +497,7 @@ export async function deleteItem(_prev: ActionPlanFormState, formData: FormData)
       .single();
     if (!item) return { message: "Item não encontrado." };
     const itemTenantId = (Array.isArray(item.action_plans) ? item.action_plans[0]?.tenant_id : item.action_plans?.tenant_id) ?? null;
-    const canDelete = await checkPermission(PERMISSIONS.PLANS_DELETE, itemTenantId);
-    const canUpdate = canDelete || await checkPermission(PERMISSIONS.PLANS_UPDATE, itemTenantId);
+    const canUpdate = await checkPermission([PERMISSIONS.PLANS_DELETE, PERMISSIONS.PLANS_UPDATE], itemTenantId);
     if (!canUpdate) return { message: "Acesso negado. Permissão insuficiente." };
 
     const { data: planItems } = await supabase
@@ -717,35 +813,61 @@ export async function bulkUpdateStatus(planId: string, itemIds: string[], _statu
     // .eq("plan_id", planId) é essencial: a permissão acima só foi validada
     // para ESTE plano — sem o filtro, itemIds poderia incluir itens de outro
     // plano/empresa e seriam recalculados/persistidos sem checagem própria.
-    const { data: items, error: fetchError } = await supabase
-      .from("action_items")
-      .select("id,plan_id,planned_start,planned_end,actual_start,actual_end,expected_result,actual_result,observations,cost,\"where\",why,como,inscritos_real,mat_fin_real,mat_acad_real,action,responsible,prioridade")
-      .in("id", itemIds)
-      .eq("plan_id", planId);
-    if (fetchError || !items) return { message: "Erro ao recalcular." };
-
-    let updatedCount = 0;
-    let blockedHighPriorityCount = 0;
-
-    for (const item of items) {
-      const status = deriveActionItemStatus(item);
-
-      if (status === 5 && item.prioridade === "Alta") {
-        const [{ count: commentCount }, { count: attachCount }] = await Promise.all([
-          supabase.from("item_comments").select("*", { count: "exact", head: true }).eq("item_id", item.id),
-          supabase.from("plan_attachments").select("*", { count: "exact", head: true }).eq("item_id", item.id),
-        ]);
-
-        if ((commentCount || 0) === 0 && (attachCount || 0) === 0) {
-          blockedHighPriorityCount += 1;
-          continue;
-        }
-      }
-
-      const { error } = await supabase.from("action_items").update({ status, updated_at: new Date().toISOString() }).eq("id", item.id);
-      if (error) return { message: "Erro ao recalcular." };
-      updatedCount += 1;
+    let items;
+    try {
+      const parts = await Promise.all(
+        chunk(itemIds, IDS_PER_QUERY).map((part) =>
+          fetchAllRows((from, to) =>
+            supabase
+              .from("action_items")
+              .select("id,plan_id,planned_start,planned_end,actual_start,actual_end,expected_result,actual_result,observations,cost,\"where\",why,como,inscritos_real,mat_fin_real,mat_acad_real,action,responsible,prioridade")
+              .in("id", part)
+              .eq("plan_id", planId)
+              .order("id")
+              .range(from, to),
+          ),
+        ),
+      );
+      items = parts.flat();
+    } catch {
+      return { message: "Erro ao recalcular." };
     }
+
+    let blockedHighPriorityCount = 0;
+    const derived = items.map((item) => ({ id: item.id, status: deriveActionItemStatus(item), prioridade: item.prioridade }));
+
+    // Prioridade Alta só conclui com evidência (comentário ou anexo): uma consulta para todos.
+    const highToComplete = derived.filter((d) => d.status === 5 && d.prioridade === "Alta").map((d) => d.id);
+    const withEvidence = new Set<string>();
+    if (highToComplete.length) {
+      const rows = await Promise.all(
+        chunk(highToComplete, IDS_PER_QUERY).flatMap((part) => [
+          fetchAllRows<{ item_id: string | null }>((from, to) =>
+            supabase.from("item_comments").select("item_id").in("item_id", part).order("id").range(from, to)),
+          fetchAllRows<{ item_id: string | null }>((from, to) =>
+            supabase.from("plan_attachments").select("item_id").in("item_id", part).order("id").range(from, to)),
+        ]),
+      );
+      for (const row of rows.flat()) if (row.item_id) withEvidence.add(row.item_id);
+    }
+
+    const toUpdate = derived.filter((d) => {
+      if (d.status === 5 && d.prioridade === "Alta" && !withEvidence.has(d.id)) {
+        blockedHighPriorityCount += 1;
+        return false;
+      }
+      return true;
+    });
+    const updatedAt = new Date().toISOString();
+    const results = await Promise.all(
+      [...groupIdsByStatus(toUpdate)].flatMap(([status, ids]) =>
+        chunk(ids, IDS_PER_QUERY).map((part) =>
+          supabase.from("action_items").update({ status, updated_at: updatedAt }).in("id", part).eq("plan_id", planId),
+        ),
+      ),
+    );
+    if (results.some((r) => r.error)) return { message: "Erro ao recalcular." };
+    const updatedCount = toUpdate.length;
 
     revalidatePath("/planos");
     revalidatePath("/dashboard");
@@ -762,17 +884,11 @@ export async function bulkUpdateStatus(planId: string, itemIds: string[], _statu
   } catch (error) { console.error("[bulkUpdateStatus] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
-export async function recalculateAndGetItems(planId: string): Promise<ActionItem[]> {
+export async function recalculateAndGetItems(planId: string | string[]): Promise<ActionItem[]> {
   try {
+    const ids = toIdList(planId);
     const supabase = await createClient();
-    const { data } = await supabase
-      .from("action_items")
-      .select("*")
-      .eq("plan_id", planId)
-      .order("sort_order")
-      .limit(2000);
-
-    const items = (data || []) as ActionItem[];
+    const items = await fetchPlanItems(supabase, ids);
     if (items.length === 0) return [];
 
     const today = new Date();
@@ -786,9 +902,18 @@ export async function recalculateAndGetItems(planId: string): Promise<ActionItem
       item.updated_at = updatedAt;
       changed.push(item);
     }
-    await Promise.all(changed.map((item) =>
-      supabase.from("action_items").update({ status: item.status, updated_at: updatedAt }).eq("id", item.id),
-    ));
+    // Um UPDATE por status novo e por lote de ids (URL curta), não um por item.
+    // Falha ao persistir não impede a leitura: o status exibido já é o derivado das datas
+    // e será gravado de novo na próxima abertura.
+    const results = await Promise.all(
+      [...groupIdsByStatus(changed)].flatMap(([status, itemIds]) =>
+        chunk(itemIds, IDS_PER_QUERY).map((part) =>
+          supabase.from("action_items").update({ status, updated_at: updatedAt }).in("id", part),
+        ),
+      ),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed) console.error("[recalculateAndGetItems] Falha ao gravar status recalculado:", failed.error);
 
     return buildItemTree(items);
   } catch (error) {
@@ -825,7 +950,8 @@ export async function getPlanosBootstrap(tenantId: string): Promise<{
 }
 
 /** Ações, histórico e resumo financeiro de um plano, em UMA server action. */
-export async function getPlanItemsBundle(planId: string) {
+/** Itens, histórico e contas de um ou mais planos — uma server action, consultas com `.in()`. */
+export async function getPlanItemsBundle(planId: string | string[]) {
   const [items, auditLog, contasSummary] = await Promise.all([
     recalculateAndGetItems(planId),
     getAuditLog(planId),

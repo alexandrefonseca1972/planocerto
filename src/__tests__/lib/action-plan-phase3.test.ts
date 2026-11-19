@@ -6,7 +6,7 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-// Mock Supabase and permissions
+// Mock do cliente Auth/API e das permissões
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
@@ -50,7 +50,14 @@ describe("Action Plan Phase 3: Mandatory Evidence", () => {
   });
 
   it("should skip HIGH priority items without evidence during bulk recalculation", async () => {
-    const updateEqMock = vi.fn().mockResolvedValue({ error: null });
+    const updateMock = vi.fn(() => ({ in: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) }));
+    // Mesmo mock em todas as páginas: 1ª página com o item, depois vazia (fim da paginação).
+    const itemsRange = vi.fn()
+      .mockResolvedValueOnce({
+        error: null,
+        data: [{ id: VALID_ITEM_ID, plan_id: VALID_PLAN_ID, prioridade: "Alta", action: "Test", actual_end: "2026-01-01" }],
+      })
+      .mockResolvedValue({ data: [], error: null });
     const mockSupabase: MockSupabase = {
       auth: { getUser: vi.fn(() => Promise.resolve({ data: { user: { id: "user1" } } })) },
       from: vi.fn((table) => {
@@ -58,24 +65,16 @@ describe("Action Plan Phase 3: Mandatory Evidence", () => {
           return {
             select: vi.fn().mockReturnThis(),
             in: vi.fn(() => ({
-              eq: vi.fn().mockResolvedValue({
-                data: [{
-                  id: VALID_ITEM_ID,
-                  plan_id: VALID_PLAN_ID,
-                  prioridade: "Alta",
-                  action: "Test",
-                  actual_end: "2026-01-01",
-                }],
-              }),
+              eq: vi.fn(() => ({ order: vi.fn(() => ({ range: itemsRange })) })),
             })),
-            update: vi.fn(() => ({ eq: updateEqMock })),
+            update: updateMock,
           };
         }
-
         if (table === "item_comments" || table === "plan_attachments") {
+          // Evidências buscadas em lote: nenhuma linha para o item.
           return {
             select: vi.fn(() => ({
-              eq: vi.fn().mockResolvedValue({ count: 0 }),
+              in: vi.fn(() => ({ order: vi.fn(() => ({ range: vi.fn().mockResolvedValue({ data: [], error: null }) })) })),
             })),
           };
         }
@@ -91,7 +90,7 @@ describe("Action Plan Phase 3: Mandatory Evidence", () => {
 
     const result = await bulkUpdateStatus(VALID_PLAN_ID, [VALID_ITEM_ID], 4);
 
-    expect(updateEqMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
     expect(result.message).toContain('mantidos fora de "Concluído"');
   });

@@ -14,6 +14,8 @@ import {
   Check, 
   Trash2, 
   CopyPlus,
+  Layers,
+  MapPin,
   X 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,8 +26,9 @@ import {
   DropdownMenuItem, 
   DropdownMenuSeparator 
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { cn, enumLabel } from "@/lib/utils";
 import { formatBRL } from "@/lib/format-br";
+import { macroAcaoKey, normalizeMacroAcao } from "@/lib/macro-acao";
 import { fmt } from "@/components/planos/plan-utils";
 import { StatusDot } from "@/components/planos/status-dot";
 import type { ActionItem } from "@/types/action-plan";
@@ -44,6 +47,52 @@ function sumCost(children?: ActionItem[]): number {
 }
 
 type SortKey = "number" | "action" | "tipo_pa" | "prioridade" | "responsible" | "why" | "planned_end" | "where" | "planned_start" | "cost" | "status" | null;
+
+type TableRow =
+  | { kind: "item"; item: ActionItem; depth: number }
+  | { kind: "macro"; key: string; label: string; count: number; unitCount: number; open: boolean }
+  | { kind: "unit"; key: string; label: string; count: number };
+
+const NO_MACRO_KEY = "\u0000sem-macro";
+
+function countItems(list: ActionItem[]): number {
+  return list.reduce((acc, item) => acc + 1 + countItems(item.children ?? []), 0);
+}
+
+/**
+ * Quebra as linhas em páginas de até PAGE_SIZE ações. Cabeçalhos (macro/cidade) não contam,
+ * nunca ficam sozinhos no fim da página e se repetem no topo quando o grupo continua.
+ */
+function paginate(rows: TableRow[]): TableRow[][] {
+  const pages: TableRow[][] = [[]];
+  let items = 0;
+  let macro: TableRow | null = null;
+  let unit: TableRow | null = null;
+  const newPage = () => { pages.push([]); items = 0; };
+  for (const row of rows) {
+    if (row.kind === "macro") {
+      if (items >= PAGE_SIZE) newPage();
+      macro = row; unit = null;
+      pages[pages.length - 1].push(row);
+    } else if (row.kind === "unit") {
+      if (items >= PAGE_SIZE) {
+        newPage();
+        if (macro) pages[pages.length - 1].push(macro); // cidade nova no topo da página: repete a macro
+      }
+      unit = row;
+      pages[pages.length - 1].push(row);
+    } else {
+      if (items >= PAGE_SIZE) {
+        newPage();
+        if (macro) pages[pages.length - 1].push(macro);
+        if (unit) pages[pages.length - 1].push(unit);
+      }
+      pages[pages.length - 1].push(row);
+      items++;
+    }
+  }
+  return pages;
+}
 
 interface SortState {
   key: SortKey;
@@ -114,6 +163,8 @@ export function PlanTable({
   unitByPlanId,
 }: PlanTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  // Vários planos: macros vêm abertas; guarda só as que o usuário recolheu.
+  const [collapsedMacros, setCollapsedMacros] = useState<Set<string>>(new Set());
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortState>({ key: null, dir: "asc" });
   const [page, setPage] = useState(0);
@@ -127,6 +178,15 @@ export function PlanTable({
     });
   };
 
+  const toggleMacro = (key: string) => {
+    setCollapsedMacros((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const allGroupIds = useMemo(() => {
     const ids = new Set<string>();
     function collect(list: ActionItem[]) {
@@ -134,20 +194,11 @@ export function PlanTable({
         if (item.children?.length) { ids.add(item.id); collect(item.children); }
       }
     }
-    collect(items);
+    // Vários planos: o grupo raiz vira a linha de macro ação; só os subgrupos expandem.
+    if (unitByPlanId) for (const root of items) collect(root.children ?? []);
+    else collect(items);
     return ids;
-  }, [items]);
-
-  const allExpanded = allGroupIds.size > 0 && [...allGroupIds].every((id) => expandedRows.has(id));
-
-  const toggleExpandAll = () => {
-    if (allExpanded) {
-      setExpandedRows(new Set());
-    } else {
-      setExpandedRows(new Set(allGroupIds));
-    }
-    setPage(0);
-  };
+  }, [items, unitByPlanId]);
 
   const toggleSort = (key: SortKey) => {
     setSort((prev) => {
@@ -157,20 +208,17 @@ export function PlanTable({
     });
   };
 
-  // Flatten and optionally sort items
-  const { flatItems, totalPages } = useMemo(() => {
-    const flat: ActionItem[] = [];
+  // Achata a árvore em linhas visíveis (com ordenação opcional por coluna).
+  const { pages, macroKeys, itemCount } = useMemo(() => {
+    const out: TableRow[] = [];
+    let count = 0;
 
-    function flattenVisible(list: ActionItem[], forceVisible?: boolean) {
+    function flattenVisible(list: ActionItem[], depth: number) {
       for (const item of list) {
-        flat.push(item);
+        out.push({ kind: "item", item, depth });
+        count++;
         const isGroup = !!(item.children && item.children.length > 0);
-        const isExpanded = expandedRows.has(item.id);
-        if (isGroup && (forceVisible || isExpanded) && item.children) {
-          flattenVisible(item.children, forceVisible);
-        } else if (!isGroup && item.children) {
-          flattenVisible(item.children, forceVisible);
-        }
+        if (item.children && (!isGroup || expandedRows.has(item.id))) flattenVisible(item.children, depth + 1);
       }
     }
 
@@ -181,20 +229,67 @@ export function PlanTable({
       sortTree(sorted, sort.dir, cmp);
     }
 
-    flattenVisible(sorted);
+    const keys: string[] = [];
+    if (!unitByPlanId) {
+      flattenVisible(sorted, 0);
+    } else {
+      // Vários planos: MACRO AÇÃO → cidade → ações. A mesma macro de cidades diferentes
+      // (grafias diferentes inclusive) fica numa linha só.
+      const macros = new Map<string, { label: string; byUnit: Map<string, ActionItem[]> }>();
+      for (const root of sorted) {
+        const isGroup = !!root.children?.length;
+        const key = isGroup ? macroAcaoKey(root.action) : NO_MACRO_KEY;
+        if (!macros.has(key)) macros.set(key, { label: isGroup ? normalizeMacroAcao(root.action) : "Sem macro ação", byUnit: new Map() });
+        const unit = unitByPlanId[root.plan_id] || "Sem unidade";
+        const byUnit = macros.get(key)!.byUnit;
+        if (!byUnit.has(unit)) byUnit.set(unit, []);
+        byUnit.get(unit)!.push(...(isGroup ? root.children! : [root]));
+      }
+      const ptBR = (a: string, b: string) => a.localeCompare(b, "pt-BR");
+      const orderedMacros = [...macros.entries()].sort(([ka, a], [kb, b]) =>
+        ka === NO_MACRO_KEY ? 1 : kb === NO_MACRO_KEY ? -1 : ptBR(a.label, b.label),
+      );
+      for (const [key, macro] of orderedMacros) {
+        keys.push(key);
+        const units = [...macro.byUnit.entries()].sort(([a], [b]) => ptBR(a, b));
+        const total = units.reduce((acc, [, list]) => acc + countItems(list), 0);
+        const open = !collapsedMacros.has(key);
+        out.push({ kind: "macro", key, label: macro.label, count: total, unitCount: units.length, open });
+        if (!open) continue;
+        for (const [unit, list] of units) {
+          out.push({ kind: "unit", key: `${key}|${unit}`, label: unit, count: countItems(list) });
+          flattenVisible(list, 0);
+        }
+      }
+    }
 
-    const pages = Math.max(1, Math.ceil(flat.length / PAGE_SIZE));
+    return { pages: paginate(out), macroKeys: keys, itemCount: count };
+  }, [items, sort, expandedRows, unitByPlanId, collapsedMacros]);
 
-    return { flatItems: flat, totalPages: pages };
-  }, [items, sort, expandedRows]);
+  const allExpanded =
+    (allGroupIds.size > 0 || macroKeys.length > 0) &&
+    [...allGroupIds].every((id) => expandedRows.has(id)) &&
+    collapsedMacros.size === 0;
+
+  const toggleExpandAll = () => {
+    if (allExpanded) {
+      setExpandedRows(new Set());
+      setCollapsedMacros(new Set(macroKeys));
+    } else {
+      setExpandedRows(new Set(allGroupIds));
+      setCollapsedMacros(new Set());
+    }
+    setPage(0);
+  };
 
   // Clamp da página durante o render (sem effect → sem cascading render).
   // setState durante o render é o padrão recomendado pelo React para ajustar
   // estado derivado; converge em 1 re-render pois safePage já é clampado.
+  const totalPages = pages.length;
   const safePage = Math.min(page, Math.max(0, totalPages - 1));
   if (safePage !== page) setPage(safePage);
 
-  const pageItems = flatItems.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const pageRows = pages[safePage] ?? [];
 
   return (
     <div className="space-y-2">
@@ -223,11 +318,56 @@ export function PlanTable({
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((item, idx) => {
+                {pageRows.map((row, idx) => {
+                  if (row.kind === "macro") {
+                    return (
+                      <tr
+                        key={`m:${row.key}`}
+                        className="cursor-pointer border-y border-blue-100 bg-blue-50/70 hover:bg-blue-50 dark:border-blue-900/40 dark:bg-blue-950/30 dark:hover:bg-blue-950/40"
+                        onClick={() => toggleMacro(row.key)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleMacro(row.key); }
+                        }}
+                        tabIndex={0}
+                        aria-expanded={row.open}
+                      >
+                        <td colSpan={12} className="relative z-[25] bg-inherit px-3 py-2.5">
+                          <span className="sticky left-3 inline-flex items-center gap-2.5">
+                            <span className={cn(
+                              "inline-flex h-5 w-5 items-center justify-center rounded-md bg-white text-zinc-500 shadow-sm dark:bg-zinc-800 dark:text-zinc-300",
+                            )}>
+                              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", row.open || "-rotate-90")} />
+                            </span>
+                            <Layers className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            <span className="text-[13px] font-bold tracking-wide text-zinc-900 dark:text-zinc-50">{row.label}</span>
+                            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                              {row.count} {row.count === 1 ? "ação" : "ações"} · {row.unitCount} {row.unitCount === 1 ? "cidade" : "cidades"}
+                            </span>
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  if (row.kind === "unit") {
+                    return (
+                      <tr key={`u:${row.key}`} className="border-t border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                        <td colSpan={12} className="relative z-[25] bg-inherit px-3 pb-1.5 pt-3">
+                          <span className="sticky left-3 inline-flex items-center gap-2 pl-7">
+                            <MapPin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                            <span className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-100">{row.label}</span>
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                              {row.count} {row.count === 1 ? "ação" : "ações"}
+                            </span>
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const { item, depth } = row;
                   const isGroup = !!(item.children && item.children.length > 0);
                   const isExpanded = expandedRows.has(item.id);
                   const isEditing = inlineEditId === item.id;
-                  const depth = itemDepth(items, item.id, 0);
 
                   return (
                     <tr
@@ -276,7 +416,6 @@ export function PlanTable({
                           inlineEditId={inlineEditId}
                           onOpenTab={onOpenTab}
                           contasSummary={contasSummary[item.id]}
-                          unitLabel={depth === 0 ? unitByPlanId?.[item.plan_id] : undefined}
                         />
                       )}
                     </tr>
@@ -295,7 +434,7 @@ export function PlanTable({
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
         <div className="flex items-center gap-3">
           <span className="tabular-nums">
-            {flatItems.length} {flatItems.length === 1 ? "item" : "itens"}
+            {itemCount} {itemCount === 1 ? "item" : "itens"}
             {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
           </span>
           <button
@@ -326,17 +465,6 @@ export function PlanTable({
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function itemDepth(items: ActionItem[], targetId: string, currentDepth: number): number {
-  for (const item of items) {
-    if (item.id === targetId) return currentDepth;
-    if (item.children && item.children.length > 0) {
-      const found = itemDepth(item.children, targetId, currentDepth + 1);
-      if (found >= 0) return found;
-    }
-  }
-  return currentDepth;
-}
 
 function sortValue(key: SortKey, item: ActionItem): string | number {
   switch (key) {
@@ -388,7 +516,6 @@ function ViewRow({
   inlineEditId,
   onOpenTab,
   contasSummary,
-  unitLabel,
 }: {
   item: ActionItem;
   depth: number;
@@ -403,7 +530,6 @@ function ViewRow({
   inlineEditId: string | null;
   onOpenTab: (i: ActionItem, tab: "modelo" | "anexos" | "comentarios" | "historico") => void;
   contasSummary?: ItemContasSummary;
-  unitLabel?: string;
 }) {
   return (
     <>
@@ -436,11 +562,6 @@ function ViewRow({
           >
             {item.action}
           </p>
-          {unitLabel && (
-            <span className="mt-0.5 inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-              {unitLabel}
-            </span>
-          )}
           {!isGroup && item.why && (
             <p className="mt-0.5 truncate text-[11px] text-zinc-400 dark:text-zinc-500" title={item.why}>{item.why}</p>
           )}
@@ -461,7 +582,7 @@ function ViewRow({
             item.prioridade === "Media" && "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300",
             item.prioridade === "Baixa" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
           )}>
-            {item.prioridade}
+            {enumLabel(item.prioridade)}
           </span>
         ) : <span className="text-[11px] text-zinc-300 dark:text-zinc-600">—</span>}
       </td>

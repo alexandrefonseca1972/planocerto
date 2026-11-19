@@ -10,7 +10,7 @@ Perguntas frequentes organizadas por tema.
 PlanoCerto é uma plataforma web para gestão de **planos de ação** estruturados pela metodologia **5W2H**. Permite criar, acompanhar e colaborar em projetos com visibilidade total.
 
 ### Como acesso a plataforma?
-Acesse https://planocerto.vercel.app e faça login com seu email e senha. Se é primeira vez, clique no link do email de convite.
+Acesse https://planocerto.app e faça login com seu email e senha. Se é primeira vez, clique no link do email de convite.
 
 ### Qual navegador usar?
 Chrome, Firefox, Edge, Safari (versões recentes). Mobile otimizado para tablets.

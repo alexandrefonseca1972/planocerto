@@ -23,7 +23,7 @@
 
 ### ~~2. `middleware.ts`~~ Não era pendência
 
-`src/proxy.ts` já é reconhecido pelo Next.js/Vercel como middleware — a lógica de auth, desativação de conta e restrição de horário já estava ativa. O `middleware.ts` criado gerava conflito e foi removido.
+`src/proxy.ts` já é reconhecido pelo Next.js como middleware — a lógica de auth, desativação de conta e restrição de horário já estava ativa. O `middleware.ts` criado gerava conflito e foi removido.
 
 ### ~~3. Rota `/plano` não existe~~ ✓ Resolvido
 

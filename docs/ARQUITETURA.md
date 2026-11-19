@@ -267,8 +267,8 @@ export async function updatePlan(id: string, data: Plan) {
 
 ### 1. Network
 - HTTPS only
-- CORS configurado no Supabase
-- Rate limiting no Vercel
+- CORS configurado no Auth/API da VPS
+- Rate limiting na aplicação
 
 ### 2. Auth
 - JWT com expiry 1h
@@ -327,40 +327,35 @@ Target:
 
 ## Deployment
 
-### Vercel (Frontend)
+### VPS com Cloudflare
 
 ```
-GitHub → Push
+Código → Build: npm run build
   ↓
-Vercel Webhook detecta
+systemd → planocerto-web
   ↓
-Build: npm run build
+Caddy → HTTPS na VPS
   ↓
-Deploy automático
+Cloudflare → DNS e proxy
   ↓
-Edge: CDN global
-  ↓
-https://planocerto.vercel.app
+https://planocerto.app
 ```
 
-### Supabase (Backend)
+### Backend self-hosted
 
 ```
 PostgreSQL:
-├─ Hosted na Supabase (cloud)
-├─ Backups automáticos
-├─ Point-in-time recovery
-└─ Replicação geográfica (opcional)
+├─ Cluster dedicado na VPS
+├─ Backups diários locais
+└─ Acesso restrito a loopback
 
-Auth:
+Auth e PostgREST:
 ├─ JWT tokens
-├─ Hosted sessions
-└─ OAuth integrations
+├─ Execução na VPS
+└─ Publicação HTTPS pelo Caddy
 
 Storage:
-├─ S3-compatible
-├─ CDN automático
-└─ 50GB free tier
+└─ Não configurado nesta instalação
 ```
 
 ---

@@ -60,14 +60,12 @@ export function usePlanosData({ tenantId }: UsePlanosDataParams) {
   async function loadPlanItems(planIds: string[]) {
     setLoadingItems(true);
     try {
-      const bundles = await Promise.all(planIds.map(getPlanItemsBundle));
-      setItems(bundles.flatMap((b) => b.items));
-      setAuditLog(
-        bundles
-          .flatMap((b) => b.auditLog)
-          .sort((a, b) => b.created_at.localeCompare(a.created_at)),
-      );
-      setContasSummary(Object.assign({}, ...bundles.map((b) => b.contasSummary)));
+      // Uma server action para todos os planos: o Next despacha actions uma por vez,
+      // então N chamadas em Promise.all rodariam em fila.
+      const bundle = await getPlanItemsBundle(planIds);
+      setItems(bundle.items);
+      setAuditLog(bundle.auditLog);
+      setContasSummary(bundle.contasSummary);
     } catch {
       toast("Erro ao carregar ações do plano.", "error");
     } finally {
@@ -83,8 +81,7 @@ export function usePlanosData({ tenantId }: UsePlanosDataParams) {
   }
 
   async function refreshItems(planIds: string[]) {
-    const lists = await Promise.all(planIds.map(getItems));
-    setItems(lists.flat());
+    setItems(await getItems(planIds));
   }
 
   return {

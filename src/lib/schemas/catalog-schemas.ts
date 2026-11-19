@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isValidCNPJ, isValidPhone, isValidEmail } from "@/lib/format-br";
 import { sanitizedString } from "@/lib/validation/sanitize";
+import { MACRO_ACAO_MAX, normalizeMacroAcao } from "@/lib/macro-acao";
 
 /**
  * Schemas zod compartilhados entre server actions e client components.
@@ -33,7 +34,8 @@ export const tipoPaSchema = z.object({
 });
 
 export const macroAcaoSchema = z.object({
-  name: nome(100),
+  // Macro ação: sempre em caixa alta e curta (agrupador, não frase).
+  name: nome(MACRO_ACAO_MAX).transform(normalizeMacroAcao),
   sort_order: z.coerce.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 });

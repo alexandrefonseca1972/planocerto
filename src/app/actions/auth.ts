@@ -92,7 +92,7 @@ export async function login(
       (error instanceof Error && /fetch failed|ENOTFOUND|ECONNREFUSED/i.test(error.message));
     return {
       message: isNetwork
-        ? "Não foi possível conectar ao servidor de autenticação. Confira a conexão e as variáveis do Supabase."
+        ? "Não foi possível conectar ao servidor de autenticação. Confira a conexão e a configuração da VPS."
         : "Serviço indisponível no momento. Tente novamente em alguns instantes.",
     };
   }
@@ -109,7 +109,7 @@ export async function signup(
   _formData: FormData
 ): Promise<FormState> {
   return {
-    message: "O auto-cadastro está desabilitado. Entre em contato com o administrador.",
+    message: "O autocadastro está desabilitado. Entre em contato com o administrador.",
   };
 }
 

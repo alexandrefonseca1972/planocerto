@@ -3,6 +3,7 @@
 // consumido apenas por outros módulos de servidor — não é superfície de action.
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSessionUser } from "@/lib/supabase/session";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ component: "actions:helpers" });
@@ -150,15 +151,22 @@ export async function getEffectiveRole(
   userId: string,
   tenantId: string | null,
 ): Promise<{ role: string; permissions: Record<string, boolean> | null }> {
-  // Conta bloqueada não tem papel em lugar nenhum (achado #4).
-  if ((await getAccountAccessStatus(userId)) !== "ok") return { role: "", permissions: null };
-
+  // Leituras independentes em paralelo (1 ida em vez de 3-4 em série); as
+  // regras abaixo são aplicadas na mesma ordem de antes.
   const adminClient = createAdminClient();
-  const { data: profile } = await adminClient
-    .from("profiles")
-    .select("role, permissions")
-    .eq("id", userId)
-    .maybeSingle();
+  const [status, { data: profile }, { data: member }, { data: tenantRole }] = await Promise.all([
+    getAccountAccessStatus(userId),
+    adminClient.from("profiles").select("role, permissions").eq("id", userId).maybeSingle(),
+    tenantId
+      ? adminClient.from("tenant_members").select("user_id").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    tenantId
+      ? adminClient.from("tenant_member_roles").select("role").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  // Conta bloqueada não tem papel em lugar nenhum (achado #4).
+  if (status !== "ok") return { role: "", permissions: null };
 
   // Sem perfil (conta apagada/race de signup), nega por padrão: "" não bate
   // com nenhum builtin nem papel customizado, então hasPermission() resolve
@@ -171,24 +179,11 @@ export async function getEffectiveRole(
 
   // Espelha effective_role_for_tenant() (migration 076): sem vínculo com a
   // empresa não há papel nela, exceto super_admin. "" nega tudo.
-  const { data: member } = await adminClient
-    .from("tenant_members")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .eq("user_id", userId)
-    .maybeSingle();
   if (!member) {
     return globalRole === "super_admin"
       ? { role: globalRole, permissions }
       : { role: "", permissions: null };
   }
-
-  const { data: tenantRole } = await adminClient
-    .from("tenant_member_roles")
-    .select("role")
-    .eq("tenant_id", tenantId)
-    .eq("user_id", userId)
-    .maybeSingle();
 
   return { role: (tenantRole?.role as string | undefined) ?? globalRole, permissions };
 }
@@ -202,11 +197,9 @@ export async function getEffectiveRole(
  */
 export async function getCurrentTenantId(): Promise<string | null> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return null;
+    const supabase = await createClient();
     const { data: profile } = await supabase
       .from("profiles")
       .select("active_tenant_id")

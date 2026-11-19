@@ -20,10 +20,19 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.7.17] - 2026-11-16
+
+### Removido
+- Configuração e ativos da Vercel, além de instruções de deploy externo.
+
+### Alterado
+- Página inicial e documentação passam a destacar somente a infraestrutura própria na VPS.
+- Referências a hospedagem externa foram substituídas por PostgreSQL, Auth e PostgREST self-hosted.
+
 ## [2.7.16] - 2026-11-16
 
 ### Alterado
-- Produção migrada para VPS com Caddy, systemd, Cloudflare e Supabase self-hosted.
+- Produção migrada para VPS com Caddy, systemd, Cloudflare, PostgreSQL e Auth self-hosted.
 - URLs da aplicação e do Auth atualizadas para `planocerto.app`.
 - Chamadas da página inicial alinhadas ao acesso por administrador, sem prometer auto-cadastro.
 - Grafo navegável do projeto atualizado.

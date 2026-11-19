@@ -50,9 +50,7 @@ describe("deleteItem", () => {
   });
 
   it("deletes the subtree with the user client when the user can update", async () => {
-    checkPermissionMock
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
+    checkPermissionMock.mockResolvedValueOnce(true);
 
     const deleteIn = vi.fn().mockResolvedValue({ error: null, count: 2 });
     let itemSelects = 0;
@@ -105,8 +103,8 @@ describe("deleteItem", () => {
     formData.set("itemId", itemId);
     const result = await deleteItem({}, formData);
 
-    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_DELETE, "tenant-1");
-    expect(checkPermissionMock).toHaveBeenCalledWith(PERMISSIONS.PLANS_UPDATE, "tenant-1");
+    expect(checkPermissionMock).toHaveBeenCalledTimes(1);
+    expect(checkPermissionMock).toHaveBeenCalledWith([PERMISSIONS.PLANS_DELETE, PERMISSIONS.PLANS_UPDATE], "tenant-1");
     expect(deleteIn).toHaveBeenCalledWith("id", [childId, itemId]);
     expect(result).toEqual({ success: true, message: "Item excluído!" });
   });

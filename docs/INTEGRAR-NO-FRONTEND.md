@@ -444,10 +444,10 @@ NEXT_PUBLIC_DOCS_URL=https://raw.githubusercontent.com/seu-repo/docs
 # Configurar em: Settings → Pages → Source: /docs
 ```
 
-### Opção 2: Vercel
+### Opção 2: VPS
 ```bash
-# Criar site separado para docs
-# Ou integrar no mesmo projeto
+# Publicar na mesma VPS, atrás do Caddy
+# Ou integrar no mesmo projeto Next.js
 ```
 
 ### Opção 3: Embed no App
