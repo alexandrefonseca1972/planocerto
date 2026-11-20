@@ -33,6 +33,16 @@ Adicionado redirect permanente (301) em `next.config.ts`:
 
 ---
 
+## Concluído — 20/11/2026 (PRs #42 a #50)
+
+- [x] Contagem só de ações na tabela de vários planos; cidades mantidas ao recarregar (`?units=`)
+- [x] Dependências: react 19.3.1, supabase-js, radix, tailwind; @supabase/ssr 0.12.7; isomorphic-dompurify 4.7.0
+- [x] Segurança: XSS armazenado na impressão do plano e nos emails (`escapeHtml` + CSP)
+- [x] Relatório executivo do plano (menu Ações): farol, bloqueios, saúde financeira, próximos vencimentos
+- [x] Celular: sem rolagem lateral em Planos, form de ação, Dashboard e Financeiro
+- [x] Segurança: escopo de empresa na gestão de usuários (tomada de conta entre empresas, listagem entre empresas, autoescalada de permissões, open redirect, reset de senha)
+- [x] `docs/PLANO-CORRECAO.md`, `PLANO-MELHORIAS-PLANOS.md` (11 de 12; 4.2 descartado) e `REVISAO-LAYOUT-PLANOS.md` revisados
+
 ## Concluído — v2.8.0 (19/11/2026)
 
 - [x] Agrupamento macro ação → cidade na tabela de vários planos; filtro de macro só com ações dentro da macro
@@ -60,4 +70,18 @@ Adicionado redirect permanente (301) em `next.config.ts`:
 ### 7. Atualizações de dependências (sem advisory)
 - ~~Rápidas: react 19.3.1, @supabase/supabase-js 2.119.2, radix, tailwind 4.3.5.~~ ✓ Feito (mais lucide-react, react-hook-form, tailwind-merge, tipos)
 - ~~Avaliar: isomorphic-dompurify 3.x (sanitização), @supabase/ssr 0.12 (auth/cookies).~~ ✓ Feito — ssr 0.12.7 sem mudanças incompatíveis (só correções de cookie); isomorphic-dompurify 4.7.0 fixo (a 3.23 foi marcada obsoleta pelo mantenedor: subiu o Node mínimo sem versão maior; a 4.x é o mesmo código). Exige Node ≥ 22.22.2 (VPS: 22.23.4; Mac local 22.19 só avisa)
-- Podem esperar: typescript 7, vitest 5, eslint 10, pino 10, @hookform/resolvers 7.
+- Podem esperar (versão maior, exigem migração): typescript 7, vitest 5, eslint 10, pino 10, @hookform/resolvers 7, @testing-library/jest-dom 8, lint-staged 16, p-retry 9.
+- `isomorphic-dompurify` está fixo em 4.7.0: atualizar manualmente (o `^` não é usado de propósito).
+
+### 8. Convite com aceite ao incluir usuário em empresa
+- `addTenantMember` (`src/app/actions/tenant.ts`) inclui qualquer usuário existente pelo email, sem aceite dele. Desde o PR #50 isso não permite mais tomar a conta (quem está em empresa fora do escopo só é gerenciado pelo super admin), mas o nome/email da pessoa passa a aparecer na outra empresa.
+- Proposta: convite por email; a pessoa só entra na empresa se aceitar. Mudança de produto (tabela de convites, email, tela de aceite).
+
+### 9. Revisar logs de acesso das falhas corrigidas no PR #50
+- Antes do PR #50, qualquer usuário logado podia listar membros (nome/email) de todas as empresas (`getTenantMembers`, `getAllUnits`, `getAllAreas`...), e gerente/admin podia trocar senha de usuário de outra empresa ou conceder a si permissões.
+- Conferido em produção: sem login a listagem não funcionava (o Next só executa a action em páginas protegidas).
+- Verificar nos logs da VPS e no `audit_log` (`reset_password_temp`, mudanças de permissão) se alguém usou essas falhas até 20/11/2026.
+
+### 10. Testes de tela e divisão dos arquivos grandes
+- `users-table.tsx` (~1.900 linhas), `dashboard-client.tsx` (~1.700) e `admin.ts` (~1.100). Ver `docs/PLANO-CORRECAO.md`, Fase 4.
+- Pré-requisito: testes de interface desses componentes. Depois, dividir em PRs pequenos.
