@@ -40,12 +40,29 @@ export const PROVIDER_MODELS: Record<ProviderKey, string[]> = {
     "meta-llama/llama-3.1-8b-instruct:free",
   ],
   openai:    ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
-  anthropic: ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-3-5-haiku-20241022"],
+  anthropic: ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"],
   deepseek:  ["deepseek-chat", "deepseek-reasoner"],
   minimax:   ["MiniMax-Text-01", "abab6.5s-chat"],
   kimi:      ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
   qwen:      ["qwen-turbo", "qwen-plus", "qwen-max"],
 };
+
+/** Modelos que a tela de ações pode escolher: os da lista do provedor + o configurado pelo admin. */
+export function allowedModels(provider: string, configuredModel: string): string[] {
+  const list = PROVIDER_MODELS[provider as ProviderKey] ?? [];
+  return list.includes(configuredModel) ? list : [configuredModel, ...list];
+}
+
+/**
+ * Extrai o objeto JSON de uma resposta de modelo. Alguns provedores (ex.: Anthropic, sem
+ * modo JSON) devolvem o JSON dentro de bloco de código ou com texto em volta.
+ */
+export function extractJsonObject(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("Resposta sem JSON.");
+  return JSON.parse(text.slice(start, end + 1));
+}
 
 export interface LlmConfig {
   provider: string;

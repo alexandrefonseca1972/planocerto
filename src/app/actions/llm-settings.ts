@@ -4,6 +4,22 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRequesterScope } from "@/app/actions/_helpers";
 import { callLlm, PROVIDERS, type LlmConfig, type ProviderKey } from "@/lib/llm-client";
+import { encryptLlmKey, isEncryptedLlmKey, isLlmKeyEncryptionConfigured } from "@/lib/llm-secret";
+
+/** URL base só https e fora de rede interna: a API key vai no header para esse host. */
+function invalidBaseUrl(baseUrl: string | null | undefined): string | null {
+  if (!baseUrl) return null;
+  try {
+    const u = new URL(baseUrl);
+    if (u.protocol !== "https:") return "A URL base precisa usar https.";
+    if (/^(localhost|127\.|10\.|0\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|\[?f[cd])/i.test(u.hostname)) {
+      return "A URL base não pode apontar para rede interna.";
+    }
+    return null;
+  } catch {
+    return "URL base inválida.";
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +50,8 @@ async function requireSuperAdmin(): Promise<string | null> {
 // ─── Read config for a tenant (UI — sem api_key) ─────────────────────────────
 
 export async function getLlmSettings(tenantId: string): Promise<LlmSettingsPublic | null> {
+  // Configuração de IA é assunto do super admin (provedor/modelo de qualquer empresa).
+  if (await requireSuperAdmin()) return null;
   try {
     const adminClient = createAdminClient();
     const { data } = await adminClient
@@ -73,6 +91,8 @@ export async function saveLlmSettings(
   if (!tenantId) return { message: "Empresa não selecionada." };
   if (!provider) return { message: "Selecione um provedor." };
   if (!model)    return { message: "Informe o modelo." };
+  const urlError = invalidBaseUrl(baseUrl);
+  if (urlError) return { message: urlError };
 
   try {
     const adminClient = createAdminClient();
@@ -83,7 +103,17 @@ export async function saveLlmSettings(
       .eq("tenant_id", tenantId)
       .maybeSingle();
 
-    const finalApiKey = apiKey || existing?.api_key || null;
+    // Chave nova é sempre gravada cifrada; sem nova chave, mantém a existente.
+    if (apiKey && !isLlmKeyEncryptionConfigured()) {
+      return { message: "Configure LLM_KEY_SECRET no servidor antes de salvar a API key." };
+    }
+    // Chave antiga em texto puro é cifrada no primeiro salvamento após o deploy.
+    const prev = existing?.api_key ?? null;
+    const finalApiKey = apiKey
+      ? encryptLlmKey(apiKey, tenantId)
+      : prev && !isEncryptedLlmKey(prev) && isLlmKeyEncryptionConfigured()
+        ? encryptLlmKey(prev, tenantId)
+        : prev;
 
     if (existing?.id) {
       await adminClient
@@ -116,6 +146,8 @@ export async function testLlmConnection(
   if (guard) return { ok: false, message: guard };
 
   if (!apiKey) return { ok: false, message: "Informe a API Key antes de testar." };
+  const urlError = invalidBaseUrl(baseUrl);
+  if (urlError) return { ok: false, message: urlError };
 
   try {
     const config: LlmConfig = { provider, model, apiKey, baseUrl: baseUrl || null };
@@ -134,30 +166,5 @@ export async function testLlmConnection(
   } catch (error) {
     console.error("[testLlmConnection]", error);
     return { ok: false, message: String(error instanceof Error ? error.message : error).slice(0, 200) };
-  }
-}
-
-// ─── Internal read with api_key (usado por action-plan-ai.ts) ────────────────
-
-export async function getActiveLlmConfig(tenantId: string): Promise<LlmConfig | null> {
-  try {
-    const adminClient = createAdminClient();
-    const { data } = await adminClient
-      .from("llm_settings")
-      .select("provider, model, api_key, base_url")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-
-    if (!data?.api_key) return null;
-
-    return {
-      provider: data.provider,
-      model:    data.model,
-      apiKey:   data.api_key,
-      baseUrl:  data.base_url ?? null,
-    };
-  } catch (error) {
-    console.error("[getActiveLlmConfig]", error);
-    return null;
   }
 }
