@@ -39,9 +39,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const list = (rows: ReportItem[], count: number, empty: string) =>
       rows.length === 0
         ? `<p class="empty">${empty}</p>`
-        : `<table><thead><tr><th>#</th><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Status</th></tr></thead><tbody>${rows
+        : `<table><colgroup><col style="width:6%"><col><col style="width:15%"><col style="width:16%"><col style="width:16%"></colgroup><thead><tr><th>#</th><th>Ação</th><th>Resp.</th><th>Prazo</th><th>Status</th></tr></thead><tbody>${rows
             .map(
-              (i) => `<tr><td>${escapeHtml(i.number)}</td><td>${escapeHtml(i.action)}</td><td>${escapeHtml(i.responsible || "—")}</td><td>${date(i.planned_end)}</td><td>${escapeHtml(STATUS_FAROL[i.status]?.dot ?? "")} ${escapeHtml(STATUS_FAROL[i.status]?.label ?? i.status)}</td></tr>`,
+              (i) => `<tr><td>${escapeHtml(i.number)}</td><td><span class="clamp">${escapeHtml(i.action)}</span></td><td>${escapeHtml(i.responsible || "—")}</td><td class="nw">${date(i.planned_end)}</td><td>${escapeHtml(STATUS_FAROL[i.status]?.dot ?? "")} ${escapeHtml(STATUS_FAROL[i.status]?.label ?? i.status)}</td></tr>`,
             )
             .join("")}</tbody></table>${count > rows.length ? `<p class="more">+ ${count - rows.length} não listadas</p>` : ""}`;
     const f = r.finance;
@@ -65,7 +65,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   .kpi b { display: block; font-size: 18px; }
   .kpi span { font-size: 9px; color: #71717a; }
   h2 { font-size: 12px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
-  table { width: 100%; border-collapse: collapse; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .nw { white-space: nowrap; }
   th { background: #f4f4f5; text-align: left; padding: 4px 6px; font-size: 9px; text-transform: uppercase; color: #71717a; }
   td { padding: 4px 6px; border-bottom: 1px solid #f4f4f5; font-size: 10px; vertical-align: top; }
   .bar { height: 8px; background: #f4f4f5; border-radius: 4px; overflow: hidden; margin-bottom: 4px; }

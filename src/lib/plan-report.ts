@@ -17,7 +17,7 @@ export type Farol = "verde" | "amarelo" | "vermelho";
 
 const DAY = 86_400_000;
 export const UPCOMING_DAYS = 30;
-export const LIST_LIMIT = 10;
+export const LIST_LIMIT = 5;
 
 const byDate = (a: ReportItem, b: ReportItem) => (a.planned_end || "").localeCompare(b.planned_end || "");
 
