@@ -73,7 +73,7 @@ const FAQ_ITEMS: FAQItem[] = [
     id: '7',
     question: 'Página não carrega, vejo erro',
     answer:
-      'Tente:\n1. Atualize a página (Ctrl+R ou Cmd+R)\n2. Limpe cookies: Dev Tools → Application → Clear Storage\n3. Tente outro navegador\n4. Faça logout e login novamente\n5. Se persistir, contate o suporte: suporte@planocerto.com',
+      'Tente:\n1. Atualize a página (Ctrl+R ou Cmd+R)\n2. Limpe cookies: Dev Tools → Application → Clear Storage\n3. Tente outro navegador\n4. Faça logout e login novamente\n5. Se persistir, fale com o administrador do sistema',
     category: 'troubleshooting',
     tags: ['erro', 'carregamento', 'debug'],
   },

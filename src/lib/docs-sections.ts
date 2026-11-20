@@ -337,7 +337,7 @@ Se alterações não são salvas:
 1. Verifique sua conexão com a internet
 2. Tente novamente
 3. Se persistir, limpe o cache (ver acima)
-4. Entre em contato com suporte
+4. Fale com o administrador do sistema
 \`\`\`
 
 ### Permissões insuficientes
@@ -360,12 +360,9 @@ Se dados não aparecem em outro dispositivo:
 3. Aguarde alguns segundos e atualize novamente
 \`\`\`
 
-### Entre em Contato
+### Ainda com problema?
 
-Se o problema persistir:
-- Email: suporte@planocerto.com
-- Horário: Segunda a sexta, 9:00-17:00
-- Telefone: (11) 99999-9999`,
+Se o problema persistir, fale com o administrador do sistema da sua empresa.`,
     subsections: [
       { id: "loading", title: "Problemas de Carregamento" },
       { id: "auth", title: "Autenticação" },

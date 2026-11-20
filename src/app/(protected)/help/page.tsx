@@ -240,7 +240,7 @@ export default function HelpPage() {
           <span className="font-medium">Ruphus Tecnologia</span>
         </p>
         <p className="mt-2">
-          Não encontrou a resposta? Entre em contato com nosso suporte
+          Não encontrou a resposta? Fale com o administrador do sistema.
         </p>
       </section>
     </div>
