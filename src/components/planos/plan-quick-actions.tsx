@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CopyPlanButton } from "@/components/planos/copy-plan-button";
 import { ShareLinkButton } from "@/components/planos/share-link-button";
-import { MoreHorizontal, Copy, Share2 } from "lucide-react";
+import { MoreHorizontal, Copy, Share2, FileText } from "lucide-react";
 import type { ActionPlan } from "@/types/action-plan";
 
 interface Props {
@@ -50,6 +50,17 @@ export function PlanQuickActions({ plan, plans, toast, router }: Props) {
             >
               <Share2 className="h-3.5 w-3.5" /> Compartilhar
             </button>
+          )}
+          {plan && (
+            <a
+              href={`/api/plans/${plan.id}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <FileText className="h-3.5 w-3.5" /> Relatório executivo
+            </a>
           )}
         </div>
       )}

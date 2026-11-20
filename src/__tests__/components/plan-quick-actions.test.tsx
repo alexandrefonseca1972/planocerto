@@ -32,5 +32,6 @@ describe("PlanQuickActions", () => {
     expect(screen.getByRole("button", { name: /clonar plano/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /compartilhar/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /duplicar ação/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /relatório executivo/i })).toHaveAttribute("href", "/api/plans/plan-1/pdf");
   });
 });
