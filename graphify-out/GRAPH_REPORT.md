@@ -1,7 +1,7 @@
 # Graph Report - planocerto  (2026-11-20)
 
 ## Corpus Check
-- 653 files · ~369,307 words
+- 654 files · ~369,663 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 1, .jsonl 1, .xlsb 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `20eb2677`
+- Built from commit: `90eee2c8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -163,13 +163,13 @@
 10. `createAdminClient()` - 70 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Para desfazer` --references--> `getPlans()`  [INFERRED]
+- `Para desfazer` --references--> `getItems()`  [INFERRED]
   .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
-- `Para desfazer` --references--> `getPlans()`  [INFERRED]
+- `Para desfazer` --references--> `getItems()`  [INFERRED]
   .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
-- `Para desfazer` --references--> `getItems()`  [INFERRED]
+- `Para desfazer` --references--> `getPlans()`  [INFERRED]
   .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
-- `Para desfazer` --references--> `getItems()`  [INFERRED]
+- `Para desfazer` --references--> `getPlans()`  [INFERRED]
   .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
 - `Para desfazer` --references--> `toIdList()`  [INFERRED]
   .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
@@ -676,7 +676,7 @@ Nodes (3): GET(), headers, { createClientMock }
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `next` connect `Testes de Planos` to `Card`, `alert-dialog.tsx`, `Button`, `Importação de Planos`, `Monitoramento e Testes`, `Dependências do Projeto`, `companies-client.tsx`, `tenants/page.tsx`, `Financeiro e Anexos`, `plan-form-dialog.tsx`, `server.ts`, `unidades-client.tsx`, `proxy.ts`, `Navegação e Tenant`, `prioridades-client.tsx`, `Papéis e Permissões`, `createClient`, `Tabela de Planos`, `email.ts`, `actions/action-plan.ts`, `attachments.ts`, `Benchmarking no Banco`, `Gestão de Empresas`, `lucide-react`, `Consultas Financeiras`, `unread/route.ts`, `Diário Oficial`, `calendar-grid.tsx`, `schools.ts`, `Badge`, `Ações Rápidas`, `AreaUnitFilter`, `macro-acoes-client.tsx`, `[token]/page.tsx`, `Revisão Financeira`, `notifications.ts`, `categorias-despesa-client.tsx`, `tipos-pa-client.tsx`, `fornecedores-client.tsx`, `plan-form-dialog.tsx`, `dashboard/page.tsx`, `next.config.ts`?**
-  _High betweenness centrality (0.079) - this node is a cross-community bridge._
+  _High betweenness centrality (0.069) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `createClient()` (e.g. with `action-plan-ai.test.ts` and `action-plan-phase3.test.ts`) actually correct?**
   _`createClient()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Tabela contas_pagar`, `Checklist de QA funcional, segurança, performance e edge cases`, `Roadmap de auditoria, alertas, exportação e integração bancária` to the rest of the system?**
@@ -684,7 +684,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Card` be split into smaller, more focused modules?**
   _Cohesion score 0.06201923076923077 - nodes in this community are weakly interconnected._
 - **Why does `cn()` connect `cn` to `FormDialog`, `Card`, `AlertDialogContent`, `Button`, `Monitoramento e Testes`, `Dependências do Projeto`, `companies-client.tsx`, `Catálogos Administrativos`, `tenants/page.tsx`, `unidades-client.tsx`, `Testes de Planos`, `Input`, `Navegação e Tenant`, `item-form-dialog.tsx`, `types/action-plan.ts`, `Tabela de Planos`, `Ações de Benchmarking`, `Benchmarking no Banco`, `edit-user-dialog.tsx`, `Gestão de Empresas`, `lucide-react`, `Consultas Financeiras`, `calendar-grid.tsx`, `Ações Rápidas`, `AreaUnitFilter`, `macro-acoes-client.tsx`, `notifications.ts`, `categorias-despesa-client.tsx`, `CardHeader`, `plan-form-dialog.tsx`, `dashboard/page.tsx`, `Empresas no Banco`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
