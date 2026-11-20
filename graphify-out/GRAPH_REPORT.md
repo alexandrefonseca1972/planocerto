@@ -1,9 +1,9 @@
 # Graph Report - planocerto  (2026-11-20)
 
 ## Corpus Check
-- 648 files · ~367,995 words
+- 649 files · ~368,097 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 5 file(s) not represented in the graph (top: (none) 1, .xlsb 1, .ico 1)
+- Unclassified: 6 file(s) not represented in the graph (top: (none) 1, .jsonl 1, .xlsb 1)
 
 ## Summary
 - 2882 nodes · 8445 edges · 178 communities (122 shown, 56 thin omitted)
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c6104907`
+- Built from commit: `b14ee9eb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -174,17 +174,17 @@
   .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
 - `Para desfazer` --references--> `getPlans()`  [INFERRED]
   .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
-- `Trecho recente da conversa (texto, redigido)` --references--> `main()`  [INFERRED]
-  .omc/handoffs/latest.md → scripts/import-all-plans.ts
 - `Para desfazer` --references--> `getItems()`  [INFERRED]
   .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
 - `Para desfazer` --references--> `getItems()`  [INFERRED]
   .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
+- `Para desfazer` --references--> `toIdList()`  [INFERRED]
+  .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
 
 ## Import Cycles
 - 2-file cycle: `src/app/actions/tenant.ts -> src/lib/supabase/session.ts -> src/app/actions/tenant.ts`
-- 3-file cycle: `src/app/actions/admin.ts -> src/lib/supabase/session.ts -> src/app/actions/tenant.ts -> src/app/actions/admin.ts`
 - 3-file cycle: `src/app/actions/_helpers.ts -> src/lib/supabase/session.ts -> src/app/actions/tenant.ts -> src/app/actions/_helpers.ts`
+- 3-file cycle: `src/app/actions/admin.ts -> src/lib/supabase/session.ts -> src/app/actions/tenant.ts -> src/app/actions/admin.ts`
 - 4-file cycle: `src/app/actions/_helpers.ts -> src/lib/supabase/session.ts -> src/app/actions/tenant.ts -> src/app/actions/admin.ts -> src/app/actions/_helpers.ts`
 
 ## Hyperedges (group relationships)
@@ -707,15 +707,15 @@ Nodes (3): getResumoContas(), FinanceiroPage(), rangeDoMes()
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `next` connect `Consultas Financeiras` to `Input`, `dashboard-client.tsx`, `prioridades-client.tsx`, `alert-dialog.tsx`, `actions/auth.ts`, `Importação de Planos`, `Monitoramento e Testes`, `Dependências do Projeto`, `Button`, `Financeiro e Anexos`, `plan-form-dialog.tsx`, `server.ts`, `getCurrentTenantId`, `Testes de Planos`, `contas-pagar-client.tsx`, `proxy.ts`, `Navegação e Tenant`, `Papéis e Permissões`, `sanitizeText`, `CompaniesClient`, `Tabela de Planos`, `attachments.ts`, `actions/action-plan.ts`, `Benchmarking no Banco`, `Gestão de Empresas`, `login-form.tsx`, `unread/route.ts`, `Diário Oficial`, `calendar-grid.tsx`, `schools.ts`, `Badge`, `Ações Rápidas`, `Revisão Financeira`, `notifications.ts`, `CardHeader`, `Detalhes de Benchmarking`, `_catalog-crud-factory.ts`, `validations/auth.ts`, `plan-form-dialog.tsx`, `(protected)/layout.tsx`, `dashboard/page.tsx`, `next.config.ts`, `users/page.tsx`?**
-  _High betweenness centrality (0.074) - this node is a cross-community bridge._
+  _High betweenness centrality (0.066) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `createClient()` (e.g. with `action-plan-ai.test.ts` and `action-plan-phase3.test.ts`) actually correct?**
   _`createClient()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Tabela contas_pagar`, `Checklist de QA funcional, segurança, performance e edge cases`, `Roadmap de auditoria, alertas, exportação e integração bancária` to the rest of the system?**
   _286 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Input` be split into smaller, more focused modules?**
   _Cohesion score 0.08504504504504505 - nodes in this community are weakly interconnected._
-- **Why does `createClient()` connect `sanitizeText` to `actions/auth.ts`, `Monitoramento e Testes`, `Dependências do Projeto`, `use-planos-data.ts`, `Financeiro e Anexos`, `plan-form-dialog.tsx`, `server.ts`, `getCurrentTenantId`, `Testes de Planos`, `contas-pagar-client.tsx`, `Navegação e Tenant`, `types/catalog.ts`, `Papéis e Permissões`, `item-form-dialog.tsx`, `CompaniesClient`, `attachments.ts`, `actions/action-plan.ts`, `Benchmarking no Banco`, `getUnits`, `Gestão de Empresas`, `login-form.tsx`, `create-plan-duplicate.test.ts`, `Consultas Financeiras`, `unread/route.ts`, `getResumoContas`, `Diário Oficial`, `calendar-grid.tsx`, `schools.ts`, `Badge`, `Ações Rápidas`, `notifications.ts`, `_catalog-crud-factory.ts`, `validations/auth.ts`, `plan-form-dialog.tsx`, `(protected)/layout.tsx`, `dashboard/page.tsx`?**
-  _High betweenness centrality (0.060) - this node is a cross-community bridge._
+- **Why does `cn()` connect `Tabela de Planos` to `Input`, `dashboard-client.tsx`, `prioridades-client.tsx`, `alert-dialog.tsx`, `actions/auth.ts`, `Monitoramento e Testes`, `Dependências do Projeto`, `Button`, `Catálogos Administrativos`, `Testes de Planos`, `contas-pagar-client.tsx`, `Navegação e Tenant`, `item-form-dialog.tsx`, `detail-table.tsx`, `Ações de Benchmarking`, `help-modal.tsx`, `Benchmarking no Banco`, `Label`, `login-form.tsx`, `plan-filters.tsx`, `Consultas Financeiras`, `calendar-grid.tsx`, `distribution-card.tsx`, `Badge`, `Ações Rápidas`, `Gráficos do Dashboard`, `vitest`, `notifications.ts`, `CardHeader`, `plan-form-dialog.tsx`, `(protected)/layout.tsx`, `Empresas no Banco`, `AreaUnitFilter`?**
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
