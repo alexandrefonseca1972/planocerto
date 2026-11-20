@@ -1,6 +1,6 @@
-# Templates de email do Supabase
+# Templates de email do Auth
 
-Este diretório concentra os templates versionados de autenticação do Supabase para o PlanoCerto.
+Este diretório concentra os templates versionados do serviço de autenticação self-hosted do PlanoCerto.
 
 ## Templates já prontos
 
@@ -12,11 +12,11 @@ Este diretório concentra os templates versionados de autenticação do Supabase
 - `reauthentication.html`: pronto para verificação extra em operações sensíveis.
 - `password_changed_notification.html`: aviso de senha alterada.
 
-## Como aplicar no projeto remoto
+## Como aplicar na VPS
 
-1. Configure o SMTP real no [supabase/config.toml](/Users/alexandrefonseca/projetos/planocerto/supabase/config.toml).
-2. Revise `site_url` e `additional_redirect_urls`.
-3. Execute `supabase config push`.
+1. Configure o envio de email conforme `/opt/planocerto/OPERACAO.md`.
+2. Revise `site_url` e as URLs de redirecionamento do Auth.
+3. Atualize os templates e reinicie `planocerto-auth`.
 
 ## Fluxo atual do app
 

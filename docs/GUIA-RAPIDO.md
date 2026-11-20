@@ -61,11 +61,9 @@ npm test:watch           # Testes contínuos
 npm run build            # Build produção
 npm start                # Roda build localmente
 
-# Database (Supabase local)
-supabase start           # Inicia Supabase local
-supabase db push         # Roda migrations
-supabase db pull         # Puxa schema do remoto
-supabase stop            # Para Supabase local
+# Banco e Auth na VPS
+systemctl status postgresql@18-planocerto planocerto-auth planocerto-rest
+systemctl start planocerto-backup.service
 
 # Git
 git status               # Status
@@ -73,8 +71,8 @@ git add .                # Stage changes
 git commit -m "msg"      # Commit
 git push origin main     # Push
 
-# Deploy
-vercel --prod            # Deploy Vercel manual
+# Deploy na VPS, após o build
+systemctl restart planocerto-web
 ```
 
 ---
@@ -212,21 +210,16 @@ describe('validateEmail', () => {
 
 ## 🚢 Deploy
 
-### Vercel (Automático)
+### VPS com Cloudflare
 ```
-Git push → GitHub → Vercel webhook
-→ npm run build → Deploy
-→ https://planocerto.vercel.app
-```
-
-### Vercel Manual
-```bash
-npm run build     # Build local
-vercel --prod     # Deploy
+Sincronizar código → npm ci → npm run build
+→ systemctl restart planocerto-web
+→ Caddy e Cloudflare
+→ https://planocerto.app
 ```
 
-### Preview Link
-Cada PR gera link de preview automático no Vercel.
+### Homologação
+Valide lint, typecheck, testes e build antes de publicar na VPS.
 
 ---
 
@@ -417,7 +410,7 @@ Solução: Função usa `await SupabaseServerClient()`
 ### "Tipo não compatível"
 Solução: `npm run typecheck` e fix erros
 
-### Build fail no Vercel
+### Build fail no VPS
 Solução:
 ```bash
 npm run typecheck  # Fix types
@@ -444,7 +437,7 @@ git push           # Resubmeter
 ## 📞 Recursos
 
 - Docs: `/docs` (este repositório)
-- Supabase: https://supabase.com/docs
+- Operação na VPS: `/opt/planocerto/OPERACAO.md`
 - Next.js: https://nextjs.org/docs
 - React: https://react.dev
 - Zod: https://zod.dev
@@ -477,10 +470,10 @@ git commit -m "feat: descrição"
 git push origin feature/meu-recurso
 
 # Pull request no GitHub
-# Review + Merge → Auto deploy Vercel
+# Review + Merge → Publicar na VPS conforme o guia de deploy
 ```
 
 ---
 
-**Última atualização:** Maio 2024  
-**Versão:** 1.0.0
+**Última atualização:** Novembro 2026
+**Versão:** 2.7.17

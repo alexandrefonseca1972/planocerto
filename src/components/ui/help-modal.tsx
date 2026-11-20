@@ -57,7 +57,7 @@ const FAQ_ITEMS: FAQItem[] = [
     id: '5',
     question: 'Como mudo de empresa?',
     answer:
-      'Use o seletor no topo esquerdo da navbar:\n\n[Minha Empresa ▼]\n\nClique para ver todas as empresas que você tem acesso e selecione a desejada. Todos os dados serão filtrados para a empresa selecionada.',
+      'Use o seletor no topo esquerdo da navbar:\n\n[Minha Empresa ▼]\n\nClique para ver todas as empresas a que você tem acesso e selecione a desejada. Todos os dados serão filtrados para a empresa selecionada.',
     category: 'geral',
     tags: ['empresa', 'tenant', 'multi-tenant'],
   },
@@ -65,7 +65,7 @@ const FAQ_ITEMS: FAQItem[] = [
     id: '6',
     question: 'Esqueci minha senha, como recupero?',
     answer:
-      '1. Na tela de login, clique em "Esqueceu senha?"\n2. Insira seu email\n3. Clique em "Enviar Link"\n4. Verifique seu email (cheque spam)\n5. Clique no link\n6. Defina uma nova senha',
+      '1. Na tela de login, clique em "Esqueceu a senha?"\n2. Insira seu email\n3. Clique em "Enviar Link"\n4. Verifique seu email (confira a pasta de spam)\n5. Clique no link\n6. Defina uma nova senha',
     category: 'configuracoes',
     tags: ['senha', 'login', 'recuperação'],
   },
@@ -73,7 +73,7 @@ const FAQ_ITEMS: FAQItem[] = [
     id: '7',
     question: 'Página não carrega, vejo erro',
     answer:
-      'Tente:\n1. Atualize a página (Ctrl+R ou Cmd+R)\n2. Limpe cookies: Dev Tools → Application → Clear Storage\n3. Tente outro navegador\n4. Faça logout e login novamente\n5. Se persiste, contate suporte: suporte@planocerto.com',
+      'Tente:\n1. Atualize a página (Ctrl+R ou Cmd+R)\n2. Limpe cookies: Dev Tools → Application → Clear Storage\n3. Tente outro navegador\n4. Faça logout e login novamente\n5. Se persistir, contate o suporte: suporte@planocerto.com',
     category: 'troubleshooting',
     tags: ['erro', 'carregamento', 'debug'],
   },
@@ -81,7 +81,7 @@ const FAQ_ITEMS: FAQItem[] = [
     id: '8',
     question: 'Como compartilho um plano publicamente?',
     answer:
-      'Abra o plano e clique em "🔗 Compartilhar".\n\nO sistema gera um link único que pode ser:\n- Enviado por email/chat\n- Compartilhado em redes sociais\n- Acessado sem login (visualização apenas)\n\nPerfei para apresentar a stakeholders.',
+      'Abra o plano e clique em "🔗 Compartilhar".\n\nO sistema gera um link único que pode ser:\n- Enviado por email/chat\n- Compartilhado em redes sociais\n- Acessado sem login (visualização apenas)\n\nPerfeito para apresentar a stakeholders.',
     category: 'planos',
     tags: ['compartilhar', 'público', 'link'],
   },

@@ -21,3 +21,9 @@ export function formatDate(date: string | Date | null | undefined): string {
     return "Data inválida";
   }
 }
+
+// Valores gravados sem acento (enums legados) → rótulo exibido em PT-BR.
+const ENUM_LABELS: Record<string, string> = { Media: "Média", Publica: "Pública", Filantropica: "Filantrópica" };
+export function enumLabel(value: string | null | undefined): string {
+  return value ? ENUM_LABELS[value] ?? value : "";
+}

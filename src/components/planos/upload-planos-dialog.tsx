@@ -1,5 +1,7 @@
 "use client";
 
+import { MACRO_ACAO_MAX, macroAcaoKey, normalizeMacroAcao } from "@/lib/macro-acao";
+
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -112,8 +114,13 @@ async function validateFile(file: File): Promise<Omit<FileValidation, "file" | "
     if (!acao) return; // linha vazia — ok
     itemCount++;
 
-    const macroAcao = strTrim(row[COL.MACRO]);
-    if (macroAcao) groups.add(macroAcao);
+    const macroAcao = normalizeMacroAcao(row[COL.MACRO]);
+    if (macroAcao) {
+      groups.add(macroAcaoKey(macroAcao));
+      if (macroAcao.length > MACRO_ACAO_MAX) {
+        errors.push({ row: rowNum, col: "MACRO AÇÃO", message: `Macro ação com mais de ${MACRO_ACAO_MAX} caracteres: "${macroAcao}"` });
+      }
+    }
 
     // Valida FAROL
     if (farolRaw && !FAROL_MAP[farolRaw.toUpperCase()]) {

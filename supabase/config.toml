@@ -32,7 +32,7 @@ max_frequency = "1m"
 otp_length = 8
 otp_expiry = 3600
 
-# Configure o SMTP real antes de publicar com `supabase config push`.
+# Configure o SMTP real antes de aplicar a configuração no serviço de Auth.
 # [auth.email.smtp]
 # enabled = true
 # host = "smtp.resend.com"

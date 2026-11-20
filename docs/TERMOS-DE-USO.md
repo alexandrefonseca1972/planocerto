@@ -86,7 +86,7 @@ Todos os direitos, títulos e interesses na Plataforma, incluindo código-fonte,
 
 ### 5.2 Licenças de Terceiros
 
-A Plataforma usa bibliotecas e frameworks de terceiros sob suas respectivas licenças (Next.js, Supabase, Tailwind, React, etc.). O uso dessas tecnologias está sujeito às suas licenças originais.
+A Plataforma usa bibliotecas e frameworks de terceiros sob suas respectivas licenças (Next.js, Tailwind, React, etc.). O uso dessas tecnologias está sujeito às suas licenças originais.
 
 ### 5.3 Direitos sobre Dados do Usuário
 
@@ -153,7 +153,7 @@ A Empresa não é responsável por falhas devidas a:
 - Pandemias
 - Falhas de internet
 - Ataques cibernéticos generalizados
-- Falhas de serviços de terceiros (Supabase, Vercel, Google)
+- Falhas de serviços de terceiros (Google, Microsoft e provedores de email ou conectividade)
 
 ---
 
@@ -244,7 +244,6 @@ Não há reembolso se:
 A Plataforma integra-se com:
 - **Google Calendar** (sincronização de eventos)
 - **Microsoft Teams** (notificações)
-- **Supabase** (banco de dados)
 - **Resend** (envio de email)
 
 Cada integração tem sua própria política de privacidade e termos.

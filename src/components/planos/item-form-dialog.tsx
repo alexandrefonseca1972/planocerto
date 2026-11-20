@@ -18,6 +18,7 @@ import type { Area, Unit } from "@/types/catalog";
 import { AttachmentSection } from "@/components/planos/attachment-section";
 import { CommentSection } from "@/components/planos/comment-section";
 import { flattenItems } from "@/components/planos/plan-utils";
+import { MACRO_ACAO_MAX, normalizeMacroAcao } from "@/lib/macro-acao";
 import { 
   buildUnitPreview, 
   resolveInitialItemArea 
@@ -393,8 +394,13 @@ export function ItemFormDialog({
                     <label className="flex h-12 cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 transition-colors hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900">
                       <input
                         type="checkbox"
+                        name="is_group"
+                        value="1"
                         checked={isGroup}
-                        onChange={(e) => setIsGroup(e.target.checked)}
+                        onChange={(e) => {
+                          setIsGroup(e.target.checked);
+                          if (e.target.checked) setActionText((t) => normalizeMacroAcao(t).slice(0, MACRO_ACAO_MAX));
+                        }}
                         className="h-4.5 w-4.5 rounded border-zinc-300 text-amber-600 focus:ring-amber-500"
                       />
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">Criar como grupo</span>
@@ -477,9 +483,11 @@ export function ItemFormDialog({
                   value={actionText}
                   required
                   rows={3}
+                  maxLength={isGroup ? MACRO_ACAO_MAX : undefined}
                   onChange={(e) => {
                     const v = sanitize(e.target.value);
-                    setActionText(v);
+                    // Grupo = macro ação: sempre em caixa alta.
+                    setActionText(isGroup ? v.toLocaleUpperCase("pt-BR") : v);
                   }}
                   placeholder="Descreva a ação principal com clareza e objetividade"
                   className={cn(

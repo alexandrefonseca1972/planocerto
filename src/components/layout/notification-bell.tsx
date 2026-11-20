@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getNotifications, getUnreadCount, markAsRead } from "@/app/actions/notifications";
+import { getNotifications, markAsRead } from "@/app/actions/notifications";
 import type { NotificationItem } from "@/app/actions/notifications";
 import { Bell, X, Info, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,19 +18,28 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
 
-  // Poll unread count every 30s
+  // Route Handler (não Server Action): evita a fila sequencial de actions.
+  const refreshUnread = () => {
+    fetch("/api/notifications/unread", { cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setUnread(d.count); })
+      .catch(() => {});
+  };
+
+  // Poll unread count every 30s (pausa com a aba oculta)
   useEffect(() => {
-    const fetch = () => { getUnreadCount().then(setUnread).catch(() => {}); };
-    fetch();
-    const interval = setInterval(fetch, 30_000);
-    return () => clearInterval(interval);
+    const tick = () => { if (document.visibilityState === "visible") refreshUnread(); };
+    tick();
+    const interval = setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", tick); };
   }, []);
 
   useEffect(() => {
     if (open) {
       getNotifications().then(setNotifications);
     } else {
-      getUnreadCount().then(setUnread);
+      refreshUnread();
     }
   }, [open]);
 

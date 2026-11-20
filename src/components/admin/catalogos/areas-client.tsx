@@ -203,7 +203,7 @@ export function AreasClient({ initial }: { initial: Area[] }) {
         <Card>
           <CardContent className="py-12 text-center text-sm text-zinc-500">
             {items.length === 0
-              ? "Nenhuma Área cadastrada."
+              ? "Nenhuma área cadastrada."
               : "Nenhum resultado para a busca."}
           </CardContent>
         </Card>

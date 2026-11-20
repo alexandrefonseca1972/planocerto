@@ -82,7 +82,7 @@ Podemos receber informações de:
 - **Fornecedores de pagamento** (Stripe, PayPal, etc)
 - **Google** (se integra Google Calendar)
 - **Microsoft** (se integra Teams)
-- **Supabase** (nosso provedor de banco de dados)
+- **VPS própria** (banco de dados e autenticação)
 
 ---
 
@@ -162,9 +162,8 @@ Seus dados podem ser compartilhados com:
 - ✓ Admins da sua organização (para gerenciamento)
 - ✓ Pessoas com quem você compartilha links públicos
 
-**Fornecedores de Serviço:**
-- ✓ **Supabase** — Banco de dados e autenticação
-- ✓ **Vercel** — Hospedagem da Plataforma
+**Infraestrutura e fornecedores de serviço:**
+- ✓ **VPS própria** — Banco de dados, autenticação e hospedagem da plataforma
 - ✓ **Resend** — Envio de emails
 - ✓ **Google** — Integração Google Calendar (se autorizado)
 - ✓ **Microsoft** — Integração Teams (se autorizado)
@@ -495,7 +494,7 @@ Telefone: [Preencher]
 | **Dados Pessoais** | Qualquer informação que identifique você |
 | **Processamento** | Coleta, armazenamento, uso, análise de dados |
 | **Controlador** | Ruphus Tecnologia (decide como processar dados) |
-| **Processador** | Supabase, Vercel (processa conforme instruções) |
+| **Processador** | Ruphus Tecnologia, na operação da VPS, e integrações contratadas pelo Controlador |
 | **RLS** | Row-Level Security (isolamento de dados) |
 | **JWT** | JSON Web Token (autenticação segura) |
 | **LGPD** | Lei Geral de Proteção de Dados (Brasil) |

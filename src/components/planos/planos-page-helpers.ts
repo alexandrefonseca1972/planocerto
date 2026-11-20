@@ -1,3 +1,4 @@
+import { macroAcaoKey, normalizeMacroAcao } from "@/lib/macro-acao";
 import type { ActionItem, ActionPlan } from "@/types/action-plan";
 
 /**
@@ -93,24 +94,24 @@ export function buildMacroActionOptions<T extends { id: string; action: string }
   for (const item of macroCatalog) {
     const value = item.name.trim();
     if (!value) continue;
-    const matchedGroup = orderedGroups.find((group) => group.action.trim().toLowerCase() === value.toLowerCase());
+    const matchedGroup = orderedGroups.find((group) => macroAcaoKey(group.action) === macroAcaoKey(value));
     options.push({
       value,
       label: value,
       parentId: matchedGroup?.id,
     });
-    seen.add(value.toLowerCase());
+    seen.add(macroAcaoKey(value));
   }
 
   for (const group of orderedGroups) {
     const value = group.action.trim();
-    if (!value || seen.has(value.toLowerCase())) continue;
+    if (!value || seen.has(macroAcaoKey(value))) continue;
     options.push({
       value,
       label: value,
       parentId: group.id,
     });
-    seen.add(value.toLowerCase());
+    seen.add(macroAcaoKey(value));
   }
 
   return options;
@@ -187,13 +188,14 @@ export function itemMatchesMacroAcao(
   parentById: Map<string, string | null>,
 ): boolean {
   if (!macroAcao) return true;
-  const target = macroAcao.trim().toLowerCase();
-  if (item.action.trim().toLowerCase() === target) return true;
+  const target = macroAcaoKey(macroAcao);
+  // Só o próprio grupo (tem filhos) e o que está dentro dele; ação solta com o mesmo nome não entra.
+  if (item.children?.length && macroAcaoKey(item.action) === target) return true;
   let parentId = item.parent_id;
   const visited = new Set<string>();
   while (parentId && !visited.has(parentId)) {
     visited.add(parentId);
-    if (actionById.get(parentId)?.trim().toLowerCase() === target) return true;
+    if (macroAcaoKey(actionById.get(parentId)) === target) return true;
     parentId = parentById.get(parentId) ?? null;
   }
   return false;
@@ -204,28 +206,34 @@ export function collectItemClassificationOptions(items: ActionItem[]): {
   macroAcoes: string[];
 } {
   const tipos = new Set<string>();
-  const macros = new Set<string>();
+  const macros = new Map<string, string>(); // chave normalizada → nome exibido
   function walk(nodes: ActionItem[]) {
     for (const node of nodes) {
       if (node.tipo_pa.trim()) tipos.add(node.tipo_pa.trim());
-      if (node.children?.length && node.action.trim()) macros.add(node.action.trim());
+      if (node.children?.length && node.action.trim() && !macros.has(macroAcaoKey(node.action))) {
+        macros.set(macroAcaoKey(node.action), normalizeMacroAcao(node.action));
+      }
       if (node.children?.length) walk(node.children);
     }
   }
   walk(items);
   return {
     tiposPa: [...tipos].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    macroAcoes: [...macros].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    macroAcoes: [...macros.values()].sort((a, b) => a.localeCompare(b, "pt-BR")),
   };
 }
 
 /** Catálogo primeiro (ordem original), depois valores extras dos itens. */
-export function mergeCatalogNames(catalog: { name: string }[], fromItems: string[]): string[] {
+export function mergeCatalogNames(
+  catalog: { name: string }[],
+  fromItems: string[],
+  keyOf: (name: string) => string = (name) => name.toLowerCase(),
+): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const name of [...catalog.map((item) => item.name.trim()), ...fromItems]) {
     if (!name) continue;
-    const key = name.toLowerCase();
+    const key = keyOf(name);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(name);

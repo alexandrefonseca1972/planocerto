@@ -14,7 +14,7 @@ const secret = (fallback: string) =>
     .transform((value) => value.replace(/\s+/g, ""));
 
 const envSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url().default("https://placeholder.supabase.co"),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().default("https://placeholder.invalid"),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default("placeholder-key"),
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
   SUPABASE_SERVICE_ROLE_KEY: secret("placeholder-key"),

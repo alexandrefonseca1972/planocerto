@@ -31,7 +31,7 @@ Bem-vindo ao centro de documentação do PlanoCerto. Aqui você encontra guias t
   - Modelo de dados e relações
   - Permissões e RLS
   - Performance e segurança
-  - Deployment no Vercel/Supabase
+  - Deployment em VPS com Caddy e Cloudflare
 
 ## 🚀 Quick Start
 

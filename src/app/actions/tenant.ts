@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidUrl } from "@/lib/sanitize";
 import { tenantFormSchema } from "@/lib/schemas/tenant-schemas";
@@ -64,11 +65,9 @@ async function uniqueSlug(
 
 export async function getUserTenants(): Promise<Tenant[]> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return [];
+    const supabase = await createClient();
 
     // RLS policies handle filtering:
     // - "Members can read own tenants" filters to user's tenant_members
@@ -84,11 +83,9 @@ export async function getUserTenants(): Promise<Tenant[]> {
 
 export async function getCurrentTenant(): Promise<Tenant | null> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return null;
+    const supabase = await createClient();
 
     const { data: profile } = await supabase
       .from("profiles")

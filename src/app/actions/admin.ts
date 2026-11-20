@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/email";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/supabase/session";
 import {
   createUserSchema,
   updateUserSchema,
@@ -140,15 +141,13 @@ async function loadCustomRolesMap(): Promise<Record<string, Permission[]>> {
  * resolve o papel efetivo do usuário NAQUELA empresa (tenant_member_roles,
  * com fallback para o papel global) via getEffectiveRole.
  */
-export async function checkPermission(requiredPermission: Permission, tenantId?: string | null): Promise<boolean> {
+export async function checkPermission(
+  requiredPermission: Permission | Permission[],
+  tenantId?: string | null,
+): Promise<boolean> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) return false;
+    const user = await getSessionUser();
+    if (!user) return false;
 
     // getEffectiveRole também barra conta desativada/fora do horário.
     const { role, permissions } = await getEffectiveRole(user.id, tenantId ?? null);
@@ -158,7 +157,9 @@ export async function checkPermission(requiredPermission: Permission, tenantId?:
       ? undefined
       : await loadCustomRolesMap();
 
-    return hasPermission(permissions, role, requiredPermission, customRoles);
+    // Array = "qualquer uma": papel resolvido uma vez para todas as permissões.
+    const required = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
+    return required.some((p) => hasPermission(permissions, role, p, customRoles));
   } catch (error) {
     console.error("[checkPermission] Erro:", error);
     return false;
@@ -1495,7 +1496,7 @@ export async function deleteRole(
     const totalInUse = (usersInUse ?? 0) + (tenantRolesInUse ?? 0);
     if (totalInUse > 0) {
       return {
-        message: `Não é possível excluir: ${totalInUse} atribuição${totalInUse !== 1 ? "ões" : ""} usa${totalInUse === 1 ? "" : "m"} este papel (global ou por empresa). Reatribua antes.`,
+        message: `Não é possível excluir: ${totalInUse} atribuiç${totalInUse !== 1 ? "ões" : "ão"} usa${totalInUse === 1 ? "" : "m"} este papel (global ou por empresa). Reatribua antes.`,
       };
     }
 

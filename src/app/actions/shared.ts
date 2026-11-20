@@ -25,7 +25,7 @@ export async function copyPlan(sourcePlanId: string, targetTenantId: string): Pr
 
     // Get source plan
     const { data: source } = await supabase.from("action_plans").select("*").eq("id", sourcePlanId).single();
-    if (!source) return { message: "Plano origem não encontrado." };
+    if (!source) return { message: "Plano de origem não encontrado." };
 
     const resolvedTargetUnit = await resolvePlanUnitReference(supabase, {
       tenantId: targetTenantId,

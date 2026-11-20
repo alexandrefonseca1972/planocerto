@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
-import { getUserTenants } from "@/app/actions/tenant";
+import { getSessionUser, getSessionProfile, getSessionCustomRoles, getSessionTenants } from "@/lib/supabase/session";
 import { getCurrentUserPlanScope } from "@/app/actions/action-plan";
-import { getPermissionsMap, buildCustomRolesMap } from "@/lib/permissions";
+import { getPermissionsMap } from "@/lib/permissions";
 import { filterUnitsByScope, filterAreasByScope } from "@/components/dashboard/dashboard-access";
 import { isWithinRange } from "@/components/dashboard/dashboard-range";
+import { macroAcaoKey, normalizeMacroAcao } from "@/lib/macro-acao";
 
 export const metadata: Metadata = {
   title: "Dashboard | PlanoCerto",
@@ -152,34 +152,23 @@ export default async function DashboardPage({
   let catalogMacroAcoes: { id: string; name: string }[] = [];
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
     userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "Usuário";
 
+    const [profile, customRolesMap, tenants] = await Promise.all([
+      user ? getSessionProfile() : null,
+      user ? getSessionCustomRoles() : null,
+      getSessionTenants(),
+    ]);
     if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, permissions")
-        .eq("id", user.id)
-        .maybeSingle();
       role = profile?.role ?? "user";
       const permissions = (profile?.permissions ?? null) as Record<
         string,
         boolean
       > | null;
-
-      const adminClient = createAdminClient();
-      const { data: roles } = await adminClient
-        .from("roles")
-        .select("name, permissions");
-      const customRolesMap = buildCustomRolesMap(
-        (roles || []) as { name: string; permissions: Record<string, boolean> }[],
-      );
-      userPermissions = getPermissionsMap(role, permissions, customRolesMap);
+      userPermissions = getPermissionsMap(role, permissions, customRolesMap ?? {});
     }
 
-    const tenants = await getUserTenants();
     if (!tenants.length) return <DashboardClient userName={userName} userPermissions={userPermissions} unitSummaries={[]} areas={[]} deadlines={[]} actionRows={[]} sparklineData={[]} catalogTiposPa={[]} catalogMacroAcoes={[]} myTasks={[]} dateFrom="" dateTo="" />;
     const tenantIds = tenants.map((t) => t.id);
 
@@ -190,6 +179,7 @@ export default async function DashboardPage({
       { data: tiposPaRows },
       { data: macroAcoesRows },
       scope,
+      { data: allPlans },
     ] = await Promise.all([
       supabase
         .from("areas")
@@ -202,6 +192,7 @@ export default async function DashboardPage({
       supabase.from("tipos_pa").select("id,name,active").eq("active", true).order("sort_order"),
       supabase.from("macro_acoes").select("id,name,active").eq("active", true).order("sort_order"),
       getCurrentUserPlanScope(),
+      supabase.from("action_plans").select("id,tenant_id,title,unit,unit_id"),
     ]);
 
     catalogTiposPa = (tiposPaRows || []) as { id: string; name: string }[];
@@ -228,10 +219,6 @@ export default async function DashboardPage({
     }
 
     // Plans + Items
-    const { data: allPlans } = await supabase
-      .from("action_plans")
-      .select("id,tenant_id,title,unit,unit_id");
-
     const planIds = (allPlans || []).map((p) => p.id);
 
     interface ItemRow {
@@ -263,24 +250,24 @@ export default async function DashboardPage({
       unit_id?: string | null;
     }
 
-    // Paginação manual: Supabase tem max-rows ~1000 por requisição.
+    // Paginação manual: PostgREST tem max-rows ~1000 por requisição.
     // Buscamos todos os itens em chunks por plan_id (max 50 plans/chunk
     // para manter URLs curtas) ou via .range() até esvaziar.
     const allItems: ItemRow[] = [];
     if (planIds.length > 0) {
       const PAGE = 1000;
-      let from = 0;
-      // Loop até a página retornar < PAGE registros
+      let lastId: string | null = null;
+      // Keyset por id: não relê/pula linhas e não degrada com o OFFSET.
       for (;;) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: chunk, error } = await (supabase as any)
+        let q = (supabase as any)
           .from("action_items")
           .select(
             "id,plan_id,parent_id,status,action,number,planned_end,created_at,updated_at,preco,inscritos_esperado,inscritos_real,mat_fin_esperado,mat_fin_real,mat_acad_esperado,mat_acad_real,tipo_pa,responsible",
           )
-          .in("plan_id", planIds)
-          .order("id", { ascending: true })
-          .range(from, from + PAGE - 1);
+          .in("plan_id", planIds);
+        if (lastId) q = q.gt("id", lastId);
+        const { data: chunk, error } = await q.order("id", { ascending: true }).limit(PAGE);
         if (error) {
           console.error("[dashboard] action_items pagination:", error);
           break;
@@ -288,8 +275,8 @@ export default async function DashboardPage({
         const rows = (chunk || []) as ItemRow[];
         allItems.push(...rows);
         if (rows.length < PAGE) break;
-        from += PAGE;
-        if (from > 200000) break; // guardrail extremo
+        lastId = rows[rows.length - 1].id;
+        if (allItems.length > 200000) break; // guardrail extremo
       }
     }
 
@@ -366,6 +353,16 @@ export default async function DashboardPage({
       }
     }
 
+    // Mesma macro com grafias diferentes ("Empresa - Ação", "EMPRESA-AÇÃO") vira um só rótulo;
+    // o nome do catálogo tem preferência.
+    const macroLabelByKey = new Map<string, string>();
+    for (const m of catalogMacroAcoes) macroLabelByKey.set(macroAcaoKey(m.name), normalizeMacroAcao(m.name));
+    const macroLabel = (name: string) => {
+      const key = macroAcaoKey(name);
+      if (!macroLabelByKey.has(key)) macroLabelByKey.set(key, normalizeMacroAcao(name));
+      return macroLabelByKey.get(key)!;
+    };
+
     // Sumário por Unidade
     for (const u of allUnits) {
       const items = itemsByUnit.get(u.id) || [];
@@ -413,19 +410,20 @@ export default async function DashboardPage({
         if (it.parent_id) {
           const parent = parentItemsById.get(it.parent_id);
           if (parent?.action) {
-            macroAcoesSet.add(parent.action);
-            accBreakdown(macroAcoesBreakdown, parent.action, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
+            macroAcoesSet.add(macroLabel(parent.action));
+            accBreakdown(macroAcoesBreakdown, macroLabel(parent.action), it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
           }
         } else if (parentIdsWithChildren.has(it.id)) {
-          macroAcoesSet.add(it.action);
-          accBreakdown(macroAcoesBreakdown, it.action, it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
+          macroAcoesSet.add(macroLabel(it.action));
+          accBreakdown(macroAcoesBreakdown, macroLabel(it.action), it.status, isOv, p, it.inscritos_esperado, it.inscritos_real, it.mat_fin_esperado, it.mat_fin_real, it.mat_acad_esperado, it.mat_acad_real);
         }
 
         // Linha para a relação de ações (mesma bucketização dos cards/totais).
-        const macroAcaoTag = it.parent_id
-          ? parentItemsById.get(it.parent_id)?.action ?? null
-          : parentIdsWithChildren.has(it.id)
-          ? it.action
+        const parentAction = it.parent_id ? parentItemsById.get(it.parent_id)?.action : undefined;
+        const macroAcaoTag = parentAction
+          ? macroLabel(parentAction)
+          : !it.parent_id && parentIdsWithChildren.has(it.id)
+          ? macroLabel(it.action)
           : null;
         actionRows.push({
           id: it.id,

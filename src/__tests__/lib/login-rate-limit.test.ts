@@ -40,7 +40,7 @@ describe("login rate limit", () => {
     vi.clearAllMocks();
   });
 
-  it("bloqueia depois de exceder o limite sem chamar o Supabase", async () => {
+  it("bloqueia depois de exceder o limite sem chamar o Auth", async () => {
     rateLimitMock.mockReturnValue({ allowed: false, remaining: 0, resetAt: Date.now() });
 
     const formData = new FormData();

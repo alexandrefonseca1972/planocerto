@@ -51,7 +51,7 @@ export async function checkAuth(request: NextRequest): Promise<AuthResult> {
   if (userError) {
     // Requisições anônimas (sem sessão) lançam AuthSessionMissingError — caso
     // esperado em rotas públicas, então registramos apenas em debug. Demais
-    // erros (token inválido, falha de rede com o Supabase) seguem em warn.
+    // erros (token inválido, falha de rede com o Auth) seguem em warn.
     const isMissingSession =
       userError.name === "AuthSessionMissingError" ||
       userError.message === "Auth session missing!";

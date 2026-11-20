@@ -47,7 +47,7 @@ PlanoCerto é uma plataforma de **gestão de planos de ação** baseada na metod
 
 ### 1. Login
 
-1. Acesse [PlanoCerto](https://planocerto.vercel.app)
+1. Acesse [PlanoCerto](https://planocerto.app)
 2. Insira seu **email** e **senha**
 3. Clique em **"Entrar"**
 

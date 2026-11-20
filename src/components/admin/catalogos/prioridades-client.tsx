@@ -392,7 +392,7 @@ function PrioridadeForm({
       open
       title={item ? "Editar Prioridade" : "Nova Prioridade"}
       subtitle={
-        item ? "Atualize os dados da Prioridade" : "Cadastre um novo nível de prioridade"
+        item ? "Atualize os dados da prioridade" : "Cadastre um novo nível de prioridade"
       }
       isDirty={isDirty}
       onClose={onClose}

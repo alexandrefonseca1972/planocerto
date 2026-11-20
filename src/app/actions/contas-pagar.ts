@@ -1,5 +1,7 @@
 "use server";
 
+import { isValidUuid } from "@/lib/validations/uuid";
+import { IDS_PER_QUERY, chunk, fetchAllRows } from "@/lib/supabase/fetch-all";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { r2Delete, r2Put, r2SignedDownloadUrl } from "@/lib/r2";
@@ -268,21 +270,31 @@ export interface ItemContasSummary {
 }
 
 export async function getContasSummaryByPlan(
-  planId: string,
+  planId: string | string[],
 ): Promise<Record<string, ItemContasSummary>> {
   try {
     const supabase = await createClient();
 
     // RLS de contas_pagar (tenant-scoped) já limita ao que o usuário pode ver;
     // sem checagem extra de tenant/plano (eram 3 idas ao banco a mais).
-    const { data } = await supabase
-      .from("contas_pagar")
-      .select(
-        `id, item_id, status,
-         parcelas:parcelas_pagar(valor, valor_pago, status, data_vencimento)`,
-      )
-      .eq("plan_id", planId)
-      .not("item_id", "is", null);
+    const ids = (Array.isArray(planId) ? planId : [planId]).filter(isValidUuid).slice(0, 500);
+    const parts = await Promise.all(
+      chunk(ids, IDS_PER_QUERY).map((part) =>
+        fetchAllRows<unknown>((from, to) =>
+          supabase
+            .from("contas_pagar")
+            .select(
+              `id, item_id, status,
+               parcelas:parcelas_pagar(valor, valor_pago, status, data_vencimento)`,
+            )
+            .in("plan_id", part)
+            .not("item_id", "is", null)
+            .order("id")
+            .range(from, to),
+        ),
+      ),
+    );
+    const data = parts.flat();
 
     type Row = {
       id: string;
@@ -394,145 +406,19 @@ export async function getResumoContas(
     const targetTenant = await getCurrentTenantId();
     if (!targetTenant) return empty;
 
-    let query = supabase
-      .from("contas_pagar")
-      .select(
-        `id, descricao, status, fornecedor_id,
-         fornecedor:fornecedores(id, name),
-         parcelas:parcelas_pagar(id, numero, data_vencimento, valor, valor_pago, status, data_pagamento)`,
-      )
-      .eq("tenant_id", targetTenant);
-
-    if (fornecedor_id) query = query.eq("fornecedor_id", fornecedor_id);
-
-    const { data: contasData, error: contasError } = await query;
-    if (contasError) {
-      logSupabaseError("getResumoContas", contasError);
+    // Agregação no SQL (migration 086b); RLS do chamador continua valendo.
+    const { data, error } = await supabase.rpc("resumo_contas", {
+      p_tenant: targetTenant,
+      p_from: range?.from ?? null,
+      p_to: range?.to ?? null,
+      p_fornecedor: fornecedor_id,
+      p_ano: ano,
+    });
+    if (error) {
+      logSupabaseError("getResumoContas", error);
       return empty;
     }
-
-    type Row = {
-      id: string;
-      descricao: string;
-      status: string;
-      fornecedor_id: string | null;
-      fornecedor: { id: string; name: string } | null;
-      parcelas: {
-        id: string;
-        numero: number;
-        data_vencimento: string;
-        valor: number;
-        valor_pago: number | null;
-        status: string;
-        data_pagamento: string | null;
-      }[] | null;
-    };
-
-    const rows = (contasData ?? []) as unknown as Row[];
-    const hoje = new Date().toISOString().slice(0, 10);
-    const limite7d = new Date();
-    limite7d.setDate(limite7d.getDate() + 7);
-    const limite7dStr = limite7d.toISOString().slice(0, 10);
-
-    let total_em_aberto = 0;
-    let total_atrasado = 0;
-    let total_pago_periodo = 0;
-    const proximas_7d: ResumoFinanceiro["proximas_7d"] = [];
-    const vencimentos_mes: ResumoFinanceiro["vencimentos_mes"] = [];
-
-    // Acumuladores para views
-    const fornecedorMap = new Map<string, { nome: string; total_pago: number; total_aberto: number }>();
-    const statusMap = new Map<string, { quantidade: number; valor_total: number }>();
-    // por_mes: 12 meses do ano
-    const mesesMap = new Map<string, { total_pago: number; total_aberto: number }>();
-    for (let m = 1; m <= 12; m++) {
-      mesesMap.set(`${ano}-${String(m).padStart(2, "0")}`, { total_pago: 0, total_aberto: 0 });
-    }
-
-    for (const r of rows) {
-      const parcelas = r.parcelas ?? [];
-      const fId = r.fornecedor_id ?? "__sem_fornecedor__";
-      const fNome = r.fornecedor?.name ?? "Sem fornecedor";
-
-      if (!fornecedorMap.has(fId)) fornecedorMap.set(fId, { nome: fNome, total_pago: 0, total_aberto: 0 });
-
-      // por_status
-      if (r.status !== "cancelado") {
-        const st = statusMap.get(r.status) ?? { quantidade: 0, valor_total: 0 };
-        const totalConta = parcelas.reduce((s, p) => s + Number(p.valor), 0);
-        statusMap.set(r.status, { quantidade: st.quantidade + 1, valor_total: st.valor_total + totalConta });
-      }
-
-      for (const p of parcelas) {
-        if (p.status === "pendente" && r.status !== "cancelado") {
-          total_em_aberto += Number(p.valor);
-          if (p.data_vencimento < hoje) total_atrasado += Number(p.valor);
-
-          // próximas 7 dias
-          if (p.data_vencimento >= hoje && p.data_vencimento <= limite7dStr) {
-            proximas_7d.push({ parcela_id: p.id, conta_id: r.id, descricao: r.descricao, vencimento: p.data_vencimento, valor: Number(p.valor) });
-          }
-
-          // vencimentos do mês (range)
-          if (range && p.data_vencimento >= range.from && p.data_vencimento <= range.to) {
-            vencimentos_mes.push({ parcela_id: p.id, conta_id: r.id, descricao: r.descricao, vencimento: p.data_vencimento, valor: Number(p.valor), atrasada: p.data_vencimento < hoje });
-          }
-
-          // por_mes (aberto — usa vencimento)
-          const mesVenc = p.data_vencimento.slice(0, 7);
-          if (mesesMap.has(mesVenc)) {
-            mesesMap.get(mesVenc)!.total_aberto += Number(p.valor);
-          }
-
-          // por_fornecedor aberto
-          fornecedorMap.get(fId)!.total_aberto += Number(p.valor);
-        }
-
-        if (p.status === "pago" && p.data_pagamento) {
-          const valorPago = Number(p.valor_pago ?? p.valor);
-
-          // pago no período (range)
-          if (!range || (p.data_pagamento >= range.from && p.data_pagamento <= range.to)) {
-            total_pago_periodo += valorPago;
-          }
-
-          // por_mes (pago — usa data_pagamento)
-          const mesPag = p.data_pagamento.slice(0, 7);
-          if (mesesMap.has(mesPag)) {
-            mesesMap.get(mesPag)!.total_pago += valorPago;
-          }
-
-          // por_fornecedor pago
-          fornecedorMap.get(fId)!.total_pago += valorPago;
-        }
-      }
-    }
-
-    proximas_7d.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
-    vencimentos_mes.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
-
-    const por_fornecedor = Array.from(fornecedorMap.entries())
-      .map(([id, v]) => ({ fornecedor_id: id === "__sem_fornecedor__" ? null : id, fornecedor_nome: v.nome, total_pago: v.total_pago, total_aberto: v.total_aberto }))
-      .filter((f) => f.total_pago > 0 || f.total_aberto > 0)
-      .sort((a, b) => (b.total_pago + b.total_aberto) - (a.total_pago + a.total_aberto));
-
-    const por_status = Array.from(statusMap.entries())
-      .map(([status, v]) => ({ status, quantidade: v.quantidade, valor_total: v.valor_total }));
-
-    const por_mes = Array.from(mesesMap.entries())
-      .map(([mes, v]) => ({ mes, total_pago: v.total_pago, total_aberto: v.total_aberto }));
-
-    return {
-      total_em_aberto,
-      total_atrasado,
-      total_pago_periodo,
-      contas_quantidade: rows.filter((r) => r.status !== "cancelado").length,
-      proximas_7d: proximas_7d.slice(0, 20),
-      vencimentos_mes,
-      por_fornecedor,
-      por_status,
-      por_mes,
-    };
+    return { ...empty, ...(data as unknown as Partial<ResumoFinanceiro>) };
   } catch (error) {
     console.error("[getResumoContas] Error:", error);
     return empty;
@@ -826,7 +712,7 @@ export async function pagarParcelasEmLote(
       if (guard) return { message: guard };
     }
 
-    // Atualiza uma a uma — Supabase não suporta UPDATE de múltiplos valores
+    // Atualiza uma a uma — PostgREST não suporta UPDATE de múltiplos valores
     // diferentes (valor_pago varia por linha) numa única chamada sem RPC.
     const failedIds: string[] = [];
     for (const p of parcelas) {

@@ -2204,6 +2204,16 @@ export type Database = {
         Args: { p_user_id: string; p_now?: string }
         Returns: string
       }
+      resumo_contas: {
+        Args: {
+          p_ano: number
+          p_fornecedor: string | null
+          p_from: string | null
+          p_tenant: string
+          p_to: string | null
+        }
+        Returns: Json
+      }
       setup_new_user: {
         Args: {
           p_active_tenant_id: string
@@ -2224,6 +2234,7 @@ export type Database = {
       }
       user_area_ids: { Args: never; Returns: string[] }
       user_unit_ids: { Args: never; Returns: string[] }
+      unread_notifications_count: { Args: { p_tenant?: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never

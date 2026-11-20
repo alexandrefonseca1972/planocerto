@@ -242,12 +242,15 @@ describe("item classification filters", () => {
     expect(itemMatchesMacroAcao(tree[0].children![0].children![0], "Trade", actionById, parentById)).toBe(true);
     expect(itemMatchesMacroAcao(tree[1], "Trade", actionById, parentById)).toBe(false);
     expect(itemMatchesMacroAcao(tree[1], null, actionById, parentById)).toBe(true);
+    // Ação com o mesmo nome da macro, mas fora dela (filha de outro grupo), não entra.
+    const homonym = { ...tree[1], id: "homonimo", action: "TRADE", parent_id: tree[1].id, children: [] };
+    expect(itemMatchesMacroAcao(homonym, "Trade", actionById, parentById)).toBe(false);
   });
 
   it("collectItemClassificationOptions extrai tipos e grupos", () => {
     expect(collectItemClassificationOptions(tree)).toEqual({
       tiposPa: ["ENEM", "Vestibular"],
-      macroAcoes: ["Campanha", "Trade"],
+      macroAcoes: ["CAMPANHA", "TRADE"], // macro ação sempre em caixa alta
     });
   });
 

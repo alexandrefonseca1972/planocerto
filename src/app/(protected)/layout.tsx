@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getSessionUser, getSessionProfile, getSessionCustomRoles, getSessionTenants } from "@/lib/supabase/session";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/layout/navbar";
 
@@ -8,8 +7,7 @@ export const dynamic = "force-dynamic";
 import { TenantAwareWrapper } from "@/components/layout/tenant-aware-wrapper";
 import { ToastProvider } from "@/components/ui/toast";
 import { HelpModal } from "@/components/ui/help-modal";
-import { getUserTenants } from "@/app/actions/tenant";
-import { getPermissionsMap, buildCustomRolesMap } from "@/lib/permissions";
+import { getPermissionsMap } from "@/lib/permissions";
 import type { User } from "@supabase/supabase-js";
 import type { Tenant } from "@/types/tenant";
 
@@ -22,10 +20,7 @@ async function getSessionData(): Promise<{
   error: boolean;
 }> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return {
@@ -38,21 +33,15 @@ async function getSessionData(): Promise<{
       };
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, permissions, active_tenant_id")
-      .eq("id", user.id)
-      .maybeSingle();
+    const [profile, customRolesMap, tenants] = await Promise.all([
+      getSessionProfile(),
+      getSessionCustomRoles(),
+      getSessionTenants(),
+    ]);
 
     const role = profile?.role ?? "user";
     const permissions = (profile?.permissions ?? null) as Record<string, boolean> | null;
-
-    const adminClient = createAdminClient();
-    const { data: roles } = await adminClient.from("roles").select("name, permissions");
-    const customRolesMap = buildCustomRolesMap((roles || []) as { name: string; permissions: Record<string, boolean> }[]);
     const userPermissions = getPermissionsMap(role, permissions, customRolesMap);
-
-    const tenants = await getUserTenants();
 
     const currentTenant =
       tenants.find((t) => t.id === profile?.active_tenant_id) ||

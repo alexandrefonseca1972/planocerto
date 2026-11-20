@@ -9,7 +9,7 @@ const features = [
   { icon: Building2, title: "Multitenant", desc: "Gerencie múltiplas unidades em um só lugar. Cada empresa com seu plano, equipe e metas." },
   { icon: Bell, title: "Notificações", desc: "Alertas em tempo real no Microsoft Teams. Saiba quando ações são criadas ou concluídas." },
   { icon: Shield, title: "Controle de Acesso", desc: "Restrições de horário, permissões por usuário e conta ativa/inativa por empresa." },
-  { icon: Users, title: "Times por Empresa", desc: "Associe usuários a empresas com papéis: owner, admin ou member. Tudo com RLS no Supabase." },
+  { icon: Users, title: "Times por Empresa", desc: "Associe usuários a empresas com papéis: owner, admin ou member. Tudo com RLS na infraestrutura própria." },
 ];
 
 const highlights = [
@@ -81,7 +81,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
-                Tudo que você precisa para gerenciar planos
+                Tudo de que você precisa para gerenciar planos
               </h2>
               <p className="mt-3 text-zinc-500 dark:text-zinc-400">
                 Do cadastro da ação ao relatório executivo, o PlanoCerto cobre todo o ciclo.
@@ -118,7 +118,7 @@ export default function HomePage() {
                 para uma visão unificada do seu negócio.
               </p>
               <p className="mt-2 text-sm text-zinc-400 dark:text-zinc-500">
-                Desenvolvido por <strong>Ruphus</strong> · Tecnologia <strong>Next.js</strong> + <strong>Supabase</strong>
+                Desenvolvido por <strong>Ruphus</strong> · Tecnologia <strong>Next.js</strong> · Hospedagem <strong>VPS própria</strong>
               </p>
             </div>
           </div>

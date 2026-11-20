@@ -253,7 +253,7 @@ export function FinanceiroClient({
             icon: <CheckCircle className="h-4 w-4 text-emerald-500" />, color: "text-emerald-600 dark:text-emerald-400",
           },
           {
-            label: "Próximas 7 dias", value: null, sub: formatBRL(resumo?.proximas_7d.reduce((s, p) => s + p.valor, 0) ?? 0),
+            label: "Próximos 7 dias", value: null, sub: formatBRL(resumo?.proximas_7d.reduce((s, p) => s + p.valor, 0) ?? 0),
             icon: <Calendar className="h-4 w-4 text-zinc-400" />, color: "",
             count: resumo?.proximas_7d.length,
           },

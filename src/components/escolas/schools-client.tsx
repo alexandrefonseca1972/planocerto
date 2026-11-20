@@ -14,6 +14,7 @@ import { SortableTh, TablePagination, useDataTable } from "@/components/ui/data-
 import type { School, SchoolFormState } from "@/types/school";
 import type { Unit } from "@/types/catalog";
 import { Plus, Pencil, Trash2, X, Save, Search, GraduationCap, Building2, Link2, Unlink } from "lucide-react";
+import { enumLabel } from "@/lib/utils";
 
 type SchoolSortKey =
   | "idx"
@@ -412,7 +413,7 @@ export function SchoolsClient({ units }: { units: Unit[] }) {
                         PRIORIDADE_BADGES[s.prioridade] || ""
                       }`}
                     >
-                      {s.prioridade}
+                      {enumLabel(s.prioridade)}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{s.meta_inscritos}</td>
