@@ -74,27 +74,29 @@ export function ProgressGauge({ completed, total, size = 140, className }: {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   const strokeW = 14;
   const radius = (size - strokeW) / 2;
-  const circ = Math.PI * radius;
   const center = size / 2;
-  const filled = (pct / 100) * circ;
+  // Semicírculo exato (da esquerda para a direita, por cima). O preenchimento usa o
+  // mesmo caminho com traço de comprimento real (π·r·pct), então cobre exatamente pct%.
+  const arc = `M ${center - radius} ${center} A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`;
+  const arcLength = Math.PI * radius;
+  const filled = (pct / 100) * arcLength;
 
   const color = pct >= 80 ? "#10b981" : pct >= 50 ? "#3b82f6" : pct >= 25 ? "#f59e0b" : "#ef4444";
 
   // Tick marks
   const ticks = [0, 25, 50, 75, 100];
-  const tickR = radius - 8;
+  const tickR = radius - strokeW / 2 - 3;
 
   return (
     <div className={cn("relative inline-flex items-center justify-center", className)} style={{ width: size, height: size * 0.7 }}>
-      <svg width={size} height={size} className="overflow-visible" viewBox={`0 0 ${size} ${size}`}>
+      <svg width={size} height={size} className="overflow-visible" viewBox={`0 0 ${size} ${size}`}
+        role="img" aria-label={`${pct}% concluído`}>
         {/* Background arc */}
-        <path d={`M ${strokeW/2 + 4} ${center} A ${radius} ${radius} 0 0 1 ${size - strokeW/2 - 4} ${center}`}
-          fill="none" stroke="#e4e4e7" strokeWidth={strokeW} strokeLinecap="round" className="dark:stroke-zinc-700" />
+        <path d={arc} fill="none" stroke="#e4e4e7" strokeWidth={strokeW} strokeLinecap="round" className="dark:stroke-zinc-700" />
         {/* Filled arc */}
         {pct > 0 && (
-          <path d={`M ${strokeW/2 + 4} ${center} A ${radius} ${radius} 0 ${pct > 50 ? 1 : 0} 1 ${strokeW/2 + 4 + (size - strokeW - 8) * (pct / 100)} ${center - radius + (radius * 2) * (pct > 50 ? 1 - (pct-50)/50 : 1) * (pct/100)}`}
-            fill="none" stroke={color} strokeWidth={strokeW} strokeLinecap="round"
-            className="transition-all duration-700" style={{ strokeDasharray: `${filled} ${circ - filled}`, strokeDashoffset: 0 }} />
+          <path d={arc} fill="none" stroke={color} strokeWidth={strokeW} strokeLinecap="round"
+            strokeDasharray={`${filled} ${arcLength}`} className="transition-all duration-700" />
         )}
         {/* Tick marks */}
         {ticks.map(t => {
