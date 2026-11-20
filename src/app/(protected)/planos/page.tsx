@@ -41,6 +41,7 @@ import {
   collectItemClassificationOptions,
   mergeCatalogNames,
   hasActiveItemFilters,
+  countActions,
 } from "@/components/planos/planos-page-helpers";
 import { isWithinRange } from "@/lib/date-range";
 import { KanbanBoard } from "@/components/planos/plan-kanban";
@@ -128,9 +129,12 @@ export default function PlanosPage() {
   };
 
   // /planos inicia sem cidade marcada (não herda a seleção do Dashboard),
-  // salvo atalhos: ?unit= marca a cidade; ?plan= é tratado pelo efeito abaixo.
+  // salvo atalhos: ?units= (recarga/link) ou ?unit= marcam cidades; ?plan= é
+  // tratado pelo efeito abaixo.
   useEffect(() => {
-    if (url.requestedUnitId) {
+    if (url.requestedUnitIds.length) {
+      setSelectedUnitIds(url.requestedUnitIds);
+    } else if (url.requestedUnitId) {
       setSelectedUnitIds([url.requestedUnitId]);
       url.setParams({ unit: null });
     } else if (!url.requestedPlanId) {
@@ -138,6 +142,13 @@ export default function PlanosPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Espelha a seleção em ?units= para recarregar a página sem perdê-la.
+  const unitsParam = selectedUnitIds.join(",");
+  useEffect(() => {
+    url.setParams({ units: unitsParam || null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitsParam]);
 
   // Resolve selected plan
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -311,7 +322,9 @@ export default function PlanosPage() {
         itemMatchesMacroAcao(i, url.macroAcaoFilter || null, actionById, parentById),
     );
   }, [data.items, hasItemFilters, url.searchQuery, url.statusFilter, url.dateFrom, url.dateTo, url.tipoPaFilter, url.macroAcaoFilter]);
-  const filteredCount = useMemo(() => flattenItems(visibleItems).length, [visibleItems]);
+  // Vários planos: macros viram cabeçalhos, então só ações entram na conta (igual ao rodapé).
+  const filteredCount = useMemo(() => countActions(visibleItems, multi), [visibleItems, multi]);
+  const totalActionCount = useMemo(() => countActions(data.items, multi), [data.items, multi]);
 
   const counts = {
     total: allItems.length,
@@ -579,7 +592,7 @@ export default function PlanosPage() {
           tipoPaOptions={classificationOptions.tiposPa}
           macroAcaoOptions={classificationOptions.macroAcoes}
           filteredCount={filteredCount}
-          totalCount={allItems.length}
+          totalCount={totalActionCount}
           filteredPlanCount={filteredPlans.length}
           totalPlanCount={data.allPlans.length}
           onClearPlanFilters={clearPlanFilters}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMacroActionOptions, collectItemClassificationOptions, collectParentGroups, filterCatalogByAccess, filterItemTree, filterPlansByGovernance, getActionById, getAvailablePlanExercises, getParentById, hasActiveItemFilters, isValidActionText, itemMatchesMacroAcao, itemMatchesTipoPa, mergeCatalogNames, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
+import { buildMacroActionOptions, countActions, collectItemClassificationOptions, collectParentGroups, filterCatalogByAccess, filterItemTree, filterPlansByGovernance, getActionById, getAvailablePlanExercises, getParentById, hasActiveItemFilters, isValidActionText, itemMatchesMacroAcao, itemMatchesTipoPa, mergeCatalogNames, orderParentGroupsByMacroCatalog, resolveSelectedPlanId } from "@/components/planos/planos-page-helpers";
 import { isWithinRange } from "@/lib/date-range";
 import type { ActionItem } from "@/types/action-plan";
 import type { ActionPlan } from "@/types/action-plan";
@@ -273,5 +273,18 @@ describe("hasActiveItemFilters", () => {
     expect(hasActiveItemFilters({ ...none, statusFilter: 0 })).toBe(true);
     expect(hasActiveItemFilters({ ...none, dateFrom: "2026-01-01", dateTo: "2026-02-01" })).toBe(true);
     expect(hasActiveItemFilters({ ...none, macroAcaoFilter: "x" })).toBe(true);
+  });
+});
+
+describe("countActions", () => {
+  const tree = [
+    item({ id: "m1", children: [item({ id: "a1" }), item({ id: "a2", children: [item({ id: "s1" })] })] }),
+    item({ id: "solta" }),
+  ];
+  it("conta todas as linhas com um plano só", () => {
+    expect(countActions(tree, false)).toBe(5);
+  });
+  it("ignora macros (raízes com filhos) com vários planos", () => {
+    expect(countActions(tree, true)).toBe(4);
   });
 });

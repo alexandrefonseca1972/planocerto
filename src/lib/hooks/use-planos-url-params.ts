@@ -39,6 +39,8 @@ export function usePlanosUrlParams() {
   /** Atalho do dashboard (card da cidade): marca a cidade ao entrar. */
   const requestedUnitId = searchParams.get("unit");
   const requestedItemId = searchParams.get("item");
+  /** Cidades marcadas em /planos: sobrevivem a recarregar e a links copiados. */
+  const requestedUnitIds = (searchParams.get("units") || "").split(",").filter(Boolean);
 
   const createQueryString = useCallback(
     (params: Params) => {
@@ -88,6 +90,7 @@ export function usePlanosUrlParams() {
     macroAcaoFilter,
     requestedPlanId,
     requestedUnitId,
+    requestedUnitIds,
     requestedItemId,
     createQueryString,
     setParams,
