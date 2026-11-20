@@ -236,7 +236,7 @@ export default function HelpPage() {
       {/* Footer */}
       <section className="border-t pt-6 text-center text-sm text-muted-foreground">
         <p>
-          PlanoCerto versão 2.0 • Desenvolvido por{' '}
+          PlanoCerto • Desenvolvido por{' '}
           <span className="font-medium">Ruphus Tecnologia</span>
         </p>
         <p className="mt-2">
