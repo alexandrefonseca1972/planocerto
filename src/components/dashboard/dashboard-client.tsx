@@ -617,18 +617,18 @@ export function DashboardClient({
       </div>
 
       <Tabs defaultValue="indicadores" className="space-y-4">
-        <TabsList className="h-10 w-full sm:w-auto sm:inline-flex">
+        <TabsList className="h-10 w-full justify-start overflow-x-auto sm:w-auto sm:inline-flex sm:justify-center">
           <TabsTrigger value="indicadores">
-            <TrendingUp className="mr-1.5 h-3.5 w-3.5" /> Indicadores
+            <TrendingUp className="mr-1.5 hidden h-3.5 w-3.5 sm:inline" /> Indicadores
           </TabsTrigger>
           <TabsTrigger value="unidades">
-            <Building2 className="mr-1.5 h-3.5 w-3.5" /> Unidades
+            <Building2 className="mr-1.5 hidden h-3.5 w-3.5 sm:inline" /> Unidades
           </TabsTrigger>
           <TabsTrigger value="analise">
-            <ListTodo className="mr-1.5 h-3.5 w-3.5" /> Detalhamento
+            <ListTodo className="mr-1.5 hidden h-3.5 w-3.5 sm:inline" /> Detalhamento
           </TabsTrigger>
           <TabsTrigger value="minhas-tarefas">
-            <UserCheck className="mr-1.5 h-3.5 w-3.5" /> Minhas Tarefas
+            <UserCheck className="mr-1.5 hidden h-3.5 w-3.5 sm:inline" /> Minhas Tarefas
             {myTasks.length > 0 && (
               <span className="ml-1.5 rounded-full bg-accent-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                 {myTasks.length}
@@ -825,7 +825,7 @@ export function DashboardClient({
           </Dialog>
 
           {/* Distribuição + Prazos */}
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <DistributionCard
               completed={totals.completed}
               progress={totals.progress}

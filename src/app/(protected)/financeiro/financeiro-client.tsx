@@ -276,10 +276,10 @@ export function FinanceiroClient({
       </div>
 
       {/* Tabs de view */}
-      <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-700">
         {views.map((v) => (
           <button key={v.id} type="button" onClick={() => setViewMode(v.id)}
-            className={cn("flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+            className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
               viewMode === v.id
                 ? "border-accent-500 text-accent-600 dark:text-accent-400"
                 : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200")}>

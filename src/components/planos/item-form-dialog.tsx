@@ -181,7 +181,7 @@ export function ItemFormDialog({
           <X className="h-5 w-5" />
         </button>
       </div>
-      <form action={action} className="space-y-5 max-h-[76vh] overflow-y-auto pr-1">
+      <form action={action} className="space-y-5 max-h-[60vh] sm:max-h-[76vh] overflow-y-auto pr-1">
         {item && <input type="hidden" name="itemId" value={item.id} />}
         <input type="hidden" name="planId" value={planId} />
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/40">
@@ -213,7 +213,7 @@ export function ItemFormDialog({
             </div>
           </div>
         </div>
-        <div className="flex gap-1.5 rounded-2xl bg-zinc-100/90 p-1.5 dark:bg-zinc-800/90">
+        <div className="flex gap-1.5 overflow-x-auto rounded-2xl bg-zinc-100/90 p-1.5 dark:bg-zinc-800/90">
           {(["modelo", "anexos", "comentarios", "historico"] as const).map((t) => {
             const needsItem = t === "anexos" || t === "comentarios" || t === "historico";
             const isDisabled = needsItem && !item?.id;
@@ -236,7 +236,7 @@ export function ItemFormDialog({
                 onClick={() => setTab(t)}
                 disabled={isDisabled}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
+                  "flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-semibold transition-all",
                   tab === t
                     ? "bg-white text-zinc-900 shadow-[0_2px_10px_rgba(15,23,42,0.08)] dark:bg-zinc-700 dark:text-zinc-50"
                     : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300",
