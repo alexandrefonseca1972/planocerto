@@ -88,12 +88,13 @@ npm run build
 
 O projeto roda na VPS com Next.js, Caddy e systemd. A Cloudflare fornece DNS e proxy para `planocerto.app` e `www.planocerto.app`.
 
-Para atualizar a aplicação na VPS:
+Para atualizar a aplicação na VPS, a partir da `main` local igual a `origin/main`:
 ```bash
-npm ci
-npm run build
-systemctl restart planocerto-web
+scripts/deploy.sh --dry-run   # mostra os arquivos que mudam na VPS
+scripts/deploy.sh             # deploy completo
 ```
+
+O script guarda a versão atual em `app-prev` e compila com o site parado; se a compilação falhar, restaura a versão anterior. Depois testa as páginas e registra no `OPERACAO.md` da VPS. Em seguida atualiza o grafo do projeto (`graphify update .`, só código e sem LLM) e, se ele mudou, faz commit e push de `graphify-out/` na `main`. Use `--no-graph` para pular o grafo. Migrations não são aplicadas pelo script.
 
 A operação, os backups e as configurações dos serviços estão documentados em `/opt/planocerto/OPERACAO.md`.
 
