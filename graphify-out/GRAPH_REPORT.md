@@ -1,7 +1,7 @@
 # Graph Report - planocerto  (2026-11-20)
 
 ## Corpus Check
-- 649 files · ~368,097 words
+- 649 files · ~368,182 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 1, .jsonl 1, .xlsb 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b14ee9eb`
+- Built from commit: `76ba21e1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
