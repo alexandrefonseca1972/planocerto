@@ -30,3 +30,34 @@
 Adicionado redirect permanente (301) em `next.config.ts`:
 - `/plano` → `/planos`
 - `/plano/:path*` → `/planos/:path*`
+
+---
+
+## Concluído — v2.8.0 (19/11/2026)
+
+- [x] Agrupamento macro ação → cidade na tabela de vários planos; filtro de macro só com ações dentro da macro
+- [x] Macro ação padronizada (caixa alta, ≤ 40 caracteres, sem duplicidade) + migration 084 (fusão de grupos duplicados)
+- [x] Bloqueio de plano ativo duplicado (mesmo título, unidade e exercício)
+- [x] Telas atualizam sem recarregar (efeitos pós-gravação) e ao voltar para a aba
+- [x] Consultas otimizadas (lote + paginação), RLS por conjunto (086), resumo financeiro em SQL (086b), sininho fora da fila (087), índices (085)
+- [x] IA: API key protegida e cifrada; limites de custo e permissão na sugestão
+- [x] E-mail pelo Cloudflare Email Service (só envio)
+- [x] Medidor do dashboard, botões/links redundantes, X no e-mail do login, revisão de português
+- [x] `scripts/deploy.sh` com atualização automática do grafo (graphify)
+
+## Pendente
+
+### 4. Dependência `xlsx` com vulnerabilidade alta (ReDoS / prototype pollution)
+- `xlsx@0.18.5` do npm não recebe correções; o ReDoS é explorável no upload de Excel do servidor (`/api/plans/[id]/import`, `/api/plans/upload-batch`).
+- Correção: `"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"` (mesma API) + teste de importação com .xlsx/.xls/.xlsb.
+
+### 5. Contagem "N de 4182" na tabela de vários planos
+- O contador do topo soma ações + linhas de macro (ex.: "22 de 4182" com 14 ações); o rodapé mostra 14. Alinhar para contar só ações.
+
+### 6. Seleção de cidades
+- Recarregar `/planos` (ou abrir por link) perde a seleção de cidades. Não verificado se a seleção passa de Planos para o Dashboard pelo menu.
+
+### 7. Atualizações de dependências (sem advisory)
+- Rápidas: react 19.3.1, @supabase/supabase-js 2.119.2, radix, tailwind 4.3.5.
+- Avaliar: isomorphic-dompurify 3.x (sanitização), @supabase/ssr 0.12 (auth/cookies).
+- Podem esperar: typescript 7, vitest 5, eslint 10, pino 10, @hookform/resolvers 7.

@@ -20,6 +20,35 @@ Categorias usadas: **Adicionado**, **Alterado**, **Corrigido**, **Removido**,
 
 ## [Não lançado]
 
+## [2.8.0] - 2026-11-19
+
+### Adicionado
+- Planos com várias cidades agrupados em **macro ação → cidade → ações**, com contagem por cidade e paginação que repete os cabeçalhos ao virar a página.
+- Macro ação padronizada: caixa alta, até 40 caracteres e duplicidade detectada ignorando caixa, acento e hífen (formulário, importação Excel, catálogo, filtros e dashboard).
+- Envio de e-mail pelo **Cloudflare Email Service** (recuperação de senha, boas-vindas, avisos de ação); e-mails só de notificação, sem "responder para".
+- `scripts/deploy.sh`: deploy na VPS com restauração automática se a compilação falhar e atualização do grafo do projeto (graphify) ao final.
+- Botão para limpar o campo de e-mail no login.
+
+### Alterado
+- Filtro de macro ação mostra só as ações dentro da macro.
+- Chips do cabeçalho de Planos: um por cidade.
+- Ajuda e guia orientam falar com o administrador do sistema (contato de suporte inexistente removido).
+- Revisão de português-BR em toda a interface.
+
+### Corrigido
+- Telas que só atualizavam após recarregar (efeitos pós-gravação dependiam de um booleano que não mudava a partir da 2ª gravação).
+- Medidor do dashboard desenhava o arco fora do semicírculo.
+- Botões e links redundantes ou aninhados (`<a><button>`).
+- Bloqueio de plano ativo duplicado (mesmo título, unidade e exercício).
+
+### Segurança
+- API key do provedor de IA fora de Server Action e cifrada em repouso (AES-256-GCM); sugestão por IA exige permissão, limita tamanho, frequência e modelos.
+- Regras de acesso (RLS) de planos/ações/histórico reescritas por conjunto, com paridade verificada para todos os usuários.
+
+### Performance
+- Ações, histórico e contas de vários planos numa única chamada, com leitura paginada; status recalculado gravado em lote.
+- RLS 2–3x mais rápida; resumo financeiro agregado em SQL; índices em chaves estrangeiras; cache de sessão por requisição; contagem de notificações fora da fila de server actions.
+
 ## [2.7.17] - 2026-11-16
 
 ### Removido
