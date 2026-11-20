@@ -19,6 +19,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
   SUPABASE_SERVICE_ROLE_KEY: secret("placeholder-key"),
   OPENROUTER_API_KEY: z.string().optional().default(""),
+  // Segredo para cifrar a API key do provedor de IA em llm_settings (src/lib/llm-secret.ts).
+  LLM_KEY_SECRET: z.union([z.literal(""), z.string().min(32, "LLM_KEY_SECRET precisa de 32+ caracteres (openssl rand -base64 32).")]).optional().default(""),
   RESEND_API_KEY: secret("placeholder-key"),
   AUTH_EMAIL_FROM: z.string().min(1).default("PlanoCerto <acesso@planocerto.app>"),
   AUTH_EMAIL_REPLY_TO: z.string().email().optional().default("suporte@planocerto.app"),

@@ -2,8 +2,16 @@
 
 import { sanitizeText } from "@/lib/validation/sanitize";
 import { createClient } from "@/lib/supabase/server";
-import { callLlm } from "@/lib/llm-client";
-import { getActiveLlmConfig } from "@/app/actions/llm-settings";
+import { allowedModels, callLlm, extractJsonObject } from "@/lib/llm-client";
+import { getActiveLlmConfig } from "@/lib/llm-config";
+import { checkPermission } from "@/app/actions/admin";
+import { PERMISSIONS } from "@/lib/permissions";
+import { rateLimit } from "@/lib/security/rate-limit";
+
+/** Limites de uso da sugestão por IA (custo por chamada é da empresa). */
+const MAX_DESCRIPTION_CHARS = 2000;
+const SUGGESTIONS_PER_WINDOW = 20;
+const SUGGESTION_WINDOW_MS = 10 * 60 * 1000;
 
 type RegionalContext = {
   perfil_persona?: string;
@@ -30,6 +38,7 @@ export async function getAiModelsForPlan(
       .single();
 
     if (!plan?.tenant_id) return null;
+    if (!(await checkPermission([PERMISSIONS.PLANS_CREATE, PERMISSIONS.PLANS_UPDATE], plan.tenant_id))) return null;
 
     const adminClient = (await import("@/lib/supabase/admin")).createAdminClient();
     const { data } = await adminClient
@@ -40,10 +49,7 @@ export async function getAiModelsForPlan(
 
     if (!data) return null;
 
-    const { PROVIDER_MODELS } = await import("@/lib/llm-client");
-    const models = PROVIDER_MODELS[data.provider as keyof typeof PROVIDER_MODELS] ?? [data.model];
-
-    return { provider: data.provider, models, currentModel: data.model };
+    return { provider: data.provider, models: allowedModels(data.provider, data.model), currentModel: data.model };
   } catch (e) {
     console.error("[getAiModelsForPlan]", e);
     return null;
@@ -62,6 +68,9 @@ export async function suggest5W2H(
   if (!planId) {
     return { error: "Plano não identificado para uso da IA." };
   }
+  if (actionDescription.length > MAX_DESCRIPTION_CHARS) {
+    return { error: `A descrição da ação pode ter no máximo ${MAX_DESCRIPTION_CHARS} caracteres para gerar sugestões.` };
+  }
 
   // Busca o plano para obter tenant_id + unidade (contexto regional)
   const supabase = await createClient();
@@ -75,9 +84,24 @@ export async function suggest5W2H(
     return { error: "Não foi possível identificar a empresa do plano." };
   }
 
+  // Só quem pode criar/editar ações usa a IA (cada chamada tem custo para a empresa).
+  const canEdit = await checkPermission([PERMISSIONS.PLANS_CREATE, PERMISSIONS.PLANS_UPDATE], plan.tenant_id);
+  if (!canEdit) {
+    return { error: "Acesso negado. Permissão insuficiente para usar a IA." };
+  }
+  const { data: { user } } = await supabase.auth.getUser();
+  const limit = rateLimit(`ai-suggest:${user?.id ?? "anon"}`, SUGGESTIONS_PER_WINDOW, SUGGESTION_WINDOW_MS);
+  if (!limit.allowed) {
+    return { error: "Limite de sugestões por IA atingido. Tente novamente em alguns minutos." };
+  }
+
   const config = await getActiveLlmConfig(plan.tenant_id);
   if (!config) {
     return { error: "Serviço de IA não configurado para esta empresa. Acesse Administração → IA / Modelos." };
+  }
+  // O navegador só escolhe entre os modelos liberados (evita apontar para modelo mais caro).
+  if (modelOverride && !allowedModels(config.provider, config.model).includes(modelOverride)) {
+    return { error: "Modelo de IA não permitido." };
   }
 
   let regionalContextPrompt = "";
@@ -145,10 +169,10 @@ Responda APENAS no formato JSON:
     const content = await callLlm(
       [{ role: "user", content: prompt }],
       effectiveConfig,
-      { maxTokens: 400, temperature: 0.3, jsonMode: true },
+      { maxTokens: 800, temperature: 0.3, jsonMode: true },
     );
 
-    const parsed = JSON.parse(content);
+    const parsed = extractJsonObject(content) as { why?: unknown; how?: unknown };
     return {
       why: sanitizeText(parsed.why || ""),
       how: sanitizeText(parsed.how || ""),
