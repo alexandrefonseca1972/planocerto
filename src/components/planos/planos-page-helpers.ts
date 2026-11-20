@@ -27,6 +27,17 @@ export function filterItemTree(
   return out;
 }
 
+/**
+ * Conta as ações da árvore. Com `skipMacroRoots`, raízes com filhos não contam:
+ * na tabela de vários planos elas viram cabeçalhos de macro, não linhas de ação.
+ */
+export function countActions(items: ActionItem[], skipMacroRoots: boolean): number {
+  const all = (list: ActionItem[]): number =>
+    list.reduce((acc, i) => acc + 1 + all(i.children ?? []), 0);
+  const roots = skipMacroRoots ? items.filter((i) => i.children?.length).length : 0;
+  return all(items) - roots;
+}
+
 export function resolveSelectedPlanId<T extends { id: string }>(
   plans: T[],
   requestedPlanId?: string | null,
