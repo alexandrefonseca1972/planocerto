@@ -47,7 +47,7 @@ Adicionado redirect permanente (301) em `next.config.ts`:
 
 ## Pendente
 
-### 4. Dependência `xlsx` com vulnerabilidade alta (ReDoS / prototype pollution)
+### ~~4. Dependência `xlsx` com vulnerabilidade alta (ReDoS / prototype pollution)~~ ✓ Resolvido — SheetJS 0.20.3 do CDN oficial; `npm audit` sem vulnerabilidades
 - `xlsx@0.18.5` do npm não recebe correções; o ReDoS é explorável no upload de Excel do servidor (`/api/plans/[id]/import`, `/api/plans/upload-batch`).
 - Correção: `"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"` (mesma API) + teste de importação com .xlsx/.xls/.xlsb.
 
