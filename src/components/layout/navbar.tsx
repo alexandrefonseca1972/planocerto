@@ -87,7 +87,8 @@ export function Navbar({ user, userPermissions, role }: NavbarProps) {
               <HelpCircle className="h-5 w-5" />
             </Link>
             <ThemeToggle />
-            <FontControl />
+            {/* No celular já está no menu (☰): na barra empurrava o botão do menu para fora da tela. */}
+            <div className="hidden sm:block"><FontControl /></div>
             <div className="hidden items-center border-l border-zinc-200/80 pl-3 sm:flex dark:border-zinc-700/80">
               <UserMenu user={user} userPermissions={userPermissions} role={role} />
             </div>

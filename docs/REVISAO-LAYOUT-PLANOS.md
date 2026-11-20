@@ -211,19 +211,21 @@ Padrão consistente:
 
 ## 📋 Checklist de Implementação
 
+> Revisado em 20/11/2026. Itens ainda abertos são de gosto visual (sem critério objetivo) ou a lista em cards no celular; a tabela rola na horizontal dentro do próprio quadro.
+
 ### Fase 1 - Header (Alta Prioridade)
-- [ ] Consolidar title + badges em uma linha
-- [ ] Mover ações para dropdown menu
-- [ ] Adicionar subtítulo com unit/responsible/goal
+- [x] Consolidar title + badges em uma linha
+- [~] Mover ações para dropdown menu (Clonar, Compartilhar e Relatório no menu "Ações"; Editar/Excluir seguem como botões)
+- [x] Adicionar subtítulo com unit/responsible/goal (selos de unidade, responsável e meta)
 
 ### Fase 2 - Stats (Média Prioridade)
 - [ ] Compactar pills
-- [ ] Reorganizar botões em linha separada em mobile
+- [x] Reorganizar botões em linha separada em mobile (quebram linha; antes "Nova ação" saía da tela)
 - [ ] Melhorar visual dos números
 
 ### Fase 3 - Filtros (Média Prioridade)
 - [ ] Colocar em card dedicado
-- [ ] Adicionar "Limpar filtros"
+- [x] Adicionar "Limpar filtros"
 - [ ] Melhorar visual dos badges
 
 ### Fase 4 - Tabela (Baixa Prioridade)
@@ -233,7 +235,7 @@ Padrão consistente:
 
 ### Fase 5 - Mobile (Média Prioridade)
 - [ ] Implementar card view em mobile
-- [ ] Testar layout em varios breakpoints
+- [x] Testar layout em varios breakpoints (20/11/2026, 390px e 1440px: Planos, form de ação, Dashboard, Calendário, Financeiro, Perfil, Ajuda sem rolagem lateral)
 - [ ] Melhorar hint de deslize
 
 ---
