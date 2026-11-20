@@ -54,7 +54,7 @@ Adicionado redirect permanente (301) em `next.config.ts`:
 ### ~~5. Contagem "N de 4182" na tabela de vários planos~~ ✓ Resolvido — topo usa `countActions`: com vários planos, macros (cabeçalhos) não contam
 - O contador do topo soma ações + linhas de macro (ex.: "22 de 4182" com 14 ações); o rodapé mostra 14. Alinhar para contar só ações.
 
-### ~~6. Seleção de cidades~~ ✓ Resolvido (falta conferir no navegador) — seleção espelhada em `?units=`; recarregar ou abrir por link mantém as cidades. Entrar pelo menu segue começando sem cidade
+### ~~6. Seleção de cidades~~ ✓ Resolvido — seleção espelhada em `?units=`; recarregar ou abrir por link mantém as cidades. Entrar pelo menu segue começando sem cidade. Testado: a seleção passa de Planos para o Dashboard pelo menu
 - Recarregar `/planos` (ou abrir por link) perde a seleção de cidades. Não verificado se a seleção passa de Planos para o Dashboard pelo menu.
 
 ### 7. Atualizações de dependências (sem advisory)
