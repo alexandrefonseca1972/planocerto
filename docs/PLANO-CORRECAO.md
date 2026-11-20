@@ -37,7 +37,7 @@ Legenda do checklist: `[ ]` pendente · `[~]` em andamento · `[x]` concluído e
 
 - [x] Rodar `npm run typecheck`, `npm run lint`, `npm test` e registrar o estado.
 - [x] Criar branch de trabalho a partir de `main` (`fix/plano-correcao`).
-- [ ] Confirmar na doc local do Next 16 (`node_modules/next/dist/docs/`) se `revalidateTag(tag, profile)` (2 args) é a API válida — registrar conclusão. (Suspeita: intencional.)
+- [x] Confirmar na doc local do Next 16 se `revalidateTag(tag, profile)` (2 args) é a API válida. **Conclusão (20/11/2026):** é a assinatura atual (`revalidateTag(tag: string, profile: string | { expire?: number })`); a forma de 1 argumento é que está deprecada. Observação: nenhum dado em cache recebe as tags `catalog-*` (não há `cacheTag`/`unstable_cache`/`fetch` com `next.tags`), então essas chamadas hoje não têm efeito; as telas de catálogo já se atualizam com `router.refresh()` + nova busca. Se um dia os catálogos forem cacheados, usar `updateTag` nas Server Actions (leitura da própria escrita).
 
 **Resultado do baseline (2026-05-29):**
 - ✅ `typecheck` — verde.
@@ -61,7 +61,7 @@ Legenda do checklist: `[ ]` pendente · `[~]` em andamento · `[x]` concluído e
 - [x] **XSS hardening no docs-viewer**: `formatText()` agora passa por `DOMPurify.sanitize` com allow-list de tags/atributos antes do `dangerouslySetInnerHTML`.
 - [x] **Rate-limit em links públicos**: `src/lib/security/rate-limit.ts` (in-memory, best-effort, fail-closed) aplicado a `/s/[token]` (30 req/min por IP).
 - [x] **Timezone da restrição de login**: migration `049_profiles_timezone.sql` + `profiles.timezone`; `profile-restrictions.ts` lê do perfil (server-side) e `inferTimezone` spoofável removido. Tipos atualizados em `database.types.ts`.
-- [ ] **Typo visível**: `"Saude Financeira"` → `"Saúde Financeira"` (`budget-health-bar.tsx:31`).
+- [x] **Typo visível**: `"Saude Financeira"` → `"Saúde Financeira"` (`budget-health-bar.tsx:31`). Duplicado do item acima; conferido em 20/11/2026.
 
 **Revisão:** focar em (a) não quebrar a RLS existente, (b) o rate-limit não bloquear uso legítimo, (c) fallback de timezone seguro.
 **Teste:** testes unitários para o filtro de tenant e para a sanitização do docs-viewer; teste de comportamento do rate-limit.
