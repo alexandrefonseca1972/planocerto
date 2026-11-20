@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Building2,
@@ -29,11 +29,9 @@ export function InstituicoesClient({ initial }: Props) {
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             Cadastre instituições concorrentes para comparar mensalidades.
           </p>
-          <Link href="/benchmarking/nova" className="mt-4">
-            <Button>
+          <Link href="/benchmarking/nova" className={cn(buttonVariants(), "mt-4")}>
               <Plus className="mr-1.5 h-4 w-4" />
               Nova Instituição
-            </Button>
           </Link>
         </CardContent>
       </Card>
@@ -46,11 +44,9 @@ export function InstituicoesClient({ initial }: Props) {
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
           {initial.length} instituiç{initial.length === 1 ? "ão" : "ões"}
         </span>
-        <Link href="/benchmarking/nova">
-          <Button size="sm">
+        <Link href="/benchmarking/nova" className={buttonVariants({ size: "sm" })}>
             <Plus className="mr-1.5 h-4 w-4" />
             Nova Instituição
-          </Button>
         </Link>
       </div>
 

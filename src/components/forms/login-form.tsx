@@ -9,7 +9,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { sanitize } from "@/lib/sanitize";
-import { Mail, Lock, LogIn } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Mail, Lock, LogIn, X } from "lucide-react";
 import Link from "next/link";
 
 const initialState: FormState = {
@@ -34,6 +35,7 @@ export function LoginForm() {
           <Mail className="h-3.5 w-3.5" />
           Email
         </Label>
+        <div className="relative">
         <Input
           ref={emailRef}
           id="email"
@@ -48,8 +50,24 @@ export function LoginForm() {
           }}
           aria-describedby={state.errors?.email ? "email-error" : undefined}
           aria-invalid={!!state.errors?.email}
-          className="transition-all duration-200 focus:shadow-md"
+          className={cn("transition-all duration-200 focus:shadow-md", email && "pr-10")}
         />
+        {email && (
+          <button
+            type="button"
+            // Evita tirar o foco do campo ao clicar; o foco volta ao e-mail após limpar.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setEmail("");
+              emailRef.current?.focus();
+            }}
+            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded p-1 text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+            aria-label="Limpar email"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        </div>
         {state.errors?.email && (
           <p
             key={`email-err-${state.message}`}

@@ -3,7 +3,7 @@
 import { MACRO_ACAO_MAX, macroAcaoKey, normalizeMacroAcao } from "@/lib/macro-acao";
 
 import { useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { FAROL_MAP, COL, REQUIRED_HEADERS, MAX_IMPORT_ITEMS, normHeader, detectHeaderRow, findPlanoSheet } from "@/lib/planos-import";
@@ -515,10 +515,8 @@ export function UploadPlanosDialog({
           <div className="flex items-center gap-2">
             {step === "select" && (
               <>
-                <a href="/modelo-plano-acao.xlsx" download className="mr-auto">
-                  <Button variant="ghost" size="sm" type="button">
+                <a href="/modelo-plano-acao.xlsx" download className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mr-auto")}>
                     <Download className="mr-1 h-3.5 w-3.5" /> Baixar modelo
-                  </Button>
                 </a>
                 <Button variant="outline" onClick={onClose}>Cancelar</Button>
                 <Button

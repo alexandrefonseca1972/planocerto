@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -51,11 +51,9 @@ export function InstituicaoForm({ units, instituicao }: Props) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{isEditing ? "Editar Instituição" : "Nova Instituição"}</CardTitle>
-          <Link href="/benchmarking">
-            <Button variant="ghost" size="sm">
+          <Link href="/benchmarking" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               <ArrowLeft className="mr-1 h-4 w-4" />
               Voltar
-            </Button>
           </Link>
         </div>
       </CardHeader>
@@ -188,10 +186,8 @@ export function InstituicaoForm({ units, instituicao }: Props) {
           )}
 
           <div className="flex items-center justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
-            <Link href="/benchmarking">
-              <Button type="button" variant="outline">
+            <Link href="/benchmarking" className={buttonVariants({ variant: "outline" })}>
                 Cancelar
-              </Button>
             </Link>
             <Button type="submit" disabled={isPending}>
               <Save className="mr-1.5 h-4 w-4" />

@@ -4,7 +4,7 @@ import { useState, useActionState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -124,11 +124,9 @@ export function InstituicaoDetailClient({ instituicao, detail, units }: Props) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href={`/benchmarking/${instituicao.id}/editar`}>
-            <Button variant="outline" size="sm">
+          <Link href={`/benchmarking/${instituicao.id}/editar`} className={buttonVariants({ variant: "outline", size: "sm" })}>
               <Pencil className="mr-1 h-3.5 w-3.5" />
               Editar
-            </Button>
           </Link>
           <form action={deleteAction}>
             <input type="hidden" name="id" value={instituicao.id} />
