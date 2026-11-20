@@ -1,5 +1,5 @@
 # Plano de Implementação: Melhorias no Módulo de Planos de Ação
-> Versão 1.0 — Maio 2026 · Status revisado em 20/11/2026: 9 de 12 itens entregues
+> Versão 1.0 — Maio 2026 · Status revisado em 20/11/2026: 11 de 12 resolvidos (10 entregues, 4.2 descartado); resta 1.3, sem ganho hoje
 
 Este documento detalha o roteiro para a evolução do módulo de Planos de Ação (`/planos`), focando em robustez de dados, governança, inteligência artificial e integração estratégica.
 
@@ -23,7 +23,7 @@ Este documento detalha o roteiro para a evolução do módulo de Planos de Açã
 ## FASE 2: Governança e Estrutura de Dados
 **Objetivo:** Adicionar campos essenciais para controle corporativo e orçamentário.
 
-- [~] **2.1 Atualização do Schema (Migration):** (feito: `exercicio`, `budget_limit`, `visibility`; falta `kpi_link_id`, depende do 4.2)
+- [x] **2.1 Atualização do Schema (Migration):** (`exercicio`, `budget_limit`, `visibility` feitos; `kpi_link_id` descartado com o 4.2)
     - Tabela `action_plans`: Adicionar `exercicio` (int), `budget_limit` (numeric), `visibility` (text).
     - Tabela `action_items`: Adicionar `kpi_link_id` (uuid).
 - [x] **2.2 Vínculo Forte com Catálogo:**
@@ -55,7 +55,7 @@ Este documento detalha o roteiro para a evolução do módulo de Planos de Açã
 - [x] **4.1 Sugestor de Conteúdo 5W2H (IA):**
     - Integrar com OpenRouter (Claude-Haiku) para sugerir campos "Por Quê?" e "Como?" com base na descrição da "Ação".
     - Adicionar botão ✨ "Sugerir com IA" nos campos de texto longo do formulário.
-- [ ] **4.2 Vínculo com KPIs do Dashboard:** (20/11/2026: não existe cadastro de KPI; os do dashboard são métricas calculadas. Precisa de definição de produto)
+- [x] ~~**4.2 Vínculo com KPIs do Dashboard:**~~ **Descartado (20/11/2026):** os KPIs do dashboard (Preço, Inscritos, Mat. financeira, Mat. acadêmica) já são calculados dos campos esperado/real de cada ação; um vínculo extra não acrescenta.
     - Permitir selecionar um KPI existente do inquilino ao criar uma ação.
     - Ao concluir a ação, disparar notificação sugerindo que o usuário atualize o valor do KPI vinculado.
 - [x] **4.3 Exportação Executiva (PDF One-Pager):**
