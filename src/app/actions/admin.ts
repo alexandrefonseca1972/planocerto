@@ -196,6 +196,16 @@ async function assertCanManageUser(
   if (!ids.has(targetUserId)) {
     return { denied: { message: "Acesso negado. Usuário fora das suas empresas." }, scope, targetRole };
   }
+  // Quem também pertence a empresa fora do escopo só é gerenciado pelo super admin:
+  // senão um admin de A poderia incluir alguém de B em A e trocar a senha dele.
+  const { data: mems } = await adminClient.from("tenant_members").select("tenant_id").eq("user_id", targetUserId);
+  if ((mems ?? []).some((m) => !scope.tenantIds.includes(m.tenant_id as string))) {
+    return {
+      denied: { message: "Acesso negado. Usuário também pertence a outras empresas; somente super admin." },
+      scope,
+      targetRole,
+    };
+  }
   return { denied: null, scope, targetRole };
 }
 
@@ -581,6 +591,20 @@ export async function updateUser(
         return { message: "Estrutura de permissões inválida." };
       }
       parsedPermissions = sanitizePermissions(permsResult.data, ALL_PERMISSIONS);
+      // Não-super só concede permissão que ele próprio tem (evita autoescalada).
+      if (!scope.isSuperAdmin) {
+        const { data: current } = await createAdminClient()
+          .from("profiles")
+          .select("permissions")
+          .eq("id", userId)
+          .maybeSingle();
+        const before = (current?.permissions ?? {}) as Record<string, boolean>;
+        for (const [key, granted] of Object.entries(parsedPermissions)) {
+          if (granted && !before[key] && !(await checkPermission(key as Permission))) {
+            return { message: "Você não pode conceder uma permissão que não possui." };
+          }
+        }
+      }
     }
 
     // Validação cruzada: ambos ou nenhum
@@ -1037,7 +1061,10 @@ export async function resetUserPassword(
       };
     }
 
-    const r = await sendRecoveryEmail(adminClient, email, "recovery");
+    // Envia para o email cadastrado do usuário, não para o que veio do formulário.
+    const { data: target } = await adminClient.from("profiles").select("email").eq("id", userId).maybeSingle();
+    if (!target?.email) return { message: "Usuário sem email cadastrado." };
+    const r = await sendRecoveryEmail(adminClient, target.email, "recovery");
     if (r === "no_link") return { message: mapError("Falha ao gerar link de redefinição.") };
     if (r === "send_failed") return { message: "Erro ao enviar email de redefinição. Tente novamente." };
 
@@ -1390,6 +1417,8 @@ export interface UnitOption {
 
 export async function getAllAreas(): Promise<AreaOption[]> {
   try {
+    const scope = await getRequesterScope();
+    if (!scope.userId) return [];
     const adminClient = createAdminClient();
     const { data } = await adminClient
       .from("areas")
@@ -1397,7 +1426,8 @@ export async function getAllAreas(): Promise<AreaOption[]> {
       .eq("active", true)
       .order("name")
       .limit(500);
-    return (data || []).map((a) => ({
+    const rows = (data || []).filter((r) => scope.isSuperAdmin || scope.tenantIds.includes(r.tenant_id as string));
+    return rows.map((a) => ({
       id: a.id,
       name: a.name,
       tenant_id: a.tenant_id,
@@ -1409,6 +1439,8 @@ export async function getAllAreas(): Promise<AreaOption[]> {
 
 export async function getAllUnits(): Promise<UnitOption[]> {
   try {
+    const scope = await getRequesterScope();
+    if (!scope.userId) return [];
     const adminClient = createAdminClient();
     const { data } = await adminClient
       .from("units")
@@ -1416,7 +1448,8 @@ export async function getAllUnits(): Promise<UnitOption[]> {
       .eq("active", true)
       .order("name")
       .limit(500);
-    return (data || []).map((u) => ({
+    const rows = (data || []).filter((r) => scope.isSuperAdmin || scope.tenantIds.includes(r.tenant_id as string));
+    return rows.map((u) => ({
       id: u.id,
       name: u.name,
       uf: u.uf,

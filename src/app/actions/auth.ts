@@ -140,6 +140,10 @@ export async function resetPassword(
       };
     }
 
+    // Mesma resposta para email inexistente ou excesso de pedidos: não revela quem tem conta.
+    const done = { success: true, message: "Se o email estiver cadastrado, enviamos o link de recuperação." };
+    if (!rateLimit(`reset:${validated.data.email.toLowerCase()}`, 3, 15 * 60 * 1000).allowed) return done;
+
     const adminClient = createAdminClient();
     const { data, error } = await adminClient.auth.admin.generateLink({
       type: "recovery",
@@ -147,9 +151,7 @@ export async function resetPassword(
       options: { redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/update-password` },
     });
 
-    if (error || !data.properties?.action_link) {
-      return { message: "Erro ao enviar email de recuperação. Tente novamente." };
-    }
+    if (error || !data.properties?.action_link) return done;
 
     const emailContent = buildAuthEmail(
       "recovery",
@@ -162,10 +164,7 @@ export async function resetPassword(
       return { message: "Erro ao enviar email de recuperação. Tente novamente." };
     }
 
-    return {
-      success: true,
-      message: "Email de recuperação enviado! Verifique sua caixa de entrada.",
-    };
+    return done;
   } catch (error) {
     console.error("[resetPassword] Erro:", error);
     return { message: "Serviço indisponível no momento." };

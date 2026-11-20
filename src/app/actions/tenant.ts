@@ -421,15 +421,26 @@ function normalizeTenantRole(role: string | null): string {
   return "member";
 }
 
+/** Empresas que o solicitante pode consultar (null = sem sessão). */
+async function visibleTenant(): Promise<((tenantId: string) => boolean) | null> {
+  const scope = await getRequesterScope();
+  if (!scope.userId) return null;
+  return (tenantId: string) => scope.isSuperAdmin || scope.tenantIds.includes(tenantId);
+}
+
 export async function getUserTenantMemberships(userId: string): Promise<TenantMembership[]> {
   try {
+    const canSee = await visibleTenant();
+    if (!canSee) return [];
     const adminClient = createAdminClient();
     const { data } = await adminClient
       .from("tenant_members")
       .select("tenant_id, role")
       .eq("user_id", userId);
     if (!data) return [];
-    return data.map((m) => ({ tenantId: m.tenant_id, role: normalizeTenantRole(m.role) }));
+    return data
+      .filter((m) => canSee(m.tenant_id))
+      .map((m) => ({ tenantId: m.tenant_id, role: normalizeTenantRole(m.role) }));
   } catch (error) { console.error("[getUserTenantMemberships] Error:", error); return []; }
 }
 
@@ -440,18 +451,22 @@ export async function getUserTenantMemberships(userId: string): Promise<TenantMe
  */
 export async function getUserTenantPermRoles(userId: string): Promise<Record<string, string>> {
   try {
+    const canSee = await visibleTenant();
+    if (!canSee) return {};
     const adminClient = createAdminClient();
     const { data } = await adminClient
       .from("tenant_member_roles")
       .select("tenant_id, role")
       .eq("user_id", userId);
     if (!data) return {};
-    return Object.fromEntries(data.map((r) => [r.tenant_id, r.role]));
+    return Object.fromEntries(data.filter((r) => canSee(r.tenant_id)).map((r) => [r.tenant_id, r.role]));
   } catch (error) { console.error("[getUserTenantPermRoles] Error:", error); return {}; }
 }
 
 export async function getBulkUserTenantIds(userIds: string[]): Promise<Map<string, string[]>> {
   try {
+    const canSee = await visibleTenant();
+    if (!canSee) return new Map();
     const adminClient = createAdminClient();
     const { data } = await adminClient
       .from("tenant_members")
@@ -460,6 +475,7 @@ export async function getBulkUserTenantIds(userIds: string[]): Promise<Map<strin
 
     const map = new Map<string, string[]>();
     for (const row of data || []) {
+      if (!canSee(row.tenant_id)) continue;
       if (!map.has(row.user_id)) map.set(row.user_id, []);
       map.get(row.user_id)!.push(row.tenant_id);
     }
@@ -468,57 +484,6 @@ export async function getBulkUserTenantIds(userIds: string[]): Promise<Map<strin
     }
     return map;
   } catch (error) { console.error("[getBulkUserTenantIds] Error:", error); return new Map(); }
-}
-
-export async function setUserTenants(
-  _prevState: TenantFormState,
-  formData: FormData
-): Promise<TenantFormState> {
-  try {
-    const hasPerm = await checkPermission(PERMISSIONS.USERS_MANAGE_TENANTS);
-    if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
-
-    const userId = formData.get("userId") as string;
-    if (!userId) return { message: "ID do usuário obrigatório." };
-
-    const tenantIds = formData.getAll("tenantIds") as string[];
-
-    // Escopo: admin/manager não-super só reconcilia empresas das quais é membro;
-    // vínculos do usuário fora do escopo são preservados.
-    const scope = await getRequesterScope();
-    const inScope = (id: string) => scope.isSuperAdmin || scope.tenantIds.includes(id);
-
-    const adminClient = createAdminClient();
-
-    const { data: existing } = await adminClient
-      .from("tenant_members")
-      .select("tenant_id")
-      .eq("user_id", userId);
-
-    const existingIds = new Set((existing || []).map((m) => m.tenant_id));
-    const newIds = new Set(tenantIds.filter(inScope));
-    const existingInScope = [...existingIds].filter(inScope);
-
-    const toRemove = existingInScope.filter((id) => !newIds.has(id));
-    const toAdd = [...newIds].filter((id) => !existingIds.has(id));
-
-    if (toRemove.length > 0) {
-      await adminClient.from("tenant_members").delete().eq("user_id", userId).in("tenant_id", toRemove);
-    }
-
-    if (toAdd.length > 0) {
-      await adminClient.from("tenant_members").insert(
-        toAdd.map((tenantId) => ({ user_id: userId, tenant_id: tenantId, role: "member" as const }))
-      );
-    }
-
-    // Mantém a empresa ativa do usuário coerente após a reconciliação.
-    await repointActiveTenant(userId);
-
-    revalidatePath("/admin/users");
-    revalidatePath("/", "layout");
-    return { success: true, message: "Empresas associadas com sucesso!" };
-  } catch (error) { console.error("[setUserTenants] Error:", error); return { message: "Serviço indisponível." }; }
 }
 
 export async function deleteTenant(
@@ -530,6 +495,8 @@ export async function deleteTenant(
     if (!tenantId) return { message: "ID da empresa obrigatório." };
     const hasPerm = await checkPermission(PERMISSIONS.TENANTS_DELETE, tenantId);
     if (!hasPerm) return { message: "Acesso negado. Permissão insuficiente." };
+    // Excluir empresa é só do super admin (igual a criar/editar empresa).
+    if (!(await getRequesterScope()).isSuperAdmin) return { message: "Acesso negado. Somente super admin." };
     const adminClient = createAdminClient();
     const { error } = await adminClient.from("tenants").delete().eq("id", tenantId);
     if (error) return { message: "Erro ao excluir empresa." };
@@ -574,6 +541,8 @@ export async function addTenantMember(
 
 export async function getTenantMembers(tenantId: string): Promise<TenantMemberWithProfile[]> {
   try {
+    const canSee = await visibleTenant();
+    if (!canSee?.(tenantId)) return [];
     const adminClient = createAdminClient();
     const { data: members } = await adminClient.from("tenant_members").select("id, tenant_id, user_id, role, created_at").eq("tenant_id", tenantId).order("created_at");
     if (!members?.length) return [];
