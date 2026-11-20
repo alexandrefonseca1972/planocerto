@@ -13,6 +13,8 @@
 set -euo pipefail
 
 HOST="${DEPLOY_HOST:-vps}"
+# Conexão viva verificada a cada 30 s (cai em ~2 min se a VPS parar de responder).
+SSH_OPTS=(-o BatchMode=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=4)
 REMOTE=/opt/planocerto
 APP="$REMOTE/app"
 SITE="${DEPLOY_SITE:-https://planocerto.app}"
@@ -43,24 +45,26 @@ rsync -rcn --itemize-changes "${EXCLUDES[@]}" "$STAGE/" "$HOST:$APP/" | awk '{pr
 [ "$DRY_RUN" = 1 ] && { echo "== --dry-run: nada foi alterado."; exit 0; }
 
 echo "== Guardando versão atual em app-prev e parando o site"
-ssh -o BatchMode=yes "$HOST" "rm -rf $REMOTE/app-prev && cp -a $APP $REMOTE/app-prev && systemctl stop planocerto-web"
+ssh "${SSH_OPTS[@]}" "$HOST" "rm -rf $REMOTE/app-prev && cp -a $APP $REMOTE/app-prev && systemctl stop planocerto-web"
 
 echo "== Enviando arquivos"
 rsync -rc "${EXCLUDES[@]}" "$STAGE/" "$HOST:$APP/"
 
 echo "== Compilando (npm ci + build) e religando"
 # Se a compilação falhar, volta para app-prev e religa: o site nunca fica parado.
-ssh -o BatchMode=yes "$HOST" bash -s -- "$REMOTE" "$SHA" <<'REMOTE_SCRIPT'
+ssh "${SSH_OPTS[@]}" "$HOST" bash -s -- "$REMOTE" "$SHA" <<'REMOTE_SCRIPT'
 set -uo pipefail
+# Comandos longos rodam com </dev/null: nenhum processo filho herda a entrada da conexão SSH
+# (o bash -s lê este script por ela; se um filho a segura, o ssh local fica preso após o fim).
 REMOTE="$1"; SHA="$2"; APP="$REMOTE/app"
 chown -R planocerto:planocerto "$APP"
-if ! sudo -u planocerto bash -lc "cd $APP && npm ci --no-audit --no-fund >/tmp/planocerto-npm.log 2>&1 && set -a && . ./.env.local && set +a && NODE_OPTIONS=--max-old-space-size=2048 npm run build >/tmp/planocerto-build.log 2>&1"; then
+if ! sudo -u planocerto bash -lc "cd $APP && npm ci --no-audit --no-fund >/tmp/planocerto-npm.log 2>&1 && set -a && . ./.env.local && set +a && NODE_OPTIONS=--max-old-space-size=2048 npm run build >/tmp/planocerto-build.log 2>&1" </dev/null; then
   echo "!! Falha na compilação — restaurando a versão anterior (logs em /tmp/planocerto-*.log)"
   rm -rf "$APP-falha" && mv "$APP" "$APP-falha" && mv "$REMOTE/app-prev" "$APP"
-  systemctl start planocerto-web
+  systemctl start planocerto-web </dev/null
   exit 1
 fi
-systemctl start planocerto-web
+systemctl start planocerto-web </dev/null
 sleep 4
 systemctl is-active --quiet planocerto-web || { echo "!! planocerto-web não ficou ativo"; exit 1; }
 BUILD_ID=$(cat "$APP/.next/BUILD_ID")
