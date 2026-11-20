@@ -59,5 +59,5 @@ Adicionado redirect permanente (301) em `next.config.ts`:
 
 ### 7. Atualizações de dependências (sem advisory)
 - ~~Rápidas: react 19.3.1, @supabase/supabase-js 2.119.2, radix, tailwind 4.3.5.~~ ✓ Feito (mais lucide-react, react-hook-form, tailwind-merge, tipos)
-- ~~Avaliar: isomorphic-dompurify 3.x (sanitização), @supabase/ssr 0.12 (auth/cookies).~~ ✓ Feito — ssr 0.12.7 sem mudanças incompatíveis (só correções de cookie); dompurify 3.23 exige Node ≥ 22.22.2 (VPS: 22.23.4; Mac local 22.19 só avisa)
+- ~~Avaliar: isomorphic-dompurify 3.x (sanitização), @supabase/ssr 0.12 (auth/cookies).~~ ✓ Feito — ssr 0.12.7 sem mudanças incompatíveis (só correções de cookie); isomorphic-dompurify 4.7.0 fixo (a 3.23 foi marcada obsoleta pelo mantenedor: subiu o Node mínimo sem versão maior; a 4.x é o mesmo código). Exige Node ≥ 22.22.2 (VPS: 22.23.4; Mac local 22.19 só avisa)
 - Podem esperar: typescript 7, vitest 5, eslint 10, pino 10, @hookform/resolvers 7.
