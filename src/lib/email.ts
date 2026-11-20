@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { env } from "@/lib/env";
+import { escapeHtml } from "@/lib/escape-html";
 
 const DEFAULT_FROM = env.AUTH_EMAIL_FROM;
 const siteUrl = env.NEXT_PUBLIC_SITE_URL || "https://planocerto.app";
@@ -101,11 +102,11 @@ export function itemCreatedEmail(item: { number: string; action: string; respons
     html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e4e4e7;border-radius:8px">
         <h2 style="color:#18181b;margin:0 0 16px">Nova ação criada</h2>
-        <p style="color:#52525b;margin:0 0 12px">Uma nova ação foi adicionada ao plano <strong>${item.planTitle}</strong>.</p>
+        <p style="color:#52525b;margin:0 0 12px">Uma nova ação foi adicionada ao plano <strong>${escapeHtml(item.planTitle)}</strong>.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Número</td><td style="padding:8px;border:1px solid #e4e4e7">${item.number}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Ação</td><td style="padding:8px;border:1px solid #e4e4e7">${item.action}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Responsável</td><td style="padding:8px;border:1px solid #e4e4e7">${item.responsible || "—"}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Número</td><td style="padding:8px;border:1px solid #e4e4e7">${escapeHtml(item.number)}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Ação</td><td style="padding:8px;border:1px solid #e4e4e7">${escapeHtml(item.action)}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Responsável</td><td style="padding:8px;border:1px solid #e4e4e7">${escapeHtml(item.responsible || "—")}</td></tr>
         </table>
         <a href="${siteUrl}/planos" style="display:inline-block;background:#18181b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px">Ver no PlanoCerto</a>
         <p style="color:#a1a1aa;font-size:12px;margin:20px 0 0">PlanoCerto</p>
@@ -119,11 +120,11 @@ export function itemCompletedEmail(item: { number: string; action: string; respo
     html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e4e4e7;border-radius:8px">
         <h2 style="color:#059669;margin:0 0 16px">✓ Ação concluída</h2>
-        <p style="color:#52525b;margin:0 0 12px">Uma ação do plano <strong>${item.planTitle}</strong> foi concluída.</p>
+        <p style="color:#52525b;margin:0 0 12px">Uma ação do plano <strong>${escapeHtml(item.planTitle)}</strong> foi concluída.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Número</td><td style="padding:8px;border:1px solid #e4e4e7">${item.number}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Ação</td><td style="padding:8px;border:1px solid #e4e4e7">${item.action}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Responsável</td><td style="padding:8px;border:1px solid #e4e4e7">${item.responsible || "—"}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Número</td><td style="padding:8px;border:1px solid #e4e4e7">${escapeHtml(item.number)}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Ação</td><td style="padding:8px;border:1px solid #e4e4e7">${escapeHtml(item.action)}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e4e4e7;font-weight:600;background:#f4f4f5">Responsável</td><td style="padding:8px;border:1px solid #e4e4e7">${escapeHtml(item.responsible || "—")}</td></tr>
         </table>
         <a href="${siteUrl}/planos" style="display:inline-block;background:#059669;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px">Ver no PlanoCerto</a>
         <p style="color:#a1a1aa;font-size:12px;margin:20px 0 0">PlanoCerto</p>

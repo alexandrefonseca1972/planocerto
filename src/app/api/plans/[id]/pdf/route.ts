@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePlanUnitDisplayName } from "@/lib/action-plan-units";
+import { escapeHtml } from "@/lib/escape-html";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,7 +34,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><title>${plan.title} - PlanoCerto</title>
+<head><meta charset="utf-8"><title>${escapeHtml(plan.title)} - PlanoCerto</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; color: #18181b; padding: 2cm 1.5cm; }
@@ -53,8 +54,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 </style></head>
 <body>
   <div class="header">
-    <h1>${plan.title}</h1>
-    <div class="meta">${[unitLabel, plan.director, plan.goal].filter(Boolean).join(" · ")} · ${new Date().toLocaleDateString("pt-BR")}</div>
+    <h1>${escapeHtml(plan.title)}</h1>
+    <div class="meta">${escapeHtml([unitLabel, plan.director, plan.goal].filter(Boolean).join(" · "))} · ${new Date().toLocaleDateString("pt-BR")}</div>
   </div>
   <div class="kpi">
     <div class="kpi-card"><div class="value">${total}</div><div class="label">Total</div></div>
@@ -66,11 +67,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     <thead><tr><th>#</th><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Status</th></tr></thead>
     <tbody>
       ${(items || []).map(i => `<tr>
-        <td>${i.number}</td>
-        <td>${i.action}</td>
-        <td>${i.responsible || "—"}</td>
+        <td>${escapeHtml(i.number)}</td>
+        <td>${escapeHtml(i.action)}</td>
+        <td>${escapeHtml(i.responsible || "—")}</td>
         <td>${i.planned_end ? new Date(i.planned_end + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</td>
-        <td class="${i.status === 5 ? "done" : ""}">${statusLabel(i.status)}</td>
+        <td class="${i.status === 5 ? "done" : ""}">${escapeHtml(statusLabel(i.status))}</td>
       </tr>`).join("")}
     </tbody>
   </table>
@@ -78,7 +79,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 </body></html>`;
 
     return new NextResponse(html, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        // Página de impressão: sem scripts, mesmo que algo escape ao escapeHtml.
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+      },
     });
   } catch (error) {
     console.error("[PDF export] Error:", error);
