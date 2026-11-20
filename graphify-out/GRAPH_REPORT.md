@@ -1,17 +1,17 @@
 # Graph Report - planocerto  (2026-11-19)
 
 ## Corpus Check
-- 610 files · ~364,774 words
+- 611 files · ~365,572 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 1, .jsonl 1, .xlsb 1)
 
 ## Summary
-- 2881 nodes · 8432 edges · 165 communities (110 shown, 55 thin omitted)
+- 2883 nodes · 8433 edges · 171 communities (114 shown, 57 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 99 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `95d6a5de`
+- Built from commit: `937b8938`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -32,7 +32,7 @@
 - Financeiro e Anexos
 - plan-form-dialog.tsx
 - Gestão de Usuários
-- Validação e Formatação
+- server.ts
 - sanitizeText
 - Testes de Planos
 - Formulário de Ações
@@ -56,7 +56,7 @@
 - _fixture_financeiro_planos.sql
 - attachments.ts
 - Benchmarking no Banco
-- Button
+- lucide-react
 - Guia do Desenvolvedor
 - Gestão de Empresas
 - codex advisor artifact
@@ -74,35 +74,35 @@
 - Segurança e RLS
 - Catálogos no Banco
 - Debug Financeiro
-- actions/catalog.ts
-- unidades-client.tsx
+- package.json
+- Badge
 - Ações de Catálogo
 - Formulários de Instituições
 - Macro Ações
-- fornecedores.ts
+- financeiro-client.tsx
 - Seleção de Período
 - Validação e Sanitização
 - Benchmarking de Concorrentes
 - 077_write_policies.test.sql
 - Ações Rápidas
 - Gráficos do Dashboard
-- actions/auth.ts
+- email.ts
 - Layout e Tema
 - schools.ts
 - Modal de Ajuda
 - Membros de Tenants
 - Revisão Financeira
-- Melhorias de Planos
+- createClient
 - validation/sanitize.ts
 - Termos de Uso
 - codex advisor artifact
-- help/page.tsx
+- dashboard-client.tsx
 - Detalhes de Benchmarking
 - public.profiles
 - tipos-pa-client.tsx
 - prioridades-client.tsx
 - Correções e IA
-- item-form-dialog.tsx
+- validations/auth.ts
 - Convenções de Migrations
 - Configuração de Build
 - Filtros de Planos
@@ -110,12 +110,12 @@
 - Modelos de Domínio
 - Documentação no Frontend
 - 030_super_admin_and_user_scopes.sql
-- lib/sanitize.ts
+- dashboard/page.tsx
 - Configuração ESLint
 - 075_076_privileges.test.sql
 - Empresas no Banco
 - next.config.ts
-- Escolas no Banco
+- users/page.tsx
 - public.tenants
 - Fornecedores no Banco
 - Regras para Agentes
@@ -125,7 +125,7 @@
 - Ícone da Aplicação
 - Layout de Benchmarking
 - pg_temp.count_as
-- unread/route.ts
+- dashboard-access.ts
 - Setup e Migrations
 - Deploy de Documentação
 - Privacidade e Segurança
@@ -139,10 +139,16 @@
 - Configurações de LLM
 - Logo de Email
 - Ícone de Arquivo
-- painel/page.tsx
+- detail-table.tsx
 - Rollback da 084_macro_acao_normalizacao
 - 078_account_access.test.sql
 - 082_concorrencia.test.sh
+- latest.md
+- calendario/page.tsx
+- errors.ts
+- eslint.config.mjs
+- @dnd-kit/utilities
+- deploy.sh
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 201 edges
@@ -157,16 +163,16 @@
 10. `createAdminClient()` - 70 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Para desfazer` --references--> `toIdList()`  [INFERRED]
-  .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
-- `Para desfazer` --references--> `toIdList()`  [INFERRED]
-  .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
-- `Para desfazer` --references--> `getPlans()`  [INFERRED]
-  .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
-- `Para desfazer` --references--> `getPlans()`  [INFERRED]
-  .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
+- `Trecho recente da conversa (texto, redigido)` --references--> `main()`  [INFERRED]
+  .omc/handoffs/latest.md → scripts/import-all-plans.ts
 - `Para desfazer` --references--> `getItems()`  [INFERRED]
   .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
+- `Para desfazer` --references--> `getItems()`  [INFERRED]
+  .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
+- `Para desfazer` --references--> `getPlans()`  [INFERRED]
+  .omc/artifacts/ask/codex-revis-o-de-c-digo-das-mudan-as-n-o-commitadas-git-diff-arqui-2026-11-19T23-16-50-981Z.md → src/app/actions/action-plan.ts
+- `Para desfazer` --references--> `getPlans()`  [INFERRED]
+  .omc/artifacts/ask/codex-verifica-o-das-corre-es-dos-7-achados-da-revis-o-anterior-re-2026-11-19T23-24-22-314Z.md → src/app/actions/action-plan.ts
 
 ## Import Cycles
 - 2-file cycle: `src/app/actions/tenant.ts -> src/lib/supabase/session.ts -> src/app/actions/tenant.ts`
@@ -185,135 +191,131 @@
 - **** — docs_plano_correcao_ai_pipeline_entity, docs_plano_correcao_idempotency_entity, docs_plano_correcao_llm_cost_entity, docs_plano_correcao_frontend_tests_entity [EXTRACTED 1.00]
 - **** — docs_plano_implementacao_phase1_entity, docs_plano_implementacao_phase2_entity, docs_plano_implementacao_phase3_entity, docs_plano_implementacao_phase4_entity, docs_plano_implementacao_phase5_entity, docs_plano_implementacao_phase_review_entity [EXTRACTED 1.00]
 
-## Communities (165 total, 55 thin omitted)
+## Communities (171 total, 57 thin omitted)
 
 ### Community 0 - "Input"
-Cohesion: 0.12
-Nodes (28): lookupCnpj(), toggleFornecedorActive(), TenantFormDialog(), AreaForm(), CategoriaForm(), FormValues, FornecedoresClient(), handleToggle() (+20 more)
+Cohesion: 0.10
+Nodes (41): lookupCnpj(), initialState, PLAN_LABEL, TenantFormDialog(), AreaForm(), CategoriaForm(), FormValues, FornecedoresClient() (+33 more)
 
 ### Community 1 - "Componentes de Interface"
-Cohesion: 0.05
-Nodes (56): AreaInfo, BarSeg(), BUCKET_DOT, DashboardActionRow, DashboardClientProps, DeadlineItem, DeadlineKind, DeadlineRow() (+48 more)
+Cohesion: 0.11
+Nodes (30): DistributionCard(), LegendRow(), MiniStat(), SegData, VIEW_OPTIONS, ViewMode, BreadcrumbEllipsis(), CardFooter (+22 more)
 
 ### Community 2 - "tenants/page.tsx"
-Cohesion: 0.09
-Nodes (54): toggleAreaActive, deleteNotification(), getTenantMembers(), AdminNotificationsPage(), Field(), init, AdminTenantsPage(), initialState (+46 more)
+Cohesion: 0.15
+Nodes (37): getTenantMembers(), AdminNotificationsPage(), Field(), init, AdminTenantsPage(), MemberManager(), loadMembers(), reload() (+29 more)
 
 ### Community 3 - "Financeiro e React"
-Cohesion: 0.08
-Nodes (57): getResumoContas(), ResetPasswordPage(), renderCard(), Anual(), diasAteVencer(), FinanceiroClient(), MESES, MESES_FULL (+49 more)
+Cohesion: 0.12
+Nodes (39): AuthPage(), renderCard(), Kpi(), FarolIcon(), metadata, Params, PublicDashboard(), CatalogTable() (+31 more)
 
 ### Community 4 - "react"
 Cohesion: 0.09
-Nodes (49): class-variance-authority, react, AdminFormState, login(), signup(), updatePassword(), AuthPage(), initialState (+41 more)
+Nodes (43): changePassword(), login(), signup(), updatePassword(), updateProfile(), initialState, ResetPasswordPage(), initialState (+35 more)
 
 ### Community 5 - "Dashboard e Calendário"
 Cohesion: 0.08
 Nodes (58): processUnsentAlerts, Apify, calculateSeverity, Ciclo obrigatório de implementação e qualidade, Padrões obrigatórios de código, Contratos de qualidade e segurança, Motor correlate, Cypress (+50 more)
 
 ### Community 6 - "Importação de Planos"
-Cohesion: 0.05
-Nodes (54): dependencies, aws4fetch@^1.0.20, class-variance-authority@^0.7.1, clsx@^2.1.1, date-fns@^4.1.0, @dnd-kit/core@^6.3.1, @dnd-kit/sortable@^10.0.0, @dnd-kit/utilities@^3.2.2 (+46 more)
+Cohesion: 0.06
+Nodes (31): dependencies, aws4fetch@^1.0.20, class-variance-authority@^0.7.1, date-fns@^4.1.0, @dnd-kit/core@^6.3.1, dompurify@^3.4.18, isomorphic-dompurify@^2.36.0, lucide-react@^1.14.0 (+23 more)
 
 ### Community 7 - "Monitoramento e Testes"
-Cohesion: 0.11
-Nodes (51): activateUser(), ADMIN_ASSIGNABLE_ROLES, AreaOption, assertCanManageUser(), auditLog(), AuditLogEntry, BUILTIN_ROLES, bulkDeleteUsers() (+43 more)
+Cohesion: 0.10
+Nodes (50): activateUser(), ADMIN_ASSIGNABLE_ROLES, AdminFormState, AreaOption, assertCanManageUser(), auditLog(), AuditLogEntry, BUILTIN_ROLES (+42 more)
 
 ### Community 8 - "Dependências do Projeto"
-Cohesion: 0.06
-Nodes (71): xlsx, getCurrentUserPlanScope(), POST(), POST(), CalendarioEmpty(), CalendarioPage(), isFilterKind(), metadata (+63 more)
+Cohesion: 0.10
+Nodes (41): xlsx, POST(), POST(), ACCEPTED_EXTS, FileRow(), FileValidation, safeJson(), Step (+33 more)
 
 ### Community 9 - "Carregamento e Skeletons"
-Cohesion: 0.08
-Nodes (26): assignCompaniesSchema, assignCompaniesToUnit(), companySchema, deleteCompany(), getCompanies(), readForm(), upsertCompany(), CHANCE_BADGES (+18 more)
+Cohesion: 0.09
+Nodes (17): CHANCE_BADGES, CompaniesClient(), CompanyForm(), CompanySortKey, Field(), init, Field(), init (+9 more)
 
 ### Community 10 - "Catálogos Administrativos"
 Cohesion: 0.08
-Nodes (38): admin/loading.tsx com PageLoading, Auth, desativação de conta e restrição de horário no proxy, Correções concluídas de tabela, formulário, filtros, calendário e sugestão por IA, Filtros Tipo PA e Macro Ação afetando totais do dashboard, SkeletonHeader, SkeletonTable e PageLoading em @/components/ui/loading, Unificação dos modelos de loading, Configuração de redirects em next.config.ts, Redirects permanentes de /plano para /planos (+30 more)
+Nodes (37): admin/loading.tsx com PageLoading, Auth, desativação de conta e restrição de horário no proxy, Correções concluídas de tabela, formulário, filtros, calendário e sugestão por IA, Filtros Tipo PA e Macro Ação afetando totais do dashboard, SkeletonHeader, SkeletonTable e PageLoading em @/components/ui/loading, Unificação dos modelos de loading, Configuração de redirects em next.config.ts, Redirects permanentes de /plano para /planos (+29 more)
 
 ### Community 11 - "Documentação e Deploy"
-Cohesion: 0.08
-Nodes (56): Para desfazer, Para desfazer, buildItemTree(), bulkUpdateStatus(), clonePlanWithDateShift(), createPlan(), deleteItem(), deletePlan() (+48 more)
+Cohesion: 0.10
+Nodes (36): Para desfazer, Para desfazer, buildItemTree(), bulkUpdateStatus(), fetchPlanItems(), getAuditLog(), getItems(), getPlanItemsBundle() (+28 more)
 
 ### Community 12 - "Administração Supabase"
 Cohesion: 0.05
 Nodes (46): Planos 5W2H — What, Why, Where, Who, When, How Much e How, Restrição de horário de login por usuário, Comentários por item de ação, Admin panel para usuários, tenants e permissões, API Reference — docs/API-REFERENCE.md — Server Actions, Auth e exemplos, Arquitetura — docs/ARQUITETURA.md, Upload de anexos de imagem, PDF e Excel, Autenticação por email e senha com reset e confirmação (+38 more)
 
 ### Community 13 - "Financeiro e Anexos"
-Cohesion: 0.12
-Nodes (31): checkPermission(), AccountAccessStatus, getRequesterScope(), log, manageableUserIds(), repointActiveTenant(), RequesterScope, tenantsWithSingleOwner() (+23 more)
+Cohesion: 0.18
+Nodes (27): checkPermission(), createRole(), deleteRole(), getCurrentUserPermissions(), getUserImpact(), loadCustomRolesMap(), updateRole(), getAccountAccessStatus() (+19 more)
 
 ### Community 14 - "plan-form-dialog.tsx"
-Cohesion: 0.35
-Nodes (11): getTemplates(), Modal(), Msg(), PlanFormDialog(), buildOfficialPlanHeader(), getPlanFormProgress(), normalizePlanFormValue(), PlanFormDraft (+3 more)
+Cohesion: 0.10
+Nodes (33): ActionItemInsert, addComment(), commentSchema, copyPlan(), createPlanFromTemplate(), createPublicLink(), deleteComment(), deletePublicLink() (+25 more)
 
 ### Community 15 - "Gestão de Usuários"
 Cohesion: 0.05
 Nodes (43): Comentários por item de ação, Upload de anexos em itens de ação, Remoção de plano meio-órfão no upload em lote, Slug de empresa único, gerado no servidor e imutável, Kanban drag-and-drop com @dnd-kit/core, Mapeamento de vocabulário alternativo de status FAROL, Gráfico de Gantt SVG com zoom mês, trimestre e ano, Permissão plans.update na rota /api/plans/[id]/import (+35 more)
 
-### Community 16 - "Validação e Formatação"
-Cohesion: 0.09
-Nodes (28): @supabase/ssr, ActionItemInsert, commentSchema, copyPlan(), createPlanFromTemplate(), GET(), findUnitForTenantByName(), normalizeUnitName() (+20 more)
+### Community 16 - "server.ts"
+Cohesion: 0.08
+Nodes (31): @supabase/ssr, crud, deleteArea, log, updateAreaRegionalContext(), upsertArea, CatalogCrudConfig, CrudResult (+23 more)
 
 ### Community 17 - "sanitizeText"
-Cohesion: 0.11
-Nodes (40): crud, deleteArea, getAreasAdmin(), log, updateAreaRegionalContext(), upsertArea, CatalogCrudConfig, createCatalogCrud() (+32 more)
+Cohesion: 0.12
+Nodes (31): getAreasAdmin(), createCatalogCrud(), delete_(), getAll(), requireScopeTenant(), toggleActive(), upsert(), db() (+23 more)
 
 ### Community 18 - "Testes de Planos"
-Cohesion: 0.09
-Nodes (36): createRole(), deleteRole(), getRoles(), RoleFormState, RoleRow, updateRole(), AdminNav(), AdminLayout() (+28 more)
+Cohesion: 0.10
+Nodes (35): getRoles(), RoleFormState, RoleRow, AdminNav(), allLinks, NavLink, AdminLayout(), checkAdminAccess() (+27 more)
 
 ### Community 19 - "Formulário de Ações"
 Cohesion: 0.07
 Nodes (36): Gestão administrativa de contexto regional e documentos, Base de Conhecimento IA e Inteligência Regional — Versão 2.1, Base de conhecimento proprietária knowledge_base, Contexto Local de Execução no prompt do Claude, Busca semântica RAG com pgvector, regional_context JSONB em units e areas, Motor de sugestão contextual suggest5W2H, Clonagem clonePlanWithDateShift e targetTenantId (+28 more)
 
 ### Community 20 - "contas-pagar-client.tsx"
-Cohesion: 0.06
-Nodes (52): getItemBasicsForConta(), addMonths(), ContaForm(), adicionarParcela(), ajustarUltimaParaBaterTotal(), aplicarPreset(), atualizarParcela(), gerarParcelas() (+44 more)
+Cohesion: 0.08
+Nodes (44): ContaDetalheClient(), confirmarEstorno(), handleBatchPay(), handleCancel(), refresh(), addMonths(), ContaForm(), adicionarParcela() (+36 more)
 
 ### Community 21 - "vitest"
 Cohesion: 0.10
-Nodes (10): @testing-library/react, vitest, createTenantSchema, CreateTenantValues, areas, units, {
-  clonePlanWithDateShiftMock,
-  copyPlanMock,
-  getUserTenantsMock,
-}, { rateLimitMock, createClientMock } (+2 more)
+Nodes (13): @testing-library/react, vitest, BudgetHealthBar(), BudgetHealthBarProps, CopyPlanButtonProps, PlanQuickActions(), Props, plan (+5 more)
 
 ### Community 22 - "Navegação e Tenant"
-Cohesion: 0.15
-Nodes (24): countBy(), init, PlanosPage(), BudgetHealthBar(), CopyPlanButtonProps, Props, buildMacroActionOptions(), collectItemClassificationOptions() (+16 more)
+Cohesion: 0.10
+Nodes (42): clonePlanWithDateShift(), createPlan(), deleteItem(), deletePlan(), duplicateItem(), logAudit(), quickUpdateItemAction(), resolveMacroActionGroupId() (+34 more)
 
 ### Community 23 - "Página de Planos"
-Cohesion: 0.09
-Nodes (44): ANEXO_ALLOWED_MIMES, cancelarConta(), createConta(), deleteAnexo(), deleteConta(), deriveContaDerived(), estornarPagamento(), getAnexoUrl() (+36 more)
+Cohesion: 0.06
+Nodes (54): ANEXO_ALLOWED_MIMES, cancelarConta(), getCategoriasDespesa(), createConta(), deleteAnexo(), deleteConta(), deriveContaDerived(), estornarPagamento() (+46 more)
 
 ### Community 24 - "Papéis e Permissões"
-Cohesion: 0.08
-Nodes (38): getAiModelsForPlan(), RegionalContext, suggest5W2H(), UnitRegionalData, changePassword(), getLlmSettings(), invalidBaseUrl(), LlmFormState (+30 more)
+Cohesion: 0.10
+Nodes (35): getAiModelsForPlan(), RegionalContext, suggest5W2H(), UnitRegionalData, getLlmSettings(), invalidBaseUrl(), LlmFormState, LlmSettingsPublic (+27 more)
 
 ### Community 25 - "Unit"
-Cohesion: 0.27
-Nodes (14): RegionalContextFormProps, ItemFormDialogProps, PlanFormDialogProps, buildUnitPreview(), findAreaByName(), findUnitByName(), normalizeCatalogValue(), PlanItemUnitPreview (+6 more)
+Cohesion: 0.16
+Nodes (25): getItemAuditLog(), RegionalContextFormProps, ItemFormDialog(), ItemFormDialogProps, Modal(), Msg(), formatAuditEntryDate(), getAuditEntryMarker() (+17 more)
 
 ### Community 26 - "Cliente Supabase"
 Cohesion: 0.09
 Nodes (19): {{ .ConfirmationURL }}, {{ .Email }}, Confirmation Email Template, Email Change Template, {{ .NewEmail }}, Invite Email Template, Magic Link Email Template, Password Changed Notification Template (+11 more)
 
 ### Community 27 - "(protected)/layout.tsx"
-Cohesion: 0.35
-Nodes (11): @supabase/supabase-js, getCurrentTenant(), getUserTenants(), dynamic, getSessionData(), ProtectedLayout(), ToastProvider(), getSessionCustomRoles (+3 more)
+Cohesion: 0.38
+Nodes (10): getCurrentTenant(), getUserTenants(), dynamic, getSessionData(), ProtectedLayout(), ToastProvider(), getSessionCustomRoles, getSessionProfile (+2 more)
 
 ### Community 28 - "getUnitsAdmin"
 Cohesion: 0.26
 Nodes (10): getInstituicao(), getUnitsAdmin(), EditarInstituicaoPage(), generateMetadata(), Props, generateMetadata(), InstituicaoDetailPage(), Props (+2 more)
 
 ### Community 29 - "Configuração de IA"
-Cohesion: 0.06
-Nodes (32): eslintConfig, devDependencies, eslint@^9, eslint-config-next@^16.4.6, husky@^9.1.7, jsdom@^29.1.1, lint-staged@^15.4.3, pino-pretty@^13.1.3 (+24 more)
+Cohesion: 0.07
+Nodes (27): devDependencies, husky@^9.1.7, jsdom@^29.1.1, lint-staged@^15.4.3, pino-pretty@^13.1.3, tailwindcss@^4, @tailwindcss/postcss@^4, @testing-library/jest-dom@^6.9.1 (+19 more)
 
 ### Community 30 - "Tabela de Planos"
-Cohesion: 0.10
-Nodes (23): ItemContasSummary, countItems(), EditRow(), paginate(), PlanTable(), collect(), flattenVisible(), PlanTableProps (+15 more)
+Cohesion: 0.09
+Nodes (27): ItemContasSummary, countItems(), EditRow(), paginate(), PlanTable(), collect(), flattenVisible(), PlanTableProps (+19 more)
 
 ### Community 31 - "Templates de Email"
 Cohesion: 0.08
@@ -324,8 +326,8 @@ Cohesion: 0.09
 Nodes (26): Tabela action_items, Migration 004: action_plan_5w2h, Tabela action_plans, Backup como pré-condição de rollback, Rollback Migration 004 — action_plan_5w2h, Grants, Procedimento manual de rollback da migration 004, Políticas RLS (+18 more)
 
 ### Community 33 - "Ações de Benchmarking"
-Cohesion: 0.12
-Nodes (22): daysBetween(), formatMonthYear(), GanttChart(), getBarColor(), statusColors, Zoom, columns, DraggableCard() (+14 more)
+Cohesion: 0.14
+Nodes (20): daysBetween(), formatMonthYear(), GanttChart(), getBarColor(), statusColors, Zoom, columns, DraggableCard() (+12 more)
 
 ### Community 34 - "Usuários e Empresas"
 Cohesion: 0.15
@@ -344,40 +346,40 @@ Cohesion: 0.11
 Nodes (16): public.cancelar_conta(), public.excluir_conta(), public.update_conta_with_parcelas(), public.resumo_contas(), auth.users, public.action_items, public.action_plans, public.conta_attachments (+8 more)
 
 ### Community 38 - "attachments.ts"
-Cohesion: 0.24
-Nodes (15): ALLOWED_MIMES, deleteAttachment(), getAttachments(), getAttachmentUrl(), uploadAttachment(), AttachmentSection(), formatSize(), isImage() (+7 more)
+Cohesion: 0.22
+Nodes (16): ALLOWED_MIMES, deleteAttachment(), getAttachments(), getAttachmentUrl(), uploadAttachment(), uploadAnexoConta(), AttachmentSection(), formatSize() (+8 more)
 
 ### Community 39 - "Benchmarking no Banco"
-Cohesion: 0.17
-Nodes (17): logout(), FontControl(), getStoredScale(), Navbar(), handleLogout(), NavbarProps, TenantSwitcher(), TenantSwitcherProps (+9 more)
+Cohesion: 0.11
+Nodes (27): logout(), markAsRead(), NotificationItem, humanAction(), metadata, MiniStat(), ProfilePage(), ROLE_LABEL (+19 more)
 
-### Community 40 - "Button"
-Cohesion: 0.12
-Nodes (18): createPublicLink(), deletePublicLink(), getPublicLinks(), PendentePage(), ExportCsv(), flattenItems(), PlanQuickActions(), PlanStats() (+10 more)
+### Community 40 - "lucide-react"
+Cohesion: 0.09
+Nodes (22): lucide-react, react, ProtectedErrorProps, BaseCatalogRow, CatalogHeader(), CatalogHeaderProps, CatalogModalProps, CatalogTableProps (+14 more)
 
 ### Community 41 - "Guia do Desenvolvedor"
 Cohesion: 0.09
 Nodes (24): Modelo contas_pagar e parcelas_pagar, Hierarquia Recursiva de Itens, Modelo action_items, Modelo action_plans, Modelo tenants e profiles, Conta e Autenticação, Administração e Escopos, Anexos (+16 more)
 
 ### Community 42 - "Gestão de Empresas"
-Cohesion: 0.10
-Nodes (41): checkCompetitorWrite(), deleteCorpoDocente(), deleteCursoInstituicao(), deleteInstituicao(), deleteMensalidade(), getCorpoDocente(), getCursosInstituicao(), getCursosSuperiores() (+33 more)
+Cohesion: 0.13
+Nodes (30): mapPgError(), checkCompetitorWrite(), deleteCorpoDocente(), deleteCursoInstituicao(), deleteInstituicao(), deleteMensalidade(), getInstituicoes(), upsertCorpoDocente() (+22 more)
 
 ### Community 43 - "codex advisor artifact"
 Cohesion: 0.09
 Nodes (22): Action items, codex advisor artifact, Concise summary, Debugging, Duration, Examples, Final prompt, Good to know (+14 more)
 
 ### Community 44 - "proxy.ts"
-Cohesion: 0.15
-Nodes (14): logger, Logger, checkAuth(), blockedMessage(), checkProfileRestrictions(), log, ProfileCheckResult, isApiRoute() (+6 more)
+Cohesion: 0.11
+Nodes (14): next, requestCounts, checkAuth(), blockedMessage(), checkProfileRestrictions(), log, ProfileCheckResult, isApiRoute() (+6 more)
 
 ### Community 45 - "CRUD de Catálogos"
 Cohesion: 0.10
 Nodes (22): Documentação Técnica - PlanoCerto, Performance e Checklist de Segurança, Referências Next.js, Supabase, Zod, Tailwind e React 19, Server Actions por Domínio, Estrutura src e supabase, Regras Estritas React e TypeScript, Troubleshooting Técnico, Validação Zod e React Hook Form (+14 more)
 
 ### Community 46 - "Consultas Financeiras"
-Cohesion: 0.09
-Nodes (20): lucide-react, next, AuthError(), AuthErrorProps, AuthLayout(), ErrorPage(), ErrorPageProps, GlobalError() (+12 more)
+Cohesion: 0.15
+Nodes (14): AuthError(), AuthErrorProps, AuthLayout(), ErrorPage(), ErrorPageProps, GlobalError(), GlobalErrorProps, NotFoundPage() (+6 more)
 
 ### Community 47 - "public.profiles"
 Cohesion: 0.10
@@ -400,12 +402,12 @@ Cohesion: 0.13
 Nodes (20): Fase 2 Pipeline DOU de IA, Fase 0 Baseline, Correção de Build Blocker em Server Actions, Refatorações Grandes Deferidas, Plano de Correção — PlanoCerto, Fase 3 Cobertura Frontend, Idempotência do Pipeline e Alertas, Rotação de Chaves Pendente (+12 more)
 
 ### Community 52 - "Diário Oficial"
-Cohesion: 0.27
-Nodes (10): TenantAwareWrapper(), TenantAwareWrapperProps, TenantContext, TenantContextType, TenantProvider(), TenantProviderProps, Tenant, TenantMember (+2 more)
+Cohesion: 0.16
+Nodes (16): switchTenant(), BUILTIN_PERM_ROLES, INHERIT_GLOBAL_ROLE, SUPER_ADMIN_ONLY_PERM_ROLES, TENANT_ROLES, TenantAwareWrapper(), TenantAwareWrapperProps, TenantContext (+8 more)
 
 ### Community 53 - "Configuração TypeScript"
-Cohesion: 0.19
-Nodes (14): CalendarGrid(), CalendarListView(), CalendarMonthView(), DayCell(), Dot(), ItemRow(), KindFilter(), MONTH_NAMES (+6 more)
+Cohesion: 0.18
+Nodes (14): CalendarDeadlineItem, CalendarGrid(), CalendarMonthView(), DayCell(), Dot(), ItemRow(), KindFilter(), MONTH_NAMES (+6 more)
 
 ### Community 54 - "Catálogo de Prioridades"
 Cohesion: 0.11
@@ -423,13 +425,13 @@ Nodes (18): Auth JWT e Sessões, Fluxo de Autenticação e Request Autenticado, 
 Cohesion: 0.11
 Nodes (18): Aceite dos Termos, Criação e Responsabilidades da Conta, Contato dos Termos, Definições de Plataforma, Usuário, Conta, Dados, Tenant e Empresa, Termos de Uso - PlanoCerto, Força Maior, Indenização, Propriedade Intelectual da Plataforma (+10 more)
 
-### Community 58 - "actions/catalog.ts"
-Cohesion: 0.19
-Nodes (12): getChannels(), getPrioridades(), getUnits(), EmpresasPage(), metadata, EscolasPage(), metadata, metadata (+4 more)
+### Community 58 - "package.json"
+Cohesion: 0.09
+Nodes (21): clsx@^2.1.1, @dnd-kit/sortable@^10.0.0, @hookform/resolvers@^5.2.2, pino@^9.14.0, @radix-ui/react-slot@^1.2.4, react-dom@19.2.4, react-hook-form@^7.75.0, validator@^13.15.0 (+13 more)
 
-### Community 59 - "unidades-client.tsx"
-Cohesion: 0.13
-Nodes (29): getCategoriasDespesa(), CategoriasDespesaPage(), metadata, CatalogCard, CatalogosPage(), dictionaries, metadata, registries (+21 more)
+### Community 59 - "Badge"
+Cohesion: 0.09
+Nodes (40): class-variance-authority, toggleAreaActive, CatalogCard, CatalogosPage(), dictionaries, metadata, registries, PageHeader() (+32 more)
 
 ### Community 60 - "Ações de Catálogo"
 Cohesion: 0.13
@@ -440,12 +442,12 @@ Cohesion: 0.14
 Nodes (17): Server Actions e Revalidação, API de Autenticação, Comandos npm e Git, Referência do Banco, Debug e Logs, Deploy VPS com Cloudflare, Guia Rápido - PlanoCerto, Variáveis de Ambiente (+9 more)
 
 ### Community 62 - "Macro Ações"
-Cohesion: 0.13
-Nodes (14): Claude Security, Claude Security, git status, Handoff automático — 2026-11-18T13:02:12, The front-desk menu, The front-desk menu, Trecho recente da conversa (texto, redigido), ActionRow (+6 more)
+Cohesion: 0.24
+Nodes (8): @supabase/supabase-js, ActionRow, adminClient, DOCS_DIR, main(), parseExcel(), PlanHeader, slugify()
 
-### Community 63 - "fornecedores.ts"
-Cohesion: 0.11
-Nodes (26): zod, BrasilApiCnpj, CnpjLookupResult, getFornecedores(), FornecedoresPage(), metadata, ContasPagarPage(), metadata (+18 more)
+### Community 63 - "financeiro-client.tsx"
+Cohesion: 0.23
+Nodes (14): Anual(), diasAteVencer(), FinanceiroClient(), MESES, MESES_FULL, PorFornecedor(), PorStatus(), rangeDoMes() (+6 more)
 
 ### Community 64 - "Seleção de Período"
 Cohesion: 0.15
@@ -464,24 +466,24 @@ Cohesion: 0.14
 Nodes (13): auth.users, pg_temp.expect(), public.action_items, public.action_plans, public.conta_attachments, public.contas_pagar, public.is_super_admin(), public.parcelas_pagar (+5 more)
 
 ### Community 68 - "Ações Rápidas"
-Cohesion: 0.17
-Nodes (20): deleteScenario(), getScenarioMetrics(), getScenarios(), metricSchema, scenarioSchema, upsertMetric(), upsertScenario(), ConvCell() (+12 more)
+Cohesion: 0.10
+Nodes (31): getChannels(), getPrioridades(), getUnits(), deleteScenario(), getScenarioMetrics(), getScenarios(), metricSchema, scenarioSchema (+23 more)
 
 ### Community 69 - "Gráficos do Dashboard"
 Cohesion: 0.19
 Nodes (10): DateRangePicker(), applyPreset(), commit(), openPanel(), DateRangePickerProps, MONTH_NAMES, parseIso(), Preset() (+2 more)
 
-### Community 70 - "actions/auth.ts"
-Cohesion: 0.10
-Nodes (27): sendRecoveryEmail(), resetPassword(), updateProfile(), AuthEmailKind, brand, buildAuthEmail(), renderLayout(), itemCompletedEmail() (+19 more)
+### Community 70 - "email.ts"
+Cohesion: 0.18
+Nodes (13): sendRecoveryEmail(), resetPassword(), AuthEmailKind, brand, buildAuthEmail(), renderLayout(), itemCompletedEmail(), itemCreatedEmail() (+5 more)
 
 ### Community 71 - "Layout e Tema"
-Cohesion: 0.23
-Nodes (12): crud, deleteMacroAcao, getMacroAcoesAdmin, toggleMacroAcaoActive, upsertMacroAcao, MacroAcoesPage(), metadata, FormValues (+4 more)
+Cohesion: 0.17
+Nodes (16): crud, deleteMacroAcao, getMacroAcoesAdmin, toggleMacroAcaoActive, upsertMacroAcao, MacroAcoesPage(), metadata, FormValues (+8 more)
 
 ### Community 72 - "schools.ts"
-Cohesion: 0.12
-Nodes (16): assignSchoolsSchema, getSchools(), readForm(), schoolSchema, upsertSchool(), handleAssign(), AppError, AppErrorCode (+8 more)
+Cohesion: 0.11
+Nodes (21): assignCompaniesSchema, assignCompaniesToUnit(), companySchema, deleteCompany(), getCompanies(), readForm(), upsertCompany(), assignSchoolsSchema (+13 more)
 
 ### Community 73 - "Modal de Ajuda"
 Cohesion: 0.23
@@ -495,13 +497,13 @@ Nodes (12): API Reference, Checklist de Integração da Ajuda, getDocContent em 
 Cohesion: 0.21
 Nodes (8): next-themes@^0.4.6, next-themes, manrope, metadata, outfit, RootLayout(), Footer(), APP_VERSION
 
-### Community 76 - "Melhorias de Planos"
-Cohesion: 0.24
-Nodes (9): createNotification(), createNotificationSchema, getNotifications(), getUnreadCount(), markAsRead(), NotificationFormState, NotificationItem, NotificationBell() (+1 more)
+### Community 76 - "createClient"
+Cohesion: 0.09
+Nodes (24): getCorpoDocente(), getCursosInstituicao(), getCursosSuperiores(), getInstituicaoFullDetail(), getMensalidades(), getModalidades(), getTiposPa(), getTurnos() (+16 more)
 
 ### Community 77 - "validation/sanitize.ts"
-Cohesion: 0.14
-Nodes (14): itemSchema, planSchema, nome(), CategoriaDespesaFormValues, categoriaDespesaSchema, ContaPagarFormValues, contaPagarSchema, PagamentoFormValues (+6 more)
+Cohesion: 0.09
+Nodes (21): zod, ParcelaRowEditableProps, itemSchema, planSchema, nome(), CategoriaDespesaFormValues, categoriaDespesaSchema, ContaPagarFormValues (+13 more)
 
 ### Community 78 - "Termos de Uso"
 Cohesion: 0.35
@@ -511,9 +513,9 @@ Nodes (9): buildDuplicatedRows(), collectSubtree(), walk(), collectSubtreeIds(),
 Cohesion: 0.10
 Nodes (20): codex advisor artifact, Debugging, Duration, Examples, Final prompt, Good to know, In Route Handlers and Server Functions, In Server Components (pages and layouts) (+12 more)
 
-### Community 80 - "help/page.tsx"
-Cohesion: 0.16
-Nodes (17): HelpPage(), QUICK_GUIDE_FEATURES, TOPIC_CARDS, CardDescription, DocsViewerProps, Tabs(), TabsContent(), TabsContentProps (+9 more)
+### Community 80 - "dashboard-client.tsx"
+Cohesion: 0.07
+Nodes (42): HelpPage(), QUICK_GUIDE_FEATURES, TOPIC_CARDS, AreaInfo, BarSeg(), BUCKET_DOT, DashboardActionRow, DashboardClient() (+34 more)
 
 ### Community 81 - "Detalhes de Benchmarking"
 Cohesion: 0.25
@@ -528,20 +530,20 @@ Cohesion: 0.13
 Nodes (18): crud, deleteTipoPA, getTiposPA, toggleTipoPAActive, upsertTipoPA, metadata, TiposPaPage(), FormValues (+10 more)
 
 ### Community 84 - "prioridades-client.tsx"
-Cohesion: 0.19
+Cohesion: 0.18
 Nodes (14): crud, deletePrioridade, getPrioridadesAdmin, parsePayload(), togglePrioridadeActive, upsertPrioridade, metadata, PrioridadesPage() (+6 more)
 
 ### Community 85 - "Correções e IA"
 Cohesion: 0.28
 Nodes (8): Header compacto de plano, Stats Bar compacta, Tabela compacta com detalhes expansíveis, Escala consistente de tipografia, gaps e padding, Revisão de Layout — Página de Planos Versão 2.0, Filtros em card dedicado, Card View para mobile, Responsividade e hierarquia visual existentes
 
-### Community 86 - "item-form-dialog.tsx"
-Cohesion: 0.26
-Nodes (13): getItemAuditLog(), ItemFormDialog(), Modal(), Msg(), formatAuditEntryDate(), getAuditEntryMarker(), getAuditEntrySummary(), getAuditEntryTone() (+5 more)
+### Community 86 - "validations/auth.ts"
+Cohesion: 0.18
+Nodes (13): ChangePasswordFormValues, changePasswordSchema, fullName, LoginFormValues, loginSchema, ProfileFormValues, profileSchema, RegisterFormValues (+5 more)
 
 ### Community 87 - "Convenções de Migrations"
-Cohesion: 0.25
-Nodes (3): AreaUnitFilter(), areaState(), toggleArea()
+Cohesion: 0.18
+Nodes (5): AreaUnitFilter(), areaState(), toggleArea(), areas, units
 
 ### Community 88 - "Configuração de Build"
 Cohesion: 0.24
@@ -567,9 +569,9 @@ Nodes (4): idx_admin_audit_log_admin_id, idx_admin_audit_log_created_at, idx_adm
 Cohesion: 0.22
 Nodes (13): idx_user_areas_area, idx_user_areas_tenant, idx_user_areas_user, idx_user_units_tenant, idx_user_units_unit, idx_user_units_user, public.user_area_ids(), public.user_areas (+5 more)
 
-### Community 94 - "lib/sanitize.ts"
-Cohesion: 0.27
-Nodes (8): addComment(), deleteComment(), getComments(), Comment, CommentSection(), fmtRelative(), isValidUrl(), sanitizeRecord()
+### Community 94 - "dashboard/page.tsx"
+Cohesion: 0.19
+Nodes (11): accBreakdown(), AreaInfo, DashboardActionRow, DashboardPage(), DeadlineItem, DeadlineKind, metadata, norm() (+3 more)
 
 ### Community 95 - "Configuração ESLint"
 Cohesion: 0.38
@@ -583,9 +585,9 @@ Nodes (8): auth.users, pg_temp.expect_denied(), public.is_super_admin(), public.
 Cohesion: 0.25
 Nodes (4): nextConfig, projectRoot, @vitejs/plugin-react@^6.0.1, @vitejs/plugin-react
 
-### Community 99 - "Escolas no Banco"
-Cohesion: 0.40
-Nodes (5): AuthState, Profile, ProfileWithTenants, User, UserRole
+### Community 99 - "users/page.tsx"
+Cohesion: 0.32
+Nodes (7): manageableUserIds(), AdminUsersPage(), fetchUsers(), metadata, PageResult, Profile, ProfileWithTenants
 
 ### Community 100 - "public.tenants"
 Cohesion: 0.20
@@ -619,17 +621,33 @@ Nodes (3): Cancelamento e Exclusão de Conta, Interrupção de Serviço, Políti
 Cohesion: 0.67
 Nodes (3): Circular Globe Outline, Globe Icon, Latitude and Longitude Grid
 
-### Community 109 - "unread/route.ts"
-Cohesion: 0.40
-Nodes (3): GET(), headers, { createClientMock }
+### Community 109 - "dashboard-access.ts"
+Cohesion: 0.33
+Nodes (8): filterAreasByScope(), filterByUnitIds(), filterUnitsByScope(), isScoped(), ScopableUnit, UserScope, areas, units
 
-### Community 156 - "painel/page.tsx"
-Cohesion: 0.50
-Nodes (4): AdminPainelPage(), Kpi(), metadata, PLAN_BADGE
+### Community 156 - "detail-table.tsx"
+Cohesion: 0.29
+Nodes (7): columns, DetailRow, DetailTable(), Insight(), ProgressBar(), SortKey, UnitRow()
 
 ### Community 157 - "Rollback da 084_macro_acao_normalizacao"
 Cohesion: 0.50
 Nodes (3): Antes de aplicar em produção, Para desfazer, Rollback da 084_macro_acao_normalizacao
+
+### Community 165 - "latest.md"
+Cohesion: 0.25
+Nodes (7): Claude Security, Claude Security, git status, Handoff automático — 2026-11-18T13:02:12, The front-desk menu, The front-desk menu, Trecho recente da conversa (texto, redigido)
+
+### Community 166 - "calendario/page.tsx"
+Cohesion: 0.39
+Nodes (7): getCurrentUserPlanScope(), CalendarioEmpty(), CalendarioPage(), isFilterKind(), metadata, norm(), DeadlineKind
+
+### Community 167 - "errors.ts"
+Cohesion: 0.38
+Nodes (5): AppError, AppErrorCode, FormState, getErrorMessage(), isRetryable()
+
+### Community 168 - "eslint.config.mjs"
+Cohesion: 0.33
+Nodes (5): eslintConfig, eslint@^9, eslint-config-next@^16.4.6, eslint, eslint-config-next
 
 ## Ambiguous Edges - Review These
 - `Erro getContasPagar Supabase vazio` → `Usuário Não Autenticado`  [AMBIGUOUS]
@@ -643,22 +661,22 @@ Nodes (3): Antes de aplicar em produção, Para desfazer, Rollback da 084_macro_
 
 ## Knowledge Gaps
 - **286 isolated node(s):** `Tabela contas_pagar`, `Checklist de QA funcional, segurança, performance e edge cases`, `Roadmap de auditoria, alertas, exportação e integração bancária`, `Permissões financeiras, RLS e sanitização de busca`, `Validações Zod de contas, parcelas e pagamentos` (+281 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 951 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **55 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 953 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **57 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `next` connect `Consultas Financeiras` to `Input`, `Componentes de Interface`, `tenants/page.tsx`, `Financeiro e React`, `react`, `Importação de Planos`, `Monitoramento e Testes`, `Dependências do Projeto`, `Carregamento e Skeletons`, `Documentação e Deploy`, `Financeiro e Anexos`, `plan-form-dialog.tsx`, `Validação e Formatação`, `sanitizeText`, `Testes de Planos`, `contas-pagar-client.tsx`, `Navegação e Tenant`, `Página de Planos`, `Papéis e Permissões`, `(protected)/layout.tsx`, `painel/page.tsx`, `getUnitsAdmin`, `Tabela de Planos`, `attachments.ts`, `Benchmarking no Banco`, `Button`, `Gestão de Empresas`, `proxy.ts`, `Diário Oficial`, `Configuração TypeScript`, `unidades-client.tsx`, `fornecedores.ts`, `Ações Rápidas`, `actions/auth.ts`, `Layout e Tema`, `schools.ts`, `Revisão Financeira`, `Melhorias de Planos`, `Detalhes de Benchmarking`, `tipos-pa-client.tsx`, `prioridades-client.tsx`, `next.config.ts`, `unread/route.ts`?**
-  _High betweenness centrality (0.075) - this node is a cross-community bridge._
+- **Why does `cn()` connect `Componentes de Interface` to `Input`, `tenants/page.tsx`, `Financeiro e React`, `react`, `Monitoramento e Testes`, `Dependências do Projeto`, `Carregamento e Skeletons`, `Catálogos Administrativos`, `plan-form-dialog.tsx`, `Testes de Planos`, `contas-pagar-client.tsx`, `vitest`, `Navegação e Tenant`, `Unit`, `(protected)/layout.tsx`, `detail-table.tsx`, `Tabela de Planos`, `Ações de Benchmarking`, `Benchmarking no Banco`, `lucide-react`, `Consultas Financeiras`, `Configuração TypeScript`, `Badge`, `financeiro-client.tsx`, `Ações Rápidas`, `Gráficos do Dashboard`, `dashboard-client.tsx`, `Convenções de Migrations`, `Modelos de Domínio`, `Empresas no Banco`?**
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `createClient()` (e.g. with `action-plan-ai.test.ts` and `action-plan-phase3.test.ts`) actually correct?**
   _`createClient()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Tabela contas_pagar`, `Checklist de QA funcional, segurança, performance e edge cases`, `Roadmap de auditoria, alertas, exportação e integração bancária` to the rest of the system?**
   _286 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Input` be split into smaller, more focused modules?**
-  _Cohesion score 0.12307692307692308 - nodes in this community are weakly interconnected._
-- **Why does `cn()` connect `Componentes de Interface` to `Input`, `tenants/page.tsx`, `Financeiro e React`, `react`, `Monitoramento e Testes`, `Dependências do Projeto`, `Carregamento e Skeletons`, `Catálogos Administrativos`, `plan-form-dialog.tsx`, `Testes de Planos`, `contas-pagar-client.tsx`, `Navegação e Tenant`, `(protected)/layout.tsx`, `Tabela de Planos`, `Ações de Benchmarking`, `Benchmarking no Banco`, `Button`, `Gestão de Empresas`, `Consultas Financeiras`, `Configuração TypeScript`, `unidades-client.tsx`, `Ações Rápidas`, `Gráficos do Dashboard`, `Melhorias de Planos`, `help/page.tsx`, `item-form-dialog.tsx`, `Convenções de Migrations`, `Modelos de Domínio`, `Empresas no Banco`?**
-  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+  _Cohesion score 0.09739866908650938 - nodes in this community are weakly interconnected._
+- **Why does `next` connect `proxy.ts` to `Input`, `Financeiro e React`, `react`, `Importação de Planos`, `Monitoramento e Testes`, `Dependências do Projeto`, `Carregamento e Skeletons`, `Documentação e Deploy`, `Financeiro e Anexos`, `plan-form-dialog.tsx`, `server.ts`, `sanitizeText`, `Testes de Planos`, `contas-pagar-client.tsx`, `Navegação e Tenant`, `Página de Planos`, `Papéis e Permissões`, `(protected)/layout.tsx`, `getUnitsAdmin`, `detail-table.tsx`, `Tabela de Planos`, `attachments.ts`, `calendario/page.tsx`, `lucide-react`, `Benchmarking no Banco`, `Gestão de Empresas`, `Consultas Financeiras`, `Diário Oficial`, `Configuração TypeScript`, `package.json`, `Badge`, `financeiro-client.tsx`, `Ações Rápidas`, `Layout e Tema`, `schools.ts`, `Revisão Financeira`, `createClient`, `dashboard-client.tsx`, `Detalhes de Benchmarking`, `tipos-pa-client.tsx`, `prioridades-client.tsx`, `dashboard/page.tsx`, `next.config.ts`, `users/page.tsx`?**
+  _High betweenness centrality (0.055) - this node is a cross-community bridge._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
