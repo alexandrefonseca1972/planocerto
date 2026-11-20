@@ -22,8 +22,12 @@ const envSchema = z.object({
   // Segredo para cifrar a API key do provedor de IA em llm_settings (src/lib/llm-secret.ts).
   LLM_KEY_SECRET: z.union([z.literal(""), z.string().min(32, "LLM_KEY_SECRET precisa de 32+ caracteres (openssl rand -base64 32).")]).optional().default(""),
   RESEND_API_KEY: secret("placeholder-key"),
+  // Cloudflare Email Service (envio de e-mail). Ambos preenchidos = usa Cloudflare em vez do Resend.
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional().default("").transform((v) => v.trim()),
+  CLOUDFLARE_EMAIL_TOKEN: z.string().optional().default("").transform((v) => v.replace(/\s+/g, "")),
   AUTH_EMAIL_FROM: z.string().min(1).default("PlanoCerto <acesso@planocerto.app>"),
-  AUTH_EMAIL_REPLY_TO: z.string().email().optional().default("suporte@planocerto.app"),
+  // E-mails são só de notificação: sem "responder para" por padrão (nenhuma caixa recebe respostas).
+  AUTH_EMAIL_REPLY_TO: z.union([z.literal(""), z.string().email()]).optional().default(""),
   // Cloudflare R2 (anexos). Vazio = anexos indisponíveis (r2.ts lança).
   R2_ACCOUNT_ID: z.string().optional().default(""),
   R2_ACCESS_KEY_ID: z.string().optional().default("").transform((v) => v.replace(/\s+/g, "")),
